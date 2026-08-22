@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ScreenCraft · 高保真交互原型总览</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  body { background: radial-gradient(ellipse at 50% -10%, rgba(47,127,247,.14), transparent 55%), var(--bg); }
+  .cover { max-width: 1160px; margin: 0 auto; padding: 56px 32px 72px; }
+
+  .hero { display: flex; align-items: flex-start; justify-content: space-between; gap: 32px; padding-bottom: 36px; border-bottom: 1px solid var(--border); }
+  .hero-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+  .hero-brand .brand-mark { width: 34px; height: 34px; font-size: 19px; border-radius: var(--r-lg); }
+  .hero-brand b { font-size: 18px; letter-spacing: .02em; }
+  .hero-brand span { font-size: 12px; color: var(--t2); padding-left: 10px; border-left: 1px solid var(--border); }
+  .hero h1 { font-size: 34px; font-weight: 700; letter-spacing: .01em; line-height: 1.3; }
+  .hero h1 em { font-style: normal; background: linear-gradient(90deg, var(--acc), var(--pri)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .hero .sub { margin-top: 12px; font-size: 14px; color: var(--t2); line-height: 1.8; max-width: 560px; }
+  .hero-meta { display: flex; gap: 10px; margin-top: 22px; flex-wrap: wrap; }
+  .hero-meta .tag { height: 26px; padding: 0 12px; }
+  .hero-art { flex: none; width: 380px; height: 216px; border-radius: var(--r-xl); overflow: hidden; border: 1px solid var(--border); box-shadow: var(--sh-lg); }
+
+  .sec-title { display: flex; align-items: center; gap: 10px; margin: 40px 0 18px; font-size: 17px; font-weight: 600; }
+  .sec-title::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+  .sec-title .cnt { font-size: 12px; color: var(--t2); font-weight: 400; }
+
+  .pages { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .pg-card { display: flex; flex-direction: column; gap: 10px; padding: 18px 16px 14px; position: relative; }
+  .pg-card .pg-ico { width: 38px; height: 38px; border-radius: var(--r-lg); background: var(--pri-bg); color: var(--pri); display: grid; place-items: center; }
+  .pg-card.dark .pg-ico { background: rgba(53,224,255,.1); color: var(--acc); }
+  .pg-card h3 { font-size: 14.5px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .pg-card p { font-size: 12px; color: var(--t2); line-height: 1.65; flex: 1; }
+  .pg-card .pg-go { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--pri); opacity: 0; transform: translateX(-4px); transition: all .18s; }
+  .pg-card:hover .pg-go { opacity: 1; transform: none; }
+  .pg-card .surface { position: absolute; top: 14px; right: 14px; }
+
+  .tokens { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .token-card { padding: 16px; }
+  .token-card h4 { font-size: 13px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 7px; }
+  .swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+  .sw { display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--t2); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 4px 8px; }
+  .sw i { width: 16px; height: 16px; border-radius: 3px; border: 1px solid rgba(255,255,255,.12); }
+  .type-demo { display: flex; flex-direction: column; gap: 8px; font-size: 12px; color: var(--t2); }
+  .type-demo .num { font-size: 22px; color: var(--t1); }
+  .comp-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  .foot { margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; font-size: 12px; color: var(--t2); }
+  @media (max-width: 1000px) { .pages { grid-template-columns: repeat(2, 1fr); } .tokens { grid-template-columns: 1fr; } .hero { flex-direction: column; } }
+</style>
+</head>
+<body data-page="index">
+<div class="cover">
+
+  <header class="hero">
+    <div>
+      <div class="hero-brand">
+        <span class="brand-mark">S</span><b>ScreenCraft</b><span>大屏配置平台</span>
+      </div>
+      <h1>高保真交互原型 <em>v1.0</em><br>设计稿 · 交付 Cursor 开发</h1>
+      <p class="sub">本原型覆盖 ScreenCraft v1 全部核心页面，采用「管理端浅色 + 编辑器/运行时深色」双界面体系，
+        内置 Mock 数据与 API 桩层，所有交互均可点击体验。请从下方任一页面开始预览。</p>
+      <div class="hero-meta">
+        <span class="tag tag-acc">8 个页面</span>
+        <span class="tag">双界面设计体系</span>
+        <span class="tag">纯静态 · 离线可开</span>
+        <span class="tag tag-info">技术栈目标：Vue3 + Pinia + TS + ECharts</span>
+      </div>
+    </div>
+    <div class="hero-art" id="heroArt"></div>
+  </header>
+
+  <div class="sec-title"><i data-icon="layout-grid" data-size="17"></i>页面导航 <span class="cnt">点击进入</span></div>
+  <div class="pages">
+
+    <a class="card card-hover pg-card" href="login.html">
+      <span class="surface tag tag-info">浅色</span>
+      <div class="pg-ico"><i data-icon="key-round" data-size="19"></i></div>
+      <h3>登录页</h3>
+      <p>左插画右表单，表单校验、密码可见切换、登录加载态。演示账号 admin / ScreenCraft@2026</p>
+      <span class="pg-go">进入页面 <i data-icon="chevron-right" data-size="13"></i></span>
+    </a>
+
+    <a class="card card-hover pg-card" href="projects.html">
+      <span class="surface tag tag-info">管理端</span>
+      <div class="pg-ico"><i data-icon="folder" data-size="19"></i></div>
+      <h3>项目管理</h3>
+      <p>项目卡片列表：搜索过滤、新建弹窗、重命名、删除二次确认，点击进入大屏列表。</p>
+      <span class="pg-go">进入页面 <i data-icon="chevron-right" data-size="13"></i></span>
+    </a>
+
+    <a class="card card-hover pg-card" href="screens.html">
+      <span class="surface tag tag-info">管理端</span>
+      <div class="pg-ico"><i data-icon="monitor" data-size="19"></i></div>
+      <h3>大屏列表 · 模板库</h3>
+      <p>分类筛选、投放/使用中标记、复制与删除保护；模板库支持公共/个人范围切换。</p>
+      <span class="pg-go">进入页面 <i data-icon="chevron-right" data-size="13"></i></span>
+    </a>
+
+    <a class="card card-hover pg-card dark" href="editor.html">
+      <span class="surface tag tag-acc">深色编辑器</span>
+      <div class="pg-ico"><i data-icon="layers" data-size="19"></i></div>
+      <h3>编辑器（核心）</h3>
+      <p>顶部工具栏 / 页面树 / 组件库四分类 / 可拖拽画布 / 右侧样式·数据·事件三页签 / AI 客服悬浮。</p>
+      <span class="pg-go">进入页面 <i data-icon="chevron-right" data-size="13"></i></span>
+    </a>
+
+    <a class="card card-hover pg-card" href="api-config.html">
+      <span class="surface tag tag-info">管理端</span>
+      <div class="pg-ico"><i data-icon="plug" data-size="19"></i></div>
+      <h3>API 配置</h3>
+      <p>SQL 生成 / 外部接口两种表单、参数表维护、试运行结果预览、被引用时删除保护。</p>
+      <span class="pg-go">进入页面 <i data-icon="chevron-right" data-size="13"></i></span>
+    </a>
+
+    <a class="card card-hover pg-card dark" href="display.html">
+      <span class="surface tag tag-acc">深色运行时</span>
+      <div class="pg-ico"><i data-icon="play" data-size="19"></i></div>
+      <h3>展示页</h3>
+      <p>全屏缩放渲染运行态大屏，右上控制条：截图 / 大屏配置 / 全屏；内置 AI 客服。</p>
+      <span class="pg-go">进入页面 <i data-icon="chevron-right" data-size="13"></i></span>
+    </a>
+
+    <a class="card card-hover pg-card dark" href="display.html?preview=1">
+      <span class="surface tag tag-acc">深色预览</span>
+      <div class="pg-ico"><i data-icon="eye" data-size="19"></i></div>
+      <h3>预览模式</h3>
+      <p>全屏且无控制条，还原「保存并预览」的真实观感，按 Esc 或浏览器返回退出。</p>
+      <span class="pg-go">进入页面 <i data-icon="chevron-right" data-size="13"></i></span>
+    </a>
+
+    <a class="card card-hover pg-card" href="admin.html">
+      <span class="surface tag tag-info">管理端</span>
+      <div class="pg-ico"><i data-icon="settings" data-size="19"></i></div>
+      <h3>管理后台</h3>
+      <p>用户管理（新建/重置密码/启用禁用）与 AI 设置（模型配置 + 知识库文档）。</p>
+      <span class="pg-go">进入页面 <i data-icon="chevron-right" data-size="13"></i></span>
+    </a>
+  </div>
+
+  <div class="sec-title"><i data-icon="sparkles" data-size="17"></i>设计系统摘要 <span class="cnt">完整规范见 UI-SPEC.md</span></div>
+  <div class="tokens">
+    <div class="card token-card">
+      <h4><i data-icon="droplets" data-size="15"></i>色彩 Tokens（深色 / 运行时）</h4>
+      <div class="swatches">
+        <span class="sw"><i style="background:#0D1730"></i>--bg #0D1730</span>
+        <span class="sw"><i style="background:#12203C"></i>--panel #12203C</span>
+        <span class="sw"><i style="background:#16294E"></i>--panel2 #16294E</span>
+        <span class="sw"><i style="background:#2F7FF7"></i>--pri #2F7FF7</span>
+        <span class="sw"><i style="background:#35E0FF"></i>--acc #35E0FF</span>
+      </div>
+      <div class="swatches" style="margin-top:8px">
+        <span class="sw"><i style="background:#22C55E"></i>--ok</span>
+        <span class="sw"><i style="background:#F59E0B"></i>--warn</span>
+        <span class="sw"><i style="background:#EF4444"></i>--err</span>
+      </div>
+    </div>
+    <div class="card token-card">
+      <h4><i data-icon="droplets" data-size="15"></i>色彩 Tokens（浅色 / 管理端）</h4>
+      <div class="swatches">
+        <span class="sw"><i style="background:#F5F7FA"></i>--bg #F5F7FA</span>
+        <span class="sw"><i style="background:#FFFFFF"></i>--panel #FFF</span>
+        <span class="sw"><i style="background:#E4E7ED"></i>--border #E4E7ED</span>
+        <span class="sw"><i style="background:#303133"></i>--t1 #303133</span>
+        <span class="sw"><i style="background:#909399"></i>--t2 #909399</span>
+      </div>
+      <p style="font-size:12px;color:var(--t2);margin-top:10px;line-height:1.7">主色 #2F7FF7 两界面共用；浅色主题通过 <span class="num">html[data-theme="light"]</span> 覆写变量实现。</p>
+    </div>
+    <div class="card token-card">
+      <h4><i data-icon="type" data-size="15"></i>字体 · 圆角 · 组件</h4>
+      <div class="type-demo">
+        <span>数字等宽 <b class="num">12,842.6 m³</b>（--font-num）</span>
+        <span>正文 13px / 标题 20px / 大屏标题 32px+；圆角 4 / 6 / 8 / 12</span>
+      </div>
+      <div class="comp-tags" style="margin-top:10px">
+        <span class="tag">btn</span><span class="tag">input/select</span><span class="tag">card</span>
+        <span class="tag">tabs/seg</span><span class="tag">table</span><span class="tag">modal</span>
+        <span class="tag">toast</span><span class="tag">chip</span><span class="tag">switch</span>
+      </div>
+    </div>
+  </div>
+
+  <footer class="foot">
+    <span>ScreenCraft 原型 · 设计契约 .work/design-contract.md · 交付文档 UI-SPEC.md</span>
+    <span>配套工程文档：PRD.md / design.md / api.md / architecture.md</span>
+  </footer>
+</div>
+
+<div class="toast-wrap"></div>
+<script src="icons.js"></script>
+<script src="charts.js"></script>
+<script>
+  document.getElementById('heroArt').innerHTML = thumbSVG(3);
+</script>
+</body>
+</html>

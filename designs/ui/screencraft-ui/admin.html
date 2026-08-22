@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ScreenCraft · 管理后台</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  /* admin 页面局部布局样式（仅引用 styles.css 已有变量） */
+  .card { overflow: hidden; }
+  .table tbody tr:last-child td { border-bottom: none; }
+  .toolbar-row { display: flex; align-items: center; justify-content: space-between; margin: 16px 0 12px; }
+  .u-avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--pri-bg); color: var(--pri); font-size: 12px; font-weight: 600; display: grid; place-items: center; flex: none; }
+  .admin-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 1000px) { .admin-grid { grid-template-columns: 1fr; } }
+  .card-head { display: flex; align-items: center; gap: 8px; padding: 14px 18px; border-bottom: 1px solid var(--border); font-size: 14px; font-weight: 600; }
+  .card-head > svg { color: var(--pri); }
+  .card-head .head-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .card-body { padding: 18px 18px 4px; }
+  .card-foot { display: flex; justify-content: flex-end; gap: 10px; padding: 14px 18px; border-top: 1px solid var(--border); }
+  #panelAi .form-row .form-label { width: 118px; }
+  .pwd-wrap { position: relative; }
+  .pwd-wrap .input { padding-right: 36px; }
+  .pwd-toggle { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 26px; height: 26px; display: grid; place-items: center; border-radius: var(--r-sm); color: var(--t2); }
+  .pwd-toggle:hover { color: var(--pri); background: var(--pri-bg); }
+  .doc-ico { color: var(--t2); display: inline-flex; flex: none; }
+  .kb-tip { padding: 10px 18px 14px; }
+</style>
+</head>
+<body data-page="admin">
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="projects.html"><span class="brand-mark">S</span><span class="brand-name">ScreenCraft</span><span class="brand-sub">大屏配置平台</span></a>
+      <nav class="topnav">
+        <a data-nav="projects" href="projects.html"><i data-icon="folder"></i>项目</a>
+        <a data-nav="api-config" href="api-config.html"><i data-icon="plug"></i>API 配置</a>
+        <a data-nav="admin" href="admin.html"><i data-icon="settings"></i>管理后台</a>
+      </nav>
+      <div class="topbar-right">
+        <div class="user-chip" id="userChip">
+          <span class="avatar">管</span><span class="user-name">管理员</span><i data-icon="chevron-down" data-size="14"></i>
+          <div class="dropdown-menu" id="userMenu">
+            <a href="admin.html"><i data-icon="settings" data-size="14"></i>管理后台</a>
+            <a href="login.html"><i data-icon="log-out" data-size="14"></i>退出登录</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+  <main class="app-content">
+    <div class="page-head">
+      <div>
+        <h1>管理后台</h1>
+        <div class="desc">仅管理员可见：用户管理与 AI 客服配置</div>
+      </div>
+    </div>
+
+    <div class="tabs" id="adminTabs">
+      <button class="tab active" data-tab="users">用户管理</button>
+      <button class="tab" data-tab="ai">AI 设置</button>
+    </div>
+
+    <!-- 页签一：用户管理 -->
+    <div id="panelUsers" class="mt-16">
+      <div class="toolbar-row">
+        <span class="muted">共 <b class="num" id="userCount">0</b> 位用户</span>
+        <button class="btn btn-pri" id="btnNewUser"><i data-icon="user" data-size="15"></i>新建用户</button>
+      </div>
+      <div class="card">
+        <table class="table" id="userTable">
+          <thead>
+            <tr>
+              <th>用户名</th><th>角色</th><th>状态</th><th>创建时间</th><th>操作</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 页签二：AI 设置 -->
+    <div id="panelAi" class="mt-16" style="display:none">
+      <div class="admin-grid">
+        <!-- 模型配置 -->
+        <div class="card">
+          <div class="card-head"><i data-icon="bot" data-size="16"></i>模型配置</div>
+          <div class="card-body">
+            <div class="form-row">
+              <label class="form-label">API Base URL</label>
+              <div class="form-ctrl">
+                <input class="input" id="aBaseUrl" placeholder="https://...">
+                <div class="form-err" id="aBaseUrlErr">请输入 API Base URL</div>
+              </div>
+            </div>
+            <div class="form-row">
+              <label class="form-label">API Key</label>
+              <div class="form-ctrl">
+                <div class="pwd-wrap">
+                  <input class="input" id="aKey" type="password" placeholder="sk-...">
+                  <button class="pwd-toggle" id="btnEye" type="button" title="显示 / 隐藏"><i data-icon="eye" data-size="15"></i></button>
+                </div>
+                <div class="form-err" id="aKeyErr">请输入 API Key</div>
+              </div>
+            </div>
+            <div class="form-row">
+              <label class="form-label">对话模型</label>
+              <div class="form-ctrl">
+                <select class="select" id="aChat">
+                  <option value="qwen-max">qwen-max</option>
+                  <option value="qwen-plus">qwen-plus</option>
+                  <option value="glm-4">glm-4</option>
+                  <option value="deepseek-chat">deepseek-chat</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <label class="form-label">Embedding 模型</label>
+              <div class="form-ctrl">
+                <select class="select" id="aEmbed">
+                  <option value="text-embedding-v3">text-embedding-v3</option>
+                  <option value="text-embedding-v2">text-embedding-v2</option>
+                  <option value="none">不使用（降级 BM25 检索）</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="card-foot">
+            <button class="btn" id="btnTestConn"><i data-icon="zap" data-size="14"></i>测试连接</button>
+            <button class="btn btn-pri" id="btnSaveAi"><i data-icon="save" data-size="14"></i>保存</button>
+          </div>
+        </div>
+
+        <!-- 知识库文档 -->
+        <div class="card">
+          <div class="card-head">
+            <i data-icon="book-open" data-size="16"></i>知识库文档
+            <span class="head-right">
+              <button class="btn btn-sm" id="btnUpload"><i data-icon="upload" data-size="13"></i>上传文档</button>
+            </span>
+          </div>
+          <table class="table" id="docTable">
+            <thead>
+              <tr>
+                <th>文档名</th><th>大小</th><th>更新时间</th><th>状态</th><th>操作</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+          <div class="form-tip kb-tip">仅支持 Markdown / 纯文本；文档更新后需重新索引</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- 新建用户弹窗 -->
+  <div class="modal-wrap" id="mUser">
+    <div class="modal">
+      <div class="modal-head"><span>新建用户</span><button class="x" data-close="#mUser"><i data-icon="x" data-size="16"></i></button></div>
+      <div class="modal-body">
+        <div class="form-row">
+          <label class="form-label">用户名</label>
+          <div class="form-ctrl">
+            <input class="input" id="uName" placeholder="例如：zhang.san" maxlength="20">
+            <div class="form-tip">仅支持字母、数字、"." 和 "_"，长度 3-20 位</div>
+            <div class="form-err" id="uNameErr">用户名格式不正确</div>
+          </div>
+        </div>
+        <div class="form-row">
+          <label class="form-label">角色</label>
+          <div class="form-ctrl">
+            <select class="select" id="uRole">
+              <option value="member">成员</option>
+              <option value="admin">管理员</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <label class="form-label">初始密码</label>
+          <div class="form-ctrl">
+            <input class="input" id="uPwd" type="password" placeholder="请输入初始密码">
+            <div class="form-tip">用户首次登录将被强制修改密码</div>
+            <div class="form-err" id="uPwdErr">请输入初始密码</div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" data-close="#mUser">取消</button>
+        <button class="btn btn-pri" id="btnCreateUser">创建</button>
+      </div>
+    </div>
+  </div>
+
+  <input type="file" id="fileInput" accept=".md,.txt" style="display:none">
+  <div class="toast-wrap"></div>
+  <script src="icons.js"></script><script src="mock.js"></script><script src="api.js"></script><script src="nav-active.js"></script>
+  <script>
+  (function () {
+    var state = { users: [], docs: [] };
+    var userTbody = document.querySelector('#userTable tbody');
+    var docTbody = document.querySelector('#docTable tbody');
+
+    function esc(s) {
+      return String(s).replace(/[&<>"]/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+      });
+    }
+    function nowStr() {
+      var d = new Date();
+      function p(n) { return n < 10 ? '0' + n : '' + n; }
+      return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+    }
+    function skeletonRows(ws, n) {
+      var html = '';
+      for (var i = 0; i < n; i++) {
+        html += '<tr>' + ws.map(function (w) {
+          return '<td><div class="skeleton" style="height:14px;width:' + w + '"></div></td>';
+        }).join('') + '</tr>';
+      }
+      return html;
+    }
+
+    /* ---------- 页签切换 ---------- */
+    document.querySelectorAll('#adminTabs .tab').forEach(function (t) {
+      t.addEventListener('click', function () {
+        document.querySelectorAll('#adminTabs .tab').forEach(function (x) { x.classList.remove('active'); });
+        t.classList.add('active');
+        var tab = t.getAttribute('data-tab');
+        document.getElementById('panelUsers').style.display = tab === 'users' ? '' : 'none';
+        document.getElementById('panelAi').style.display = tab === 'ai' ? '' : 'none';
+      });
+    });
+
+    /* ================= 页签一：用户管理 ================= */
+    function renderUsers() {
+      document.getElementById('userCount').textContent = state.users.length;
+      if (!state.users.length) {
+        userTbody.innerHTML = '<tr><td colspan="5"><div class="empty">' + icon('users', 28) + '<div>暂无用户</div></div></td></tr>';
+        return;
+      }
+      userTbody.innerHTML = state.users.map(function (u) {
+        var roleTag = u.role === 'admin' ? '<span class="tag">管理员</span>' : '<span class="tag tag-info">成员</span>';
+        var sw = '<label class="switch"><input type="checkbox" data-uid="' + u.id + '"' +
+          (u.enabled ? ' checked' : '') + (u.role === 'admin' ? ' disabled' : '') + '><span class="track"></span></label>';
+        return '<tr>' +
+          '<td><div class="flex gap-8"><span class="u-avatar">' + esc(u.username.charAt(0).toUpperCase()) + '</span>' + esc(u.username) + '</div></td>' +
+          '<td>' + roleTag + '</td>' +
+          '<td>' + sw + '</td>' +
+          '<td class="num">' + esc(u.createdAt) + '</td>' +
+          '<td><div class="row-ops">' +
+            '<button class="btn btn-ghost btn-sm" data-reset="' + u.id + '" title="重置密码">' + icon('key-round', 14) + '重置密码</button>' +
+          '</div></td>' +
+        '</tr>';
+      }).join('');
+    }
+
+    userTbody.innerHTML = skeletonRows(['58%', '56px', '36px', '96px', '88px'], 5);
+    fetchUsers().then(function (res) {
+      state.users = res.data;
+      renderUsers();
+    });
+
+    /* 启用 / 禁用 */
+    userTbody.addEventListener('change', function (e) {
+      var inp = e.target.closest('input[data-uid]');
+      if (!inp) return;
+      var uid = inp.getAttribute('data-uid');
+      var u = null;
+      for (var i = 0; i < DB.users.length; i++) if (DB.users[i].id === uid) u = DB.users[i];
+      if (!u) return;
+      u.enabled = inp.checked;
+      // TODO: POST /users/update
+      toast((inp.checked ? '已启用 ' : '已禁用 ') + u.username, 'ok');
+    });
+
+    /* 重置密码 */
+    userTbody.addEventListener('click', function (e) {
+      var btn = e.target.closest('button[data-reset]');
+      if (!btn) return;
+      var uid = btn.getAttribute('data-reset');
+      var u = null;
+      for (var i = 0; i < DB.users.length; i++) if (DB.users[i].id === uid) u = DB.users[i];
+      if (!u) return;
+      confirmDialog({
+        title: '重置密码',
+        content: '确定重置用户 ' + esc(u.username) + ' 的登录密码？',
+        okText: '重置'
+      }).then(function (yes) {
+        if (!yes) return;
+        // TODO: POST /users/:id/reset-password
+        toast('已重置，临时密码 ScreenCraft@tmp（首次登录强制修改）', 'ok');
+      });
+    });
+
+    /* 新建用户弹窗 */
+    var uName = document.getElementById('uName'), uNameErr = document.getElementById('uNameErr');
+    var uRole = document.getElementById('uRole');
+    var uPwd = document.getElementById('uPwd'), uPwdErr = document.getElementById('uPwdErr');
+
+    function setErr(input, errEl, msg) {
+      input.classList.add('is-err');
+      if (msg) errEl.textContent = msg;
+      errEl.style.display = 'block';
+    }
+    function clearErr(input, errEl) {
+      input.classList.remove('is-err');
+      errEl.style.display = 'none';
+    }
+    uName.addEventListener('input', function () { clearErr(uName, uNameErr); });
+    uPwd.addEventListener('input', function () { clearErr(uPwd, uPwdErr); });
+
+    document.getElementById('btnNewUser').addEventListener('click', function () {
+      uName.value = ''; uPwd.value = ''; uRole.value = 'member';
+      clearErr(uName, uNameErr); clearErr(uPwd, uPwdErr);
+      openModal('#mUser');
+    });
+
+    document.getElementById('btnCreateUser').addEventListener('click', function () {
+      var v = uName.value.trim();
+      var valid = true;
+      if (!/^[a-z0-9._]{3,20}$/i.test(v)) {
+        setErr(uName, uNameErr, '用户名格式不正确：3-20 位字母、数字、. 或 _');
+        valid = false;
+      } else if (DB.users.some(function (x) { return x.username === v; })) {
+        setErr(uName, uNameErr, '用户名已存在');
+        valid = false;
+      }
+      if (!uPwd.value) { setErr(uPwd, uPwdErr, '请输入初始密码'); valid = false; }
+      if (!valid) return;
+
+      DB.users.push({ id: 'u' + Date.now(), username: v, role: uRole.value, enabled: true, createdAt: nowStr() });
+      // TODO: POST /users/create
+      state.users = DB.users.slice();
+      renderUsers();
+      closeModal('#mUser');
+      toast('已创建用户 ' + v, 'ok');
+    });
+
+    /* ================= 页签二：AI 设置 ================= */
+    var s = DB.aiSettings;
+    var aBaseUrl = document.getElementById('aBaseUrl');
+    var aKey = document.getElementById('aKey');
+    var aChat = document.getElementById('aChat');
+    var aEmbed = document.getElementById('aEmbed');
+    aBaseUrl.value = s.baseUrl;
+    aKey.value = s.apiKey;
+    aChat.value = s.chatModel;
+    aEmbed.value = s.embeddingModel;
+
+    var aBaseUrlErr = document.getElementById('aBaseUrlErr');
+    var aKeyErr = document.getElementById('aKeyErr');
+    aBaseUrl.addEventListener('input', function () { clearErr(aBaseUrl, aBaseUrlErr); });
+    aKey.addEventListener('input', function () { clearErr(aKey, aKeyErr); });
+
+    /* API Key 可见性切换 */
+    var btnEye = document.getElementById('btnEye');
+    btnEye.addEventListener('click', function () {
+      var show = aKey.type === 'password';
+      aKey.type = show ? 'text' : 'password';
+      btnEye.innerHTML = icon(show ? 'eye-off' : 'eye', 15);
+    });
+
+    /* 测试连接 */
+    var btnTestConn = document.getElementById('btnTestConn');
+    btnTestConn.addEventListener('click', function () {
+      btnTestConn.disabled = true;
+      btnTestConn.innerHTML = icon('refresh-cw', 14) + '<span>测试中…</span>';
+      setTimeout(function () {
+        btnTestConn.disabled = false;
+        btnTestConn.innerHTML = icon('zap', 14) + '<span>测试连接</span>';
+        toast('连接成功，模型响应正常', 'ok');
+      }, 1000);
+      // TODO: POST /ai/settings/test
+    });
+
+    /* 保存模型配置 */
+    var btnSaveAi = document.getElementById('btnSaveAi');
+    btnSaveAi.addEventListener('click', function () {
+      var valid = true;
+      if (!aBaseUrl.value.trim()) { setErr(aBaseUrl, aBaseUrlErr, '请输入 API Base URL'); valid = false; }
+      if (!aKey.value.trim()) { setErr(aKey, aKeyErr, '请输入 API Key'); valid = false; }
+      if (!valid) return;
+      btnSaveAi.disabled = true;
+      btnSaveAi.innerHTML = icon('refresh-cw', 14) + '<span>保存中…</span>';
+      saveAiSettings({
+        baseUrl: aBaseUrl.value.trim(),
+        apiKey: aKey.value.trim(),
+        chatModel: aChat.value,
+        embeddingModel: aEmbed.value
+      }).then(function () {
+        btnSaveAi.disabled = false;
+        btnSaveAi.innerHTML = icon('save', 14) + '<span>保存</span>';
+        toast('已保存', 'ok');
+      });
+    });
+
+    /* ---------- 知识库文档 ---------- */
+    function renderDocs() {
+      if (!state.docs.length) {
+        docTbody.innerHTML = '<tr><td colspan="5"><div class="empty">' + icon('book-open', 28) + '<div>暂无知识库文档，点击「上传文档」添加</div></div></td></tr>';
+        return;
+      }
+      docTbody.innerHTML = state.docs.map(function (d) {
+        return '<tr>' +
+          '<td><div class="flex gap-8"><span class="doc-ico">' + icon('file-text', 15) + '</span>' + esc(d.name) + '</div></td>' +
+          '<td class="num">' + esc(d.size) + '</td>' +
+          '<td class="num">' + esc(d.updatedAt) + '</td>' +
+          '<td><span class="tag tag-ok">已索引</span></td>' +
+          '<td><div class="row-ops">' +
+            '<button class="btn btn-ghost btn-sm" data-doc="' + d.id + '" title="删除">' + icon('trash-2', 14) + '</button>' +
+          '</div></td>' +
+        '</tr>';
+      }).join('');
+    }
+
+    docTbody.innerHTML = skeletonRows(['70%', '48px', '96px', '52px', '40px'], 4);
+    fetchKbDocs().then(function (res) {
+      state.docs = res.data;
+      renderDocs();
+    });
+
+    /* 上传文档 */
+    var fileInput = document.getElementById('fileInput');
+    document.getElementById('btnUpload').addEventListener('click', function () { fileInput.click(); });
+    fileInput.addEventListener('change', function () {
+      var f = fileInput.files && fileInput.files[0];
+      fileInput.value = '';
+      if (!f) return;
+      if (!/\.(md|txt)$/i.test(f.name)) {
+        toast('v1 仅支持 .md / .txt', 'err');
+        return;
+      }
+      var sizeKb = Math.max(1, Math.round(f.size / 1024));
+      DB.kbDocs.push({ id: 'k' + Date.now(), name: f.name, size: sizeKb + ' KB', updatedAt: nowStr(), status: 'indexed' });
+      // TODO: POST /ai/kb-docs/upload
+      state.docs = DB.kbDocs.slice();
+      renderDocs();
+      toast('已上传并完成索引：' + f.name, 'ok');
+    });
+
+    /* 删除文档 */
+    docTbody.addEventListener('click', function (e) {
+      var btn = e.target.closest('button[data-doc]');
+      if (!btn) return;
+      var id = btn.getAttribute('data-doc');
+      var d = null;
+      for (var i = 0; i < DB.kbDocs.length; i++) if (DB.kbDocs[i].id === id) d = DB.kbDocs[i];
+      if (!d) return;
+      confirmDialog({
+        title: '删除文档',
+        content: '确定删除「' + esc(d.name) + '」吗？删除后 AI 客服将无法引用该文档。',
+        danger: true,
+        okText: '删除'
+      }).then(function (yes) {
+        if (!yes) return;
+        for (var i = 0; i < DB.kbDocs.length; i++) {
+          if (DB.kbDocs[i].id === id) { DB.kbDocs.splice(i, 1); break; }
+        }
+        // TODO: POST /ai/kb-docs/delete
+        state.docs = DB.kbDocs.slice();
+        renderDocs();
+        toast('已删除「' + d.name + '」', 'ok');
+      });
+    });
+
+    /* ---------- 弹窗关闭（x / 取消 / 点遮罩） ---------- */
+    document.addEventListener('click', function (e) {
+      var c = e.target.closest('[data-close]');
+      if (c) closeModal(c.getAttribute('data-close'));
+    });
+    document.querySelectorAll('.modal-wrap').forEach(function (w) {
+      w.addEventListener('click', function (e) { if (e.target === w) closeModal('#' + w.id); });
+    });
+  })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ScreenCraft 数据协议 Mock 验证（指标卡族 + 表格）</title>
+<style>
+  :root {
+    --bg: #0D1730; --panel: #12203C; --panel2: #16294E; --border: #1E3A66;
+    --t1: #EAF2FF; --t2: #9FB3D1; --pri: #2F7FF7; --acc: #35E0FF;
+    --ok: #22C55E; --warn: #F59E0B; --err: #EF4444;
+    --num: "DIN Alternate", "Bahnschrift", "Roboto Mono", monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--t1); font-family: "PingFang SC", "Microsoft YaHei", sans-serif; padding: 28px; }
+  h1 { font-size: 20px; margin-bottom: 6px; }
+  .sub { color: var(--t2); font-size: 13px; margin-bottom: 24px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .block { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .block header { padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--acc); display: flex; justify-content: space-between; }
+  .block header span { color: var(--t2); }
+  .vis { padding: 16px; min-height: 150px; }
+  pre { background: #0A1128; border-top: 1px solid var(--border); padding: 10px 14px; font-size: 11px; line-height: 1.6; color: #8FB8E8; overflow-x: auto; font-family: Consolas, monospace; }
+  /* 通用指标元素 */
+  .name { color: var(--t2); font-size: 12px; }
+  .val { font-family: var(--num); font-size: 24px; font-weight: 700; color: var(--t1); }
+  .unit { color: var(--t2); font-size: 12px; margin-left: 4px; }
+  .trend { font-size: 12px; padding: 1px 6px; border-radius: 3px; margin-left: 6px; }
+  .trend.up { color: var(--ok); background: rgba(34,197,94,.15); }
+  .trend.down { color: var(--err); background: rgba(239,68,68,.15); }
+  /* style1 2x2 */
+  .kpi1 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .kpi1 .cell { background: var(--panel2); border: 1px solid var(--border); border-radius: 4px; padding: 10px 12px; }
+  /* 环 */
+  .ring { width: 84px; height: 84px; border-radius: 50%; background: conic-gradient(var(--acc) calc(var(--p)*1%), var(--border) 0); display: grid; place-items: center; }
+  .ring i { width: 62px; height: 62px; border-radius: 50%; background: var(--panel); display: grid; place-items: center; font-style: normal; }
+  .ringrow { display: flex; gap: 18px; justify-content: space-around; text-align: center; }
+  .ringrow .item { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  /* style3 中心+两翼 */
+  .kpi3 { display: flex; align-items: center; justify-content: space-around; }
+  .kpi3 .center { text-align: center; }
+  .kpi3 .side { text-align: center; }
+  .half { width: 70px; height: 35px; border-radius: 70px 70px 0 0; background: conic-gradient(from 270deg at 50% 100%, var(--acc) calc(var(--p)*1.8deg), var(--border) 0); position: relative; }
+  .half i { position: absolute; left: 10px; right: 10px; bottom: 0; height: 25px; border-radius: 50px 50px 0 0; background: var(--panel); font-style: normal; display: grid; place-items: center; font-size: 12px; color: var(--acc); font-family: var(--num); }
+  /* style5 */
+  .kpi5 { display: flex; align-items: baseline; gap: 8px; }
+  .kpi5 .val { font-size: 30px; }
+  .kpi5plus .val { font-size: 40px; color: var(--acc); }
+  /* style8/9 图标 */
+  .kpi8 { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
+  .kpi8 .cell, .kpi9 .row { background: var(--panel2); border: 1px solid var(--border); border-radius: 4px; padding: 12px; display: flex; align-items: center; gap: 10px; }
+  .kpi9 .row { margin-bottom: 8px; }
+  .ico { width: 34px; height: 34px; border-radius: 6px; border: 1px solid var(--acc); color: var(--acc); display: grid; place-items: center; font-size: 16px; flex: none; }
+  /* style10/11 圆 */
+  .circrow { display: flex; justify-content: space-around; text-align: center; }
+  .circ { width: 78px; height: 78px; border-radius: 50%; border: 3px solid var(--acc); display: grid; place-items: center; margin: 0 auto 6px; }
+  .circ.dashed { border-style: dashed; border-color: var(--pri); }
+  .circ b { font-family: var(--num); font-size: 18px; }
+  /* list */
+  .klist .row { display: flex; justify-content: space-between; padding: 7px 4px; border-bottom: 1px dashed var(--border); font-size: 13px; }
+  .klist .row b { font-family: var(--num); color: var(--acc); }
+  /* 表格 */
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { background: var(--panel2); color: var(--t2); font-weight: 400; text-align: left; padding: 8px 10px; }
+  td { padding: 8px 10px; border-bottom: 1px solid rgba(30,58,102,.5); color: var(--t1); }
+  tr:nth-child(even) td { background: rgba(22,41,78,.5); }
+  .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; }
+</style>
+</head>
+<body>
+<h1>ScreenCraft 数据协议 Mock 验证</h1>
+<div class="sub">指标卡族 12 变体 + 表格 2 变体。每个块上方为按协议 mock 数据渲染的视觉，下方为对应 JSON（即静态数据/API 返回需符合的结构）。用于验证协议字段是否够用、有无冗余。</div>
+<div class="grid">
+
+<div class="block"><header>指标卡样式1（2×2 趋势网格）<span>kpi-grid-trend</span></header>
+<div class="vis kpi1">
+  <div class="cell"><div class="name">累计节水量</div><div><span class="val">1000</span><span class="unit">t</span><span class="trend up">↑7%</span></div></div>
+  <div class="cell"><div class="name">今日总用电量</div><div><span class="val">8371</span><span class="unit">kWh</span><span class="trend down">↓2.4%</span></div></div>
+  <div class="cell"><div class="name">空压总功率</div><div><span class="val">787</span><span class="unit">kW</span><span class="trend up">↑1.8%</span></div></div>
+  <div class="cell"><div class="name">在线设备数</div><div><span class="val">128</span><span class="unit">台</span><span class="trend up">↑0.5%</span></div></div>
+</div>
+<pre>[
+  { "name": "累计节水量", "value": 1000, "unit": "t",   "trend": 7,   "trendDir": "up" },
+  { "name": "今日总用电量", "value": 8371, "unit": "kWh", "trend": 2.4, "trendDir": "down" },
+  { "name": "空压总功率", "value": 787,  "unit": "kW",  "trend": 1.8, "trendDir": "up" },
+  { "name": "在线设备数", "value": 128,  "unit": "台",  "trend": 0.5, "trendDir": "up" }
+]</pre></div>
+
+<div class="block"><header>指标卡样式2（单环）<span>kpi-ring</span></header>
+<div class="vis" style="display:grid;place-items:center">
+  <div class="item" style="text-align:center"><div class="ring" style="--p:76"><i><span class="val" style="font-size:18px">76%</span></i></div><div class="name" style="margin-top:6px">负载率</div></div>
+</div>
+<pre>[ { "name": "负载率", "value": 76, "unit": "%", "percent": 76 } ]</pre></div>
+
+<div class="block"><header>指标卡样式2plus（三环）<span>kpi-ring-multi</span></header>
+<div class="vis ringrow">
+  <div class="item"><div class="ring" style="--p:76"><i><span style="font-family:var(--num);font-size:14px">76%</span></i></div><div class="name">用电量</div><div><span class="val" style="font-size:16px">8371</span><span class="unit">kWh</span></div></div>
+  <div class="item"><div class="ring" style="--p:52"><i><span style="font-family:var(--num);font-size:14px">52%</span></i></div><div class="name">用水量</div><div><span class="val" style="font-size:16px">1000</span><span class="unit">t</span></div></div>
+  <div class="item"><div class="ring" style="--p:64"><i><span style="font-family:var(--num);font-size:14px">64%</span></i></div><div class="name">燃气量</div><div><span class="val" style="font-size:16px">190</span><span class="unit">m³</span></div></div>
+</div>
+<pre>[
+  { "name": "用电量", "value": 8371, "unit": "kWh", "percent": 76 },
+  { "name": "用水量", "value": 1000, "unit": "t",   "percent": 52 },
+  { "name": "燃气量", "value": 190,  "unit": "m³",  "percent": 64 }
+]</pre></div>
+
+<div class="block"><header>指标卡样式3/3plus（中心+两翼百分比）<span>kpi-center-sides</span></header>
+<div class="vis kpi3">
+  <div class="side"><div class="half" style="--p:62"><i>62%</i></div><div class="name">男比例</div></div>
+  <div class="center"><div class="ring" style="--p:100;width:96px;height:96px"><i style="width:74px;height:74px"><span class="val" style="font-size:20px">1286</span></i></div><div class="name" style="margin-top:6px">区域总人数</div></div>
+  <div class="side"><div class="half" style="--p:38"><i>38%</i></div><div class="name">女比例</div></div>
+</div>
+<pre>{
+  "center": { "name": "区域总人数", "value": 1286 },
+  "sides": [ { "name": "男比例", "percent": 62 }, { "name": "女比例", "percent": 38 } ]
+}</pre></div>
+
+<div class="block"><header>指标卡样式5（单指标文本）<span>kpi-text</span></header>
+<div class="vis kpi5"><span class="name">补料量</span><span class="val">82</span><span class="unit">t</span></div>
+<pre>{ "name": "补料量", "value": 82, "unit": "t" }</pre></div>
+
+<div class="block"><header>指标卡样式5plus（大数值）<span>kpi-text-lg</span></header>
+<div class="vis kpi5 kpi5plus"><span class="name">年度总能耗</span><span class="val">2899098.3</span><span class="unit">kWh</span></div>
+<pre>{ "name": "年度总能耗", "value": 2899098.3, "unit": "kWh" }</pre></div>
+
+<div class="block"><header>指标卡样式8（三图标卡）<span>kpi-icon-grid</span></header>
+<div class="vis kpi8">
+  <div class="cell"><div class="ico">⚡</div><div><div class="name">用电量</div><div><span class="val" style="font-size:18px">35128.40</span><span class="unit">kWh</span></div></div></div>
+  <div class="cell"><div class="ico">💧</div><div><div class="name">用水量</div><div><span class="val" style="font-size:18px">1000</span><span class="unit">t</span></div></div></div>
+  <div class="cell"><div class="ico">🔥</div><div><div class="name">燃气量</div><div><span class="val" style="font-size:18px">190</span><span class="unit">m³</span></div></div></div>
+</div>
+<pre>[
+  { "name": "用电量", "value": 35128.40, "unit": "kWh", "icon": "electric" },
+  { "name": "用水量", "value": 1000, "unit": "t", "icon": "water" },
+  { "name": "燃气量", "value": 190, "unit": "m³", "icon": "gas" }
+]</pre></div>
+
+<div class="block"><header>指标卡样式9（图标行）<span>kpi-icon-rows</span></header>
+<div class="vis kpi9">
+  <div class="row"><div class="ico">⚡</div><div class="name" style="flex:1">用电量</div><div><span class="val" style="font-size:16px">35128.40</span><span class="unit">kWh</span></div></div>
+  <div class="row"><div class="ico">💧</div><div class="name" style="flex:1">用水量</div><div><span class="val" style="font-size:16px">1000</span><span class="unit">t</span></div></div>
+</div>
+<pre>[
+  { "name": "用电量", "value": 35128.40, "unit": "kWh", "icon": "electric" },
+  { "name": "用水量", "value": 1000, "unit": "t", "icon": "water" }
+]</pre></div>
+
+<div class="block"><header>指标卡样式10/11（三圆）<span>kpi-circles</span></header>
+<div class="vis circrow">
+  <div><div class="circ"><b>76%</b></div><div class="name">A区负荷</div></div>
+  <div><div class="circ dashed"><b>52%</b></div><div class="name">B区负荷</div></div>
+  <div><div class="circ"><b>64%</b></div><div class="name">C区负荷</div></div>
+</div>
+<pre>[
+  { "name": "A区负荷", "value": 76, "unit": "%", "percent": 76 },
+  { "name": "B区负荷", "value": 52, "unit": "%", "percent": 52 },
+  { "name": "C区负荷", "value": 64, "unit": "%", "percent": 64 }
+]</pre></div>
+
+<div class="block"><header>指标列表（多行名值）<span>kpi-list</span></header>
+<div class="vis klist">
+  <div class="row"><span>三期环境动力房</span><b>87</b></div>
+  <div class="row"><span>三期大灯宿舍厂房</span><b>76</b></div>
+  <div class="row"><span>汉江路工厂</span><b>64</b></div>
+  <div class="row"><span>智能产业园</span><b>45</b></div>
+</div>
+<pre>[
+  { "name": "三期环境动力房", "value": 87 },
+  { "name": "三期大灯宿舍厂房", "value": 76 },
+  { "name": "汉江路工厂", "value": 64 },
+  { "name": "智能产业园", "value": 45 }
+]</pre></div>
+
+<div class="block"><header>表格列表（通用表格）<span>table-list</span></header>
+<div class="vis"><table>
+  <tr><th>时间</th><th>设备名称</th><th>状态</th><th>健康度</th></tr>
+  <tr><td>2022/1/10</td><td>设备1</td><td>设备售卖中啦</td><td>提醒</td></tr>
+  <tr><td>2022/1/9</td><td>设备2</td><td>设备售卖中啦</td><td>提醒</td></tr>
+  <tr><td>2022/1/8</td><td>设备3</td><td>设备售卖中啦</td><td>紧急</td></tr>
+</table></div>
+<pre>{
+  "columns": [ { "key": "time", "label": "时间" }, { "key": "device", "label": "设备名称" },
+               { "key": "status", "label": "状态" }, { "key": "health", "label": "健康度" } ],
+  "rows": [
+    { "time": "2022/1/10", "device": "设备1", "status": "设备售卖中啦", "health": "提醒" },
+    { "time": "2022/1/9",  "device": "设备2", "status": "设备售卖中啦", "health": "提醒" },
+    { "time": "2022/1/8",  "device": "设备3", "status": "设备售卖中啦", "health": "紧急" }
+  ]
+}</pre></div>
+
+<div class="block"><header>告警列表（等级点标记）<span>alarm-list</span></header>
+<div class="vis"><table>
+  <tr><th>告警时间</th><th>设备名称</th><th>告警内容</th><th>告警级别</th></tr>
+  <tr><td>2022/1/10</td><td>设备1</td><td>温度超限</td><td><i class="dot" style="background:var(--err)"></i>严重</td></tr>
+  <tr><td>2022/1/9</td><td>设备4</td><td>压力异常</td><td><i class="dot" style="background:var(--warn)"></i>重要</td></tr>
+  <tr><td>2022/1/8</td><td>设备6</td><td>离线</td><td><i class="dot" style="background:var(--pri)"></i>提醒</td></tr>
+</table></div>
+<pre>{
+  "columns": [ { "key": "time", "label": "告警时间" }, { "key": "device", "label": "设备名称" },
+               { "key": "content", "label": "告警内容" }, { "key": "level", "label": "告警级别" } ],
+  "rows": [
+    { "time": "2022/1/10", "device": "设备1", "content": "温度超限", "level": "严重" },
+    { "time": "2022/1/9",  "device": "设备4", "content": "压力异常", "level": "重要" },
+    { "time": "2022/1/8",  "device": "设备6", "content": "离线",     "level": "提醒" }
+  ]
+}</pre></div>
+
+</div>
+</body>
+</html>

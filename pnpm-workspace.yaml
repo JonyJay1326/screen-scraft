@@ -1,0 +1,18 @@
+packages:
+  - frontend
+  - backend
+  - packages/*
+
+onlyBuiltDependencies:
+  - esbuild
+  - bcrypt
+  - '@nestjs/core'
+  - '@parcel/watcher'
+  - '@swc/core'
+
+allowBuilds:
+  '@parcel/watcher': true
+  bcrypt: true
+  '@nestjs/core': true
+  esbuild: true
+  '@swc/core': true

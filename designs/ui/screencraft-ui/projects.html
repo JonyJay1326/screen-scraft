@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>项目 · ScreenCraft 大屏配置平台</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  /* ---------- 页面局部样式（仅复用 styles.css 变量） ---------- */
+  .proj-head-actions { display: flex; align-items: center; gap: 12px; }
+  .proj-search { width: 240px; }
+
+  .proj-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+  .proj-grid .empty { grid-column: 1 / -1; }
+
+  .proj-card { padding: 16px; }
+  .proj-top { display: flex; align-items: center; gap: 12px; }
+  .proj-ico { width: 36px; height: 36px; border-radius: var(--r-lg); background: linear-gradient(135deg, var(--pri), var(--acc)); color: #fff; display: grid; place-items: center; flex: none; }
+  .proj-name { flex: 1; min-width: 0; font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .icon-btn { width: 28px; height: 28px; display: grid; place-items: center; border-radius: var(--r-sm); color: var(--t2); transition: all .15s; flex: none; }
+  .icon-btn:hover { background: var(--panel2); color: var(--t1); }
+  .proj-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 14px; font-size: 13px; }
+
+  /* 骨架卡片 */
+  .sk-card { padding: 16px; }
+  .sk-ico { width: 36px; height: 36px; border-radius: var(--r-lg); flex: none; }
+  .sk-l1 { height: 14px; width: 55%; margin-bottom: 8px; }
+  .sk-l2 { height: 12px; width: 35%; }
+  .sk-l3 { height: 12px; width: 100%; margin-top: 16px; }
+</style>
+</head>
+<body data-page="projects">            <!-- 唯一每页不同处：data-page 值 -->
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="projects.html"><span class="brand-mark">S</span><span class="brand-name">ScreenCraft</span><span class="brand-sub">大屏配置平台</span></a>
+      <nav class="topnav">
+        <a data-nav="projects" href="projects.html"><i data-icon="folder"></i>项目</a>
+        <a data-nav="api-config" href="api-config.html"><i data-icon="plug"></i>API 配置</a>
+        <a data-nav="admin" href="admin.html"><i data-icon="settings"></i>管理后台</a>
+      </nav>
+      <div class="topbar-right">
+        <div class="user-chip" id="userChip">
+          <span class="avatar">管</span><span class="user-name">管理员</span><i data-icon="chevron-down" data-size="14"></i>
+          <div class="dropdown-menu" id="userMenu">
+            <a href="admin.html"><i data-icon="settings" data-size="14"></i>管理后台</a>
+            <a href="login.html"><i data-icon="log-out" data-size="14"></i>退出登录</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+  <main class="app-content">
+    <div class="page-head">
+      <div>
+        <h1>项目</h1>
+        <div class="desc">按项目组织大屏，一个项目对应一块物理大屏或一个业务域</div>
+      </div>
+      <div class="proj-head-actions">
+        <div class="input-wrap proj-search">
+          <i data-icon="search" data-size="15"></i>
+          <input class="input" id="projSearch" type="text" placeholder="搜索项目名称" autocomplete="off">
+        </div>
+        <button class="btn btn-pri" id="btnNewProject"><i data-icon="plus" data-size="15"></i>新建项目</button>
+      </div>
+    </div>
+
+    <div class="proj-grid" id="projGrid"></div>
+  </main>
+
+  <!-- 新建项目弹窗 -->
+  <div class="modal-wrap" id="mNew">
+    <div class="modal">
+      <div class="modal-head"><span>新建项目</span><button class="x" data-close="#mNew"><i data-icon="x" data-size="16"></i></button></div>
+      <div class="modal-body">
+        <div class="form-row">
+          <label class="form-label">项目名称</label>
+          <div class="form-ctrl">
+            <input class="input" id="newProjName" type="text" maxlength="20" placeholder="请输入项目名称（20 字以内）" autocomplete="off">
+            <div class="form-err" id="newProjErr"></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" data-close="#mNew">取消</button>
+        <button class="btn btn-pri" id="btnCreateProj">创建</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 重命名项目弹窗 -->
+  <div class="modal-wrap" id="mRename">
+    <div class="modal">
+      <div class="modal-head"><span>重命名项目</span><button class="x" data-close="#mRename"><i data-icon="x" data-size="16"></i></button></div>
+      <div class="modal-body">
+        <div class="form-row">
+          <label class="form-label">项目名称</label>
+          <div class="form-ctrl">
+            <input class="input" id="renameProjName" type="text" maxlength="20" placeholder="请输入项目名称（20 字以内）" autocomplete="off">
+            <div class="form-err" id="renameProjErr"></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" data-close="#mRename">取消</button>
+        <button class="btn btn-pri" id="btnRenameProj">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-wrap"></div>
+  <script src="icons.js"></script><script src="mock.js"></script><script src="api.js"></script><script src="nav-active.js"></script>
+  <!-- 页面自己的 <script> 放最后 -->
+  <script>
+  (function () {
+    var grid = document.getElementById('projGrid');
+    var searchInput = document.getElementById('projSearch');
+    var state = { list: [], keyword: '' };
+    var renameId = null;
+
+    function esc(s) {
+      return String(s).replace(/[&<>"]/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+      });
+    }
+    function setErr(input, errId, msg) {
+      input.classList.add('is-err');
+      var el = document.getElementById(errId);
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+    function clearErr(input, errId) {
+      input.classList.remove('is-err');
+      document.getElementById(errId).style.display = 'none';
+    }
+    function closeDropdowns() {
+      document.querySelectorAll('.dropdown-menu.show').forEach(function (m) { m.classList.remove('show'); });
+    }
+
+    /* ---------- 渲染 ---------- */
+    function renderSkeleton() {
+      var html = '';
+      for (var i = 0; i < 6; i++) {
+        html += '<div class="card sk-card">' +
+          '<div class="flex gap-12"><div class="skeleton sk-ico"></div>' +
+          '<div class="flex-1"><div class="skeleton sk-l1"></div><div class="skeleton sk-l2"></div></div></div>' +
+          '<div class="skeleton sk-l3"></div></div>';
+      }
+      grid.innerHTML = html;
+    }
+
+    function render() {
+      var kw = state.keyword.trim().toLowerCase();
+      var list = kw ? state.list.filter(function (p) { return p.name.toLowerCase().indexOf(kw) > -1; }) : state.list;
+      if (!list.length) {
+        grid.innerHTML = '<div class="empty">' + icon('search', 28) + '<div>' +
+          (kw ? '没有找到匹配的项目' : '暂无项目，点击右上角「新建项目」创建') + '</div></div>';
+        return;
+      }
+      grid.innerHTML = list.map(function (p) {
+        return '<div class="card card-hover proj-card" data-id="' + p.id + '">' +
+          '<div class="proj-top">' +
+            '<span class="proj-ico">' + icon('folder', 18) + '</span>' +
+            '<span class="proj-name" title="' + esc(p.name) + '">' + esc(p.name) + '</span>' +
+            '<div class="dropdown">' +
+              '<button class="icon-btn" data-act="menu" title="更多操作">' + icon('more-horizontal', 16) + '</button>' +
+              '<div class="dropdown-menu">' +
+                '<button data-act="rename">' + icon('pencil', 14) + '重命名</button>' +
+                '<button data-act="del" class="danger">' + icon('trash-2', 14) + '删除</button>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="proj-meta">' +
+            '<span><span class="num">' + p.screenCount + '</span> 块大屏</span>' +
+            '<span class="muted">更新于 ' + p.updatedAt + '</span>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+    }
+
+    async function load() {
+      renderSkeleton();
+      var res = await fetchProjects();
+      state.list = res.data;
+      render();
+    }
+
+    /* ---------- 搜索（前端即时过滤） ---------- */
+    searchInput.addEventListener('input', function () {
+      state.keyword = this.value;
+      render();
+    });
+
+    /* ---------- 新建项目 ---------- */
+    document.getElementById('btnNewProject').addEventListener('click', function () {
+      var input = document.getElementById('newProjName');
+      input.value = '';
+      clearErr(input, 'newProjErr');
+      openModal('#mNew');
+      setTimeout(function () { input.focus(); }, 120);
+    });
+
+    async function submitNew() {
+      var input = document.getElementById('newProjName');
+      var name = input.value.trim();
+      if (!name) { setErr(input, 'newProjErr', '请输入项目名称'); return; }
+      if (name.length > 20) { setErr(input, 'newProjErr', '项目名称不能超过 20 字'); return; }
+      var btn = document.getElementById('btnCreateProj');
+      btn.disabled = true;
+      btn.textContent = '创建中...';
+      await createProject(name);
+      btn.disabled = false;
+      btn.textContent = '创建';
+      closeModal('#mNew');
+      toast('项目创建成功', 'ok');
+      state.list = DB.projects.slice();
+      state.keyword = '';
+      searchInput.value = '';
+      render();
+    }
+    document.getElementById('btnCreateProj').addEventListener('click', submitNew);
+    document.getElementById('newProjName').addEventListener('keydown', function (e) { if (e.key === 'Enter') submitNew(); });
+    document.getElementById('newProjName').addEventListener('input', function () { clearErr(this, 'newProjErr'); });
+
+    /* ---------- 重命名 ---------- */
+    function openRename(id) {
+      var p = DB.projects.find(function (x) { return x.id === id; });
+      if (!p) return;
+      renameId = id;
+      var input = document.getElementById('renameProjName');
+      input.value = p.name;
+      clearErr(input, 'renameProjErr');
+      openModal('#mRename');
+      setTimeout(function () { input.focus(); input.select(); }, 120);
+    }
+
+    function submitRename() {
+      var input = document.getElementById('renameProjName');
+      var name = input.value.trim();
+      if (!name) { setErr(input, 'renameProjErr', '请输入项目名称'); return; }
+      if (name.length > 20) { setErr(input, 'renameProjErr', '项目名称不能超过 20 字'); return; }
+      var p = DB.projects.find(function (x) { return x.id === renameId; });
+      if (p) p.name = name;
+      // TODO: POST /projects/:id/update
+      closeModal('#mRename');
+      toast('重命名成功', 'ok');
+      render();
+    }
+    document.getElementById('btnRenameProj').addEventListener('click', submitRename);
+    document.getElementById('renameProjName').addEventListener('keydown', function (e) { if (e.key === 'Enter') submitRename(); });
+    document.getElementById('renameProjName').addEventListener('input', function () { clearErr(this, 'renameProjErr'); });
+
+    /* ---------- 删除（二次确认） ---------- */
+    async function delProject(id) {
+      var p = DB.projects.find(function (x) { return x.id === id; });
+      if (!p) return;
+      var ok = await confirmDialog({
+        title: '删除项目',
+        content: '项目「' + p.name + '」及其下 ' + p.screenCount + ' 块大屏将被删除，且不可恢复。',
+        danger: true,
+        okText: '删除'
+      });
+      if (!ok) return;
+      DB.projects = DB.projects.filter(function (x) { return x.id !== id; });
+      DB.screens = DB.screens.filter(function (s) { return s.projectId !== id; });
+      state.list = DB.projects.slice();
+      render();
+      toast('项目已删除', 'ok');
+    }
+
+    /* ---------- 卡片 / 菜单事件委托 ---------- */
+    grid.addEventListener('click', function (e) {
+      var menuBtn = e.target.closest('[data-act="menu"]');
+      if (menuBtn) {
+        e.stopPropagation();
+        var menu = menuBtn.parentElement.querySelector('.dropdown-menu');
+        var wasOpen = menu.classList.contains('show');
+        closeDropdowns();
+        if (!wasOpen) menu.classList.add('show');
+        return;
+      }
+      var card = e.target.closest('.proj-card');
+      if (!card) return;
+      var actBtn = e.target.closest('[data-act]');
+      if (actBtn) {
+        closeDropdowns();
+        var id = card.getAttribute('data-id');
+        var act = actBtn.getAttribute('data-act');
+        if (act === 'rename') openRename(id);
+        else if (act === 'del') delProject(id);
+        return;
+      }
+      /* 点击卡片主体进入大屏列表 */
+      location.href = 'screens.html?pid=' + card.getAttribute('data-id');
+    });
+
+    /* 点击页面空白关闭下拉菜单 */
+    document.addEventListener('click', function (e) {
+      if (!e.target.closest('.dropdown')) closeDropdowns();
+    });
+
+    /* 弹窗关闭：取消按钮 / 点击遮罩 */
+    document.addEventListener('click', function (e) {
+      var closer = e.target.closest('[data-close]');
+      if (closer) { closeModal(closer.getAttribute('data-close')); return; }
+      if (e.target.classList && e.target.classList.contains('modal-wrap')) e.target.classList.remove('show');
+    });
+
+    load();
+  })();
+  </script>
+</body>
+</html>

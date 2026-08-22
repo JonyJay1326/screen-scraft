@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>编辑器 · 水务总览驾驶舱 · ScreenCraft</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  /* 画布滚动：flex + margin auto，放大后可滚动、缩小时居中 */
+  .ed-canvas-wrap { display: flex; }
+  .ed-canvas { margin: auto; }
+
+  /* 画布内组件内容 */
+  .cv-title { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+    font-size: 34px; font-weight: 700; letter-spacing: 8px;
+    background: linear-gradient(90deg, #35E0FF, #2F7FF7 70%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .cv-weather { width: 100%; height: 100%; display: flex; align-items: center; gap: 12px; padding: 0 16px; color: var(--acc);
+    background: rgba(22,41,78,.55); border: 1px solid rgba(53,114,200,.35); border-radius: var(--r-lg); }
+  .cv-weather b { display: block; font-size: 14px; color: var(--t1); font-weight: 600; }
+  .cv-weather span { font-size: 11px; color: var(--t2); }
+
+  .cv-panel-head { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--t2); padding: 8px 10px 4px; letter-spacing: .04em; }
+  .cv-panel-head b { color: var(--t1); font-weight: 600; font-size: 13px; }
+
+  .kpi-grid { width: 100%; height: 100%; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 10px; }
+  .kpi-cell { background: rgba(22,41,78,.55); border: 1px solid rgba(53,114,200,.35); border-radius: var(--r-md); padding: 12px 14px; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+  .kpi-cell .k-label { font-size: 12px; color: var(--t2); }
+  .kpi-cell .k-val { font-family: var(--font-num); font-size: 26px; color: var(--t1); line-height: 1.1; }
+  .kpi-cell .k-val small { font-size: 11px; color: var(--t2); margin-left: 4px; font-family: var(--font-body); }
+  .kpi-cell .k-trend { font-size: 11px; display: flex; align-items: center; gap: 3px; font-family: var(--font-num); }
+  .k-trend.up { color: var(--ok); } .k-trend.down { color: var(--err); }
+
+  .cv-table { width: calc(100% - 20px); margin: 0 10px; border-collapse: collapse; font-size: 12px; }
+  .cv-table th { text-align: left; padding: 6px 8px; color: var(--t2); font-weight: 500; background: rgba(47,127,247,.12); border-bottom: 1px solid rgba(53,114,200,.35); }
+  .cv-table td { padding: 6px 8px; border-bottom: 1px solid rgba(30,58,102,.5); color: var(--t1); }
+  .cv-table td.num { color: var(--acc); }
+
+  .cv-video { width: 100%; height: 100%; border-radius: var(--r-md); background:
+    repeating-linear-gradient(0deg, rgba(53,224,255,.03) 0 2px, transparent 2px 6px),
+    linear-gradient(160deg, #0A1428, #101F3E); border: 1px solid rgba(53,114,200,.4);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--t2); position: relative; }
+  .cv-video .play { width: 52px; height: 52px; border-radius: 50%; border: 2px solid rgba(53,224,255,.6); display: grid; place-items: center; color: var(--acc); }
+  .cv-video .live { position: absolute; top: 10px; left: 12px; display: flex; align-items: center; gap: 5px; font-size: 11px; color: #fff; }
+  .cv-video .live i { width: 7px; height: 7px; border-radius: 50%; background: var(--err); animation: blink 1.2s infinite; }
+  @keyframes blink { 50% { opacity: .25; } }
+
+  .cv-text { width: 100%; height: 100%; padding: 10px 12px; font-size: 12.5px; color: var(--t2); line-height: 1.9; background: rgba(22,41,78,.4); border: 1px solid rgba(53,114,200,.3); border-radius: var(--r-md); overflow: hidden; }
+  .cv-dropdown { width: 100%; height: 100%; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; background: var(--panel2); border: 1px solid var(--border); border-radius: var(--r-md); font-size: 13px; color: var(--t1); }
+  .cv-dropdown svg { color: var(--t2); }
+  .cv-button { width: 100%; height: 100%; display: grid; place-items: center; background: linear-gradient(135deg, var(--pri), #1E6AE0); border-radius: var(--r-md); color: #fff; font-size: 15px; letter-spacing: 6px; font-weight: 500; box-shadow: 0 4px 14px rgba(47,127,247,.4); }
+  .cv-placeholder { width: 100%; height: 100%; border: 1px dashed rgba(53,224,255,.5); border-radius: var(--r-md); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--acc); font-size: 12px; background: rgba(53,224,255,.04); }
+
+  /* 右侧面板补充 */
+  .p-sec .seg { width: 100%; }
+  .p-sec .seg .seg-item { flex: 1; text-align: center; }
+  .data-src { margin-top: 12px; }
+  .event-card { border: 1px solid var(--border); border-radius: var(--r-md); padding: 10px 12px; background: var(--panel2); margin-bottom: 10px; }
+  .event-card .ev-row { display: flex; gap: 8px; font-size: 12px; margin-bottom: 6px; color: var(--t1); }
+  .event-card .ev-row b { color: var(--t2); font-weight: 400; flex: none; width: 56px; }
+  .border-dots { display: flex; gap: 8px; }
+  .border-dots .color-dot.sel { outline: 2px solid var(--pri); outline-offset: 2px; }
+  .pos-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .pos-grid .f-row { margin-bottom: 0; }
+
+  /* 快捷键表 */
+  .kbd-table { width: 100%; font-size: 13px; border-collapse: collapse; }
+  .kbd-table td { padding: 8px 6px; border-bottom: 1px solid var(--border); color: var(--t2); }
+  .kbd-table td:last-child { text-align: right; color: var(--t1); }
+  kbd { display: inline-block; padding: 2px 7px; background: var(--panel2); border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; font-family: var(--font-num); font-size: 11.5px; color: var(--t1); margin-left: 4px; }
+
+  .lib-cat svg { opacity: .9; }
+  .ed-screen-name { font-size: 13.5px; font-weight: 600; color: var(--t1); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ai-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 14px 10px; }
+  .ai-chips button { font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); color: var(--t2); transition: all .15s; }
+  .ai-chips button:hover { color: var(--pri); border-color: var(--pri); background: var(--pri-bg); }
+</style>
+</head>
+<body>
+<div class="ed-shell">
+
+  <!-- 顶部工具栏 -->
+  <div class="ed-top">
+    <a class="ed-back" href="screens.html"><i data-icon="chevron-left" data-size="16"></i>返回</a>
+    <div class="ed-sep"></div>
+    <span class="ed-screen-name">水务总览驾驶舱</span>
+    <span class="tag tag-warn" id="saveTag" style="margin-left:8px">未保存</span>
+    <div class="ed-sep"></div>
+    <button class="ed-tool" id="btnUndo" title="撤销 (Ctrl+Z)"><i data-icon="rotate-ccw" data-size="16"></i></button>
+    <button class="ed-tool" id="btnRedo" title="重做 (Ctrl+Shift+Z)"><i data-icon="rotate-cw" data-size="16"></i></button>
+    <div class="ed-sep"></div>
+    <button class="ed-tool" id="btnZoomOut" title="缩小"><i data-icon="zoom-out" data-size="16"></i></button>
+    <span class="ed-zoom" id="zoomVal">100%</span>
+    <button class="ed-tool" id="btnZoomIn" title="放大"><i data-icon="zoom-in" data-size="16"></i></button>
+    <div class="ed-sep"></div>
+    <button class="ed-tool" id="btnGrid" title="网格 (原型演示)"><i data-icon="grid" data-size="16"></i></button>
+
+    <div class="ed-top-right">
+      <button class="btn btn-ghost btn-sm" id="btnKeys"><i data-icon="book-open" data-size="14"></i>快捷键</button>
+      <button class="btn btn-sm" id="btnSave"><i data-icon="save" data-size="14"></i>保存</button>
+      <button class="btn btn-sm" id="btnTpl"><i data-icon="layout-template" data-size="14"></i>保存为模板</button>
+      <button class="btn btn-pri btn-sm" id="btnPreview"><i data-icon="eye" data-size="14"></i>预览</button>
+      <div class="dropdown">
+        <button class="btn btn-ghost btn-sm" id="btnMore"><i data-icon="more-horizontal" data-size="15"></i></button>
+        <div class="dropdown-menu" id="moreMenu">
+          <a href="display.html"><i data-icon="play" data-size="14"></i>进入展示页</a>
+          <button id="btnExport"><i data-icon="download" data-size="14"></i>导出配置 JSON</button>
+          <div class="divider"></div>
+          <button class="danger" id="btnClear"><i data-icon="trash-2" data-size="14"></i>清空画布</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ed-body">
+
+    <!-- 左侧：页面 / 组件库 -->
+    <div class="ed-left">
+      <div class="tabs">
+        <button class="tab" data-left="pages">页面</button>
+        <button class="tab active" data-left="lib">组件</button>
+      </div>
+
+      <div class="ed-left-body" id="panePages" style="display:none">
+        <div id="pageTree"></div>
+        <button class="btn btn-ghost btn-sm" id="btnAddPage" style="width:100%;margin-top:10px"><i data-icon="folder-plus" data-size="14"></i>新建页面</button>
+      </div>
+
+      <div class="ed-left-body" id="paneLib">
+        <div class="input-wrap lib-search">
+          <i data-icon="search" data-size="14"></i>
+          <input class="input input-sm" id="libKw" placeholder="搜索组件">
+        </div>
+        <div class="lib-cats" id="libCats"></div>
+        <div class="lib-grid" id="libGrid"></div>
+      </div>
+    </div>
+
+    <!-- 中间画布 -->
+    <div class="ed-canvas-wrap" id="canvasWrap">
+      <div class="ed-canvas" id="canvas"></div>
+    </div>
+
+    <!-- 右侧设置面板 -->
+    <div class="ed-right">
+      <div class="ed-right-body" id="rightPanel"></div>
+    </div>
+  </div>
+</div>
+
+<!-- AI 客服悬浮 -->
+<div class="ai-fab" id="aiFab" title="AI 客服"><i data-icon="bot" data-size="22"></i></div>
+<div class="ai-drawer" id="aiDrawer">
+  <div class="ai-head"><span class="dot"></span>AI 客服<span class="muted" style="font-weight:400;font-size:12px;margin-left:2px">基于知识库问答</span>
+    <button class="x" id="aiClose" style="margin-left:auto;color:var(--t2)"><i data-icon="x" data-size="15"></i></button>
+  </div>
+  <div class="ai-msgs" id="aiMsgs">
+    <div class="ai-msg bot">你好，我是 ScreenCraft 智能客服。关于组件使用、数据绑定、事件联动的问题都可以问我。</div>
+  </div>
+  <div class="ai-chips">
+    <button data-q="如何添加图表组件？">如何添加图表？</button>
+    <button data-q="下拉框如何联动其他组件？">下拉框联动</button>
+    <button data-q="如何保存为模板？">保存模板</button>
+  </div>
+  <div class="ai-input">
+    <input class="input input-sm" id="aiInput" placeholder="输入问题，Enter 发送">
+    <button class="btn btn-pri btn-sm" id="aiSend"><i data-icon="send" data-size="14"></i></button>
+  </div>
+</div>
+
+<!-- 快捷键弹窗 -->
+<div class="modal-wrap" id="mShortcuts">
+  <div class="modal">
+    <div class="modal-head"><span>快捷键说明</span><button class="x" data-close="#mShortcuts"><i data-icon="x" data-size="16"></i></button></div>
+    <div class="modal-body">
+      <table class="kbd-table">
+        <tr><td>保存大屏</td><td><kbd>Ctrl</kbd><kbd>S</kbd></td></tr>
+        <tr><td>撤销 / 重做</td><td><kbd>Ctrl</kbd><kbd>Z</kbd> / <kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>Z</kbd></td></tr>
+        <tr><td>复制 / 粘贴组件</td><td><kbd>Ctrl</kbd><kbd>C</kbd> / <kbd>Ctrl</kbd><kbd>V</kbd></td></tr>
+        <tr><td>删除选中组件</td><td><kbd>Delete</kbd></td></tr>
+        <tr><td>组合 / 取消组合</td><td><kbd>Ctrl</kbd><kbd>G</kbd> / <kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>G</kbd></td></tr>
+        <tr><td>微调位置（Shift ×10）</td><td><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd></td></tr>
+        <tr><td>取消选中 / 退出组内模式</td><td><kbd>Esc</kbd></td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- 保存为模板弹窗 -->
+<div class="modal-wrap" id="mTemplate">
+  <div class="modal">
+    <div class="modal-head"><span>保存为模板</span><button class="x" data-close="#mTemplate"><i data-icon="x" data-size="16"></i></button></div>
+    <div class="modal-body">
+      <div class="form-row"><span class="form-label">模板名称</span><div class="form-ctrl"><input class="input" id="tplName" placeholder="例如：水务运营通用版" maxlength="20"></div></div>
+      <div class="form-row"><span class="form-label">模板分类</span><div class="form-ctrl">
+        <select class="select" id="tplCat"><option>通用</option><option>工业</option><option>政务</option><option>医疗</option><option>交通</option><option>能源</option></select>
+      </div></div>
+      <p class="form-tip" style="margin-left:108px">保存为个人模板；管理员可在模板库中将其提升为公共模板。</p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" data-close="#mTemplate">取消</button>
+      <button class="btn btn-pri" id="tplSave">保存模板</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap"></div>
+<script src="icons.js"></script>
+<script src="mock.js"></script>
+<script src="api.js"></script>
+<script src="charts.js"></script>
+<script>
+  /* ================= 状态 ================= */
+  var state = { zoom: 1, selId: null, leftTab: 'lib', libCat: 'charts', libKw: '', rightTab: 'style', dataSrc: 'static' };
+  var canvasEl = document.getElementById('canvas');
+  var seq = 100;
+  var CHART_TYPES = ['line', 'bar', 'pie', 'combo', 'funnel', 'radar', 'gauge', 'kpi', 'table'];
+
+  var KPIS = [
+    { label: '累计供水', val: '12,842', unit: 'm³', trend: '+4.2%', up: true },
+    { label: '管网压力', val: '0.38', unit: 'MPa', trend: '-1.1%', up: false },
+    { label: '设备在线率', val: '96.4', unit: '%', trend: '+0.8%', up: true },
+    { label: '今日告警', val: '7', unit: '条', trend: '-22.0%', up: false }
+  ];
+
+  function markDirty() {
+    var t = document.getElementById('saveTag');
+    t.className = 'tag tag-warn'; t.textContent = '未保存';
+  }
+
+  /* ================= 组件内容渲染 ================= */
+  function compContent(c) {
+    var w = c.w, h = c.h;
+    function head(t) { return '<div class="cv-panel-head"><b>' + t + '</b><i data-icon="more-horizontal" data-size="13"></i></div>'; }
+    switch (c.type) {
+      case 'title': return '<div class="cv-title">' + c.name + '</div>';
+      case 'weather': return '<div class="cv-weather"><i data-icon="cloud-sun" data-size="26"></i><div><b>杭州市 · 多云 29°C</b><span>湿度 62% · 空气质量 优 · 10:00 更新</span></div></div>';
+      case 'kpi': return '<div class="kpi-grid">' + KPIS.map(function (k) {
+        return '<div class="kpi-cell"><span class="k-label">' + k.label + '</span><span class="k-val">' + k.val + '<small>' + k.unit + '</small></span>' +
+          '<span class="k-trend ' + (k.up ? 'up' : 'down') + '"><i data-icon="arrow-' + (k.up ? 'up' : 'down') + '" data-size="11"></i>' + k.trend + '</span></div>';
+      }).join('') + '</div>';
+      case 'line': return head('管网压力趋势') + '<div style="padding:0 10px">' + cLine([28, 34, 31, 40, 38, 47, 44, 52, 49, 58, 54, 62], { w: Math.max(w - 24, 80), h: Math.max(h - 46, 40) }) + '</div>';
+      case 'bar': return head('各站点供水量') + '<div style="padding:0 10px">' + cBars([42, 58, 50, 72, 64, 80], { w: Math.max(w - 24, 80), h: Math.max(h - 46, 40), data2: [30, 44, 38, 55, 48, 62] }) + '</div>';
+      case 'combo': return head('供水量与能耗对比') + '<div style="padding:0 10px">' + cBars([52, 64, 58, 76, 68, 84], { w: Math.max(w - 24, 80), h: Math.max(h - 46, 40), data2: [36, 48, 42, 58, 50, 66] }) + '</div>';
+      case 'pie': var size = Math.max(Math.min(w, h) - 60, 60);
+        return head('供水结构') + '<div style="display:flex;justify-content:center">' + cDonut([{ value: 46 }, { value: 28 }, { value: 16 }, { value: 10 }], { size: size, thick: size / 9, center: '2.4万', sub: '日供水 m³' }) + '</div>';
+      case 'gauge': return head('设备在线率') + '<div style="display:flex;justify-content:center;padding-top:6px">' + cGauge(96, { w: Math.max(w - 60, 90), h: Math.max(h - 70, 60), fs: 24 }) + '</div>';
+      case 'radar': return head('水质综合评分') + '<div style="display:flex;justify-content:center">' + cRadar([0.86, 0.72, 0.9, 0.64, 0.78, 0.82], { size: Math.max(Math.min(w, h - 36) - 16, 70) }) + '</div>';
+      case 'funnel': return head('工单处理漏斗') + '<div style="display:flex;justify-content:center">' + cFunnel([{ name: '受理 128', value: 100 }, { name: '派单 102', value: 80 }, { name: '处理 86', value: 64 }, { name: '完结 79', value: 50 }], { w: Math.max(w - 40, 120), h: Math.max(h - 46, 60) }) + '</div>';
+      case 'table':
+        var rows = DB.apiDetail.testResult;
+        return head('实时监测数据') + '<table class="cv-table"><tr>' + rows.columns.map(function (t) { return '<th>' + t + '</th>'; }).join('') + '</tr>' +
+          rows.rows.map(function (r) { return '<tr><td>' + r[0] + '</td><td class="num">' + r[1] + '</td><td class="num">' + r[2] + '</td></tr>'; }).join('') + '</table>';
+      case 'dropdown': return '<div class="cv-dropdown"><span>区域：全部</span><i data-icon="chevron-down" data-size="14"></i></div>';
+      case 'button': return '<div class="cv-button">查 询</div>';
+      case 'text': return '<div class="cv-text">备注：本驾驶舱数据每 5 分钟自动刷新一次。<br>管网压力低于 0.28 MPa 时触发低压告警，请调度中心及时关注。<br>如需接入新站点，请在「API 配置」中添加。</div>';
+      case 'video': return '<div class="cv-video"><span class="live"><i></i>LIVE · 滨江泵站</span><span class="play"><i data-icon="play" data-size="20"></i></span><span style="font-size:12px">' + c.name + '</span></div>';
+      default: return '<div class="cv-placeholder"><i data-icon="layout-grid" data-size="22"></i><span>' + c.name + ' · 组件占位</span></div>';
+    }
+  }
+
+  function renderCanvas() {
+    canvasEl.innerHTML = DB.canvas.map(function (c) {
+      return '<div class="cv-comp' + (c.id === state.selId ? ' selected' : '') + '" data-id="' + c.id + '" style="left:' + c.x + 'px;top:' + c.y + 'px;width:' + c.w + 'px;height:' + c.h + 'px">' +
+        '<span class="cv-label">' + c.name + '</span>' + compContent(c) +
+        '<span class="cv-handle tl"></span><span class="cv-handle tr"></span><span class="cv-handle bl"></span><span class="cv-handle br"></span></div>';
+    }).join('');
+    mountIcons(canvasEl);
+  }
+
+  function findComp(id) { return DB.canvas.filter(function (c) { return c.id === id; })[0]; }
+
+  function select(id) {
+    state.selId = id;
+    canvasEl.querySelectorAll('.cv-comp').forEach(function (el) {
+      el.classList.toggle('selected', el.getAttribute('data-id') === id);
+    });
+    renderRight();
+  }
+
+  /* ================= 右侧面板 ================= */
+  function renderRight() {
+    var box = document.getElementById('rightPanel');
+    var c = state.selId ? findComp(state.selId) : null;
+    if (!c) { box.innerHTML = pageSettingsHTML(); }
+    else {
+      var tabs = [['style', '样式'], ['data', '数据'], ['event', '事件']];
+      box.innerHTML = '<div class="tabs">' + tabs.map(function (t) {
+        return '<button class="tab' + (state.rightTab === t[0] ? ' active' : '') + '" data-rtab="' + t[0] + '">' + t[1] + '</button>';
+      }).join('') + '</div>' + rightTabHTML(c);
+    }
+    mountIcons(box);
+    bindRight(c);
+  }
+
+  function pageSettingsHTML() {
+    return '' +
+      '<div class="p-sec"><h4><i data-icon="monitor" data-size="13"></i>大屏信息</h4>' +
+      '<div class="f-row"><span class="f-label">大屏名称</span><div class="f-ctrl"><input class="input-sm input" value="水务总览驾驶舱"></div></div>' +
+      '<div class="f-row"><span class="f-label">分辨率</span><div class="f-ctrl"><select class="select"><option>1920 × 1080</option><option>2560 × 1440</option><option>3840 × 2160</option></select></div></div></div>' +
+      '<div class="p-sec"><h4><i data-icon="image" data-size="13"></i>背景设置</h4>' +
+      '<div class="f-row"><span class="f-label">填充方式</span><div class="f-ctrl"><select class="select"><option value="cover">覆盖 cover</option><option value="contain">包含 contain</option><option value="stretch">拉伸 stretch</option><option value="repeat">平铺 repeat</option><option value="center">居中 center</option></select></div></div>' +
+      '<div class="f-row"><span class="f-label">背景颜色</span><div class="f-ctrl"><span class="color-dot" style="background:#0D1730"></span><input class="input-sm input" value="#0D1730" style="width:90px"></div></div>' +
+      '<div class="f-row"><span class="f-label">背景图片</span><div class="f-ctrl"><button class="btn btn-sm" id="bgUpload"><i data-icon="upload" data-size="13"></i>上传图片</button></div></div></div>' +
+      '<div class="p-sec"><h4><i data-icon="frame" data-size="13"></i>边框套色</h4>' +
+      '<div class="border-dots">' + ['#1E3A66', '#2F7FF7', '#8B5CF6', '#35E0FF', '#F59E0B'].map(function (c, i) {
+        return '<span class="color-dot' + (i === 0 ? ' sel' : '') + '" style="background:' + c + '" title="套色 ' + (i + 1) + '"></span>';
+      }).join('') + '</div>' +
+      '<p class="form-tip">5 套预设边框：默认深蓝 / 工业蓝 / 科幻紫 / 青绿 / 橙金</p></div>' +
+      '<div class="p-sec"><h4><i data-icon="clock" data-size="13"></i>数据刷新</h4>' +
+      '<div class="f-row"><span class="f-label">全局轮询</span><div class="f-ctrl"><select class="select"><option>300 秒</option><option>60 秒</option><option>30 秒</option><option>5 秒</option></select></div></div></div>';
+  }
+
+  function rightTabHTML(c) {
+    if (state.rightTab === 'style') {
+      return '<div class="p-sec"><h4><i data-icon="move" data-size="13"></i>位置与尺寸</h4>' +
+        '<div class="pos-grid">' +
+        '<div class="f-row"><span class="f-label">X</span><div class="f-ctrl"><input class="input-sm input" type="number" id="posX" value="' + c.x + '"></div></div>' +
+        '<div class="f-row"><span class="f-label">Y</span><div class="f-ctrl"><input class="input-sm input" type="number" id="posY" value="' + c.y + '"></div></div>' +
+        '<div class="f-row"><span class="f-label">宽</span><div class="f-ctrl"><input class="input-sm input" type="number" id="posW" value="' + c.w + '"></div></div>' +
+        '<div class="f-row"><span class="f-label">高</span><div class="f-ctrl"><input class="input-sm input" type="number" id="posH" value="' + c.h + '"></div></div>' +
+        '</div></div>' +
+        '<div class="p-sec"><h4><i data-icon="sliders" data-size="13"></i>组件样式</h4>' +
+        '<div class="f-row"><span class="f-label">组件名称</span><div class="f-ctrl"><input class="input-sm input wide" id="compName" value="' + c.name + '"></div></div>' +
+        '<div class="f-row"><span class="f-label">主题色</span><div class="f-ctrl">' + ['#2F7FF7', '#35E0FF', '#22C55E', '#F59E0B', '#8B5CF6'].map(function (x, i) { return '<span class="color-dot' + (i === 0 ? ' sel' : '') + '" style="background:' + x + '"></span>'; }).join('') + '</div></div>' +
+        '<div class="f-row"><span class="f-label">显示标题</span><div class="f-ctrl"><label class="switch"><input type="checkbox" checked><span class="track"></span></label></div></div></div>' +
+        '<div class="p-sec"><h4><i data-icon="zap" data-size="13"></i>快捷操作</h4>' +
+        '<div class="flex gap-8" style="flex-wrap:wrap">' +
+        '<button class="btn btn-sm" data-act="up"><i data-icon="arrow-up" data-size="13"></i>上移一层</button>' +
+        '<button class="btn btn-sm" data-act="down"><i data-icon="arrow-down" data-size="13"></i>下移一层</button>' +
+        '<button class="btn btn-sm" data-act="lock"><i data-icon="lock" data-size="13"></i>锁定</button>' +
+        '<button class="btn btn-danger btn-sm" data-act="del"><i data-icon="trash-2" data-size="13"></i>删除</button>' +
+        '</div></div>';
+    }
+    if (state.rightTab === 'data') {
+      if (CHART_TYPES.indexOf(c.type) === -1) {
+        if (c.type === 'video') {
+          return '<div class="p-sec"><h4><i data-icon="video" data-size="13"></i>视频源</h4>' +
+            '<div class="seg" style="margin-bottom:12px"><span class="seg-item active" data-vsrc="file">文件上传</span><span class="seg-item" data-vsrc="url">URL 地址</span></div>' +
+            '<div class="f-row"><span class="f-label">视频文件</span><div class="f-ctrl"><button class="btn btn-sm" id="vidUp"><i data-icon="upload" data-size="13"></i>上传视频</button></div></div>' +
+            '<p class="form-tip">支持 mp4 / flv / hls；单文件 ≤ 200MB。</p></div>';
+        }
+        return '<div class="empty"><i data-icon="info" data-size="26"></i><br>该组件无数据配置</div>';
+      }
+      var isStatic = state.dataSrc === 'static';
+      var html = '<div class="p-sec"><h4><i data-icon="database" data-size="13"></i>数据来源</h4>' +
+        '<div class="seg"><span class="seg-item' + (isStatic ? ' active' : '') + '" data-dsrc="static">静态数据</span><span class="seg-item' + (!isStatic ? ' active' : '') + '" data-dsrc="api">API 接入</span></div>' +
+        '<div class="data-src">';
+      if (isStatic) {
+        html += '<table class="mini-table"><tr><th>类别</th><th>数值</th></tr>' +
+          [['滨江泵站', '0.42'], ['城北加压站', '0.38'], ['高新供水站', '0.35'], ['西湖泵站', '0.31']].map(function (r) {
+            return '<tr><td><input value="' + r[0] + '"></td><td><input value="' + r[1] + '"></td></tr>';
+          }).join('') + '</table>' +
+          '<div class="flex gap-8" style="margin-top:10px"><button class="btn btn-sm" id="addRow"><i data-icon="plus" data-size="13"></i>添加行</button>' +
+          '<button class="btn btn-sm" id="addCol"><i data-icon="plus" data-size="13"></i>添加列</button></div>' +
+          '<p class="form-tip">表格按图表类型自动生成对应结构，支持动态增删行列。</p>';
+      } else {
+        html += '<div class="f-row"><span class="f-label">选择 API</span><div class="f-ctrl"><select class="select" style="width:170px">' +
+          DB.apiConfigs.map(function (a) { return '<option>' + a.name + '</option>'; }).join('') + '</select></div></div>' +
+          '<div class="f-row"><span class="f-label">轮询间隔</span><div class="f-ctrl"><select class="select"><option>关闭</option><option>5 秒</option><option>30 秒</option><option selected>300 秒</option></select></div></div>' +
+          '<div class="f-row"><span class="f-label">defaultValue</span><div class="f-ctrl"><input class="input-sm input wide" placeholder="首次取数参数默认值"></div></div>' +
+          '<button class="btn btn-sm" id="refreshData"><i data-icon="refresh-cw" data-size="13"></i>刷新预览</button>' +
+          '<p class="form-tip">API 在「API 配置」页统一管理，占位符参数可由下拉框联动注入。</p>';
+      }
+      return html + '</div></div>';
+    }
+    /* 事件页签 */
+    if (c.type === 'button' || c.type === 'dropdown') {
+      var evName = c.type === 'button' ? '点击' : '选项变化';
+      return '<div class="p-sec"><h4><i data-icon="zap" data-size="13"></i>交互事件</h4>' +
+        '<div class="event-card">' +
+        '<div class="ev-row"><b>触发方式</b><span>' + evName + '</span></div>' +
+        '<div class="ev-row"><b>触发条件</b><span>无条件</span></div>' +
+        '<div class="ev-row"><b>执行动作</b><span>调用 API「水务-管网压力实时」并刷新绑定组件</span></div>' +
+        '<div class="flex gap-8"><button class="btn btn-sm" data-act="editEv"><i data-icon="pencil" data-size="13"></i>编辑</button>' +
+        '<button class="btn btn-danger btn-sm" data-act="delEv"><i data-icon="trash-2" data-size="13"></i>删除</button></div></div>' +
+        '<button class="btn btn-sm" id="addEvent" style="width:100%"><i data-icon="plus" data-size="13"></i>添加事件</button>' +
+        '<p class="form-tip">下拉框选中值按「同名参数」约定注入目标组件的 API 占位符。</p></div>';
+    }
+    return '<div class="empty"><i data-icon="zap" data-size="26"></i><br>该组件暂无事件配置<br><span style="font-size:12px">按钮 / 下拉框等控件支持交互事件</span></div>';
+  }
+
+  function bindRight(c) {
+    var box = document.getElementById('rightPanel');
+    box.querySelectorAll('[data-rtab]').forEach(function (b) {
+      b.addEventListener('click', function () { state.rightTab = b.getAttribute('data-rtab'); renderRight(); });
+    });
+    box.querySelectorAll('[data-dsrc]').forEach(function (b) {
+      b.addEventListener('click', function () { state.dataSrc = b.getAttribute('data-dsrc'); renderRight(); });
+    });
+    var bgUp = document.getElementById('bgUpload');
+    if (bgUp) bgUp.addEventListener('click', function () { toast('原型演示：打开背景图片选择（≤200MB）'); });
+    box.querySelectorAll('.border-dots .color-dot, .p-sec .f-ctrl .color-dot').forEach(function (d) {
+      d.addEventListener('click', function () {
+        d.parentElement.querySelectorAll('.color-dot').forEach(function (x) { x.classList.remove('sel'); });
+        d.classList.add('sel');
+      });
+    });
+    if (!c) return;
+    ['posX', 'posY', 'posW', 'posH'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener('change', function () {
+        c.x = parseInt(document.getElementById('posX').value, 10) || 0;
+        c.y = parseInt(document.getElementById('posY').value, 10) || 0;
+        c.w = Math.max(parseInt(document.getElementById('posW').value, 10) || 60, 60);
+        c.h = Math.max(parseInt(document.getElementById('posH').value, 10) || 40, 40);
+        markDirty(); renderCanvas();
+      });
+    });
+    var nm = document.getElementById('compName');
+    if (nm) nm.addEventListener('change', function () { c.name = nm.value; markDirty(); renderCanvas(); });
+    box.querySelectorAll('[data-act]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var act = b.getAttribute('data-act');
+        if (act === 'del') {
+          confirmDialog({ title: '删除组件', content: '确定删除组件「' + c.name + '」？', danger: true, okText: '删除' }).then(function (y) {
+            if (!y) return;
+            DB.canvas = DB.canvas.filter(function (x) { return x.id !== c.id; });
+            select(null); renderCanvas(); toast('已删除组件', 'ok'); markDirty();
+          });
+        } else if (act === 'up' || act === 'down') {
+          toast('原型演示：图层' + (act === 'up' ? '上移' : '下移'));
+        } else if (act === 'lock') {
+          toast('原型演示：组件已锁定，画布中不可拖动');
+        } else if (act === 'editEv') {
+          toast('原型演示：打开事件编辑（触发 / 条件 / 动作）');
+        } else if (act === 'delEv') {
+          confirmDialog({ title: '删除事件', content: '确定删除该交互事件？', danger: true, okText: '删除' }).then(function (y) { if (y) toast('事件已删除', 'ok'); });
+        }
+      });
+    });
+    var addEv = document.getElementById('addEvent');
+    if (addEv) addEv.addEventListener('click', function () { toast('原型演示：添加事件（触发方式 → 条件 → 动作）'); });
+    var addRow = document.getElementById('addRow');
+    if (addRow) addRow.addEventListener('click', function () {
+      var tb = box.querySelector('.mini-table');
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td><input value="新行" placeholder="类别"></td><td><input value="0" placeholder="数值"></td>';
+      tb.appendChild(tr); markDirty();
+    });
+    var addCol = document.getElementById('addCol');
+    if (addCol) addCol.addEventListener('click', function () { toast('原型演示：按当前图表类型追加一列'); });
+    var rf = document.getElementById('refreshData');
+    if (rf) rf.addEventListener('click', function () { toast('数据已刷新（原型演示）', 'ok'); });
+    var vu = document.getElementById('vidUp');
+    if (vu) vu.addEventListener('click', function () { toast('原型演示：上传视频文件（≤200MB）'); });
+    box.querySelectorAll('[data-vsrc]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        box.querySelectorAll('[data-vsrc]').forEach(function (x) { x.classList.remove('active'); });
+        b.classList.add('active');
+      });
+    });
+  }
+
+  /* ================= 左侧 ================= */
+  var LIB_CATS = [['charts', '图表', 'bar-chart-3'], ['deco', '装饰', 'frame'], ['media', '媒体', 'image'], ['controls', '控件', 'mouse-pointer']];
+
+  function renderLibCats() {
+    var box = document.getElementById('libCats');
+    box.innerHTML = LIB_CATS.map(function (c) {
+      return '<button class="lib-cat' + (state.libCat === c[0] ? ' active' : '') + '" data-cat="' + c[0] + '"><i data-icon="' + c[2] + '" data-size="17"></i>' + c[1] + '</button>';
+    }).join('');
+    mountIcons(box);
+    box.querySelectorAll('[data-cat]').forEach(function (b) {
+      b.addEventListener('click', function () { state.libCat = b.getAttribute('data-cat'); renderLibCats(); renderLibGrid(); });
+    });
+  }
+
+  function renderLibGrid() {
+    var box = document.getElementById('libGrid');
+    var items = DB.componentLib[state.libCat].filter(function (i) { return !state.libKw || i.name.indexOf(state.libKw) !== -1; });
+    if (!items.length) { box.innerHTML = '<div class="empty" style="grid-column:1/-1;padding:24px 0">无匹配组件</div>'; return; }
+    box.innerHTML = items.map(function (i) {
+      return '<div class="lib-item" data-name="' + i.name + '" title="点击添加到画布">' +
+        '<div class="lib-thumb">' + libThumb(i.name) + '</div>' +
+        '<div class="lib-name"><span>' + i.name + '</span><span class="cnt">×' + i.variants + '</span></div></div>';
+    }).join('');
+    mountIcons(box);
+    box.querySelectorAll('.lib-item').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var name = el.getAttribute('data-name');
+        var comp = { id: 'n' + (++seq), type: 'chart', name: name, x: 760, y: 420, w: 400, h: 280 };
+        DB.canvas.push(comp);
+        renderCanvas(); select(comp.id); markDirty();
+        toast('已添加「' + name + '」到画布', 'ok');
+      });
+    });
+  }
+
+  function renderTree() {
+    var box = document.getElementById('pageTree');
+    box.innerHTML = DB.pages.map(function (p, i) {
+      var kids = (p.children || []).map(function (ch) {
+        return '<div class="tree-node tree-child" data-pid="' + ch.id + '"><i data-icon="file-text" data-size="13"></i>' + ch.name + '</div>';
+      }).join('');
+      return '<div class="tree-node' + (i === 0 ? ' active' : '') + '" data-pid="' + p.id + '"><i data-icon="file-text" data-size="14"></i>' + p.name +
+        '<span class="node-op"><button title="重命名" data-op="ren"><i data-icon="pencil" data-size="12"></i></button>' +
+        '<button title="删除页面" data-op="del"><i data-icon="trash-2" data-size="12"></i></button></span></div>' + kids;
+    }).join('');
+    mountIcons(box);
+    box.querySelectorAll('.tree-node').forEach(function (n) {
+      n.addEventListener('click', function (e) {
+        var op = e.target.closest('[data-op]');
+        if (op) {
+          e.stopPropagation();
+          if (op.getAttribute('data-op') === 'del') {
+            confirmDialog({ title: '删除页面', content: '确定删除该页面及其全部组件？', danger: true, okText: '删除' }).then(function (y) { if (y) toast('原型演示：页面已删除', 'ok'); });
+          } else toast('原型演示：重命名页面');
+          return;
+        }
+        box.querySelectorAll('.tree-node').forEach(function (x) { x.classList.remove('active'); });
+        n.classList.add('active');
+      });
+    });
+  }
+
+  document.querySelectorAll('[data-left]').forEach(function (t) {
+    t.addEventListener('click', function () {
+      state.leftTab = t.getAttribute('data-left');
+      document.querySelectorAll('[data-left]').forEach(function (x) { x.classList.toggle('active', x === t); });
+      document.getElementById('panePages').style.display = state.leftTab === 'pages' ? '' : 'none';
+      document.getElementById('paneLib').style.display = state.leftTab === 'lib' ? '' : 'none';
+    });
+  });
+
+  document.getElementById('libKw').addEventListener('input', function () { state.libKw = this.value.trim(); renderLibGrid(); });
+  document.getElementById('btnAddPage').addEventListener('click', function () {
+    DB.pages.push({ id: 'pg' + Date.now(), name: '新页面', children: [] });
+    renderTree(); toast('已新建页面（原型演示）', 'ok');
+  });
+
+  /* ================= 画布交互：选中 / 拖动 / 缩放 ================= */
+  var drag = null;
+  canvasEl.addEventListener('mousedown', function (e) {
+    var el = e.target.closest('.cv-comp');
+    if (!el) { select(null); return; }
+    var id = el.getAttribute('data-id');
+    select(id);
+    var c = findComp(id);
+    var isResize = !!e.target.closest('.cv-handle.br');
+    drag = { id: id, mode: isResize ? 'resize' : 'move', sx: e.clientX, sy: e.clientY, ox: c.x, oy: c.y, ow: c.w, oh: c.h, el: el, moved: false };
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', function (e) {
+    if (!drag) return;
+    var dx = (e.clientX - drag.sx) / state.zoom, dy = (e.clientY - drag.sy) / state.zoom;
+    if (Math.abs(dx) + Math.abs(dy) > 1) drag.moved = true;
+    var c = findComp(drag.id);
+    if (drag.mode === 'move') {
+      c.x = Math.round(Math.min(Math.max(drag.ox + dx, 0), 1920 - c.w));
+      c.y = Math.round(Math.min(Math.max(drag.oy + dy, 0), 1080 - c.h));
+      drag.el.style.left = c.x + 'px'; drag.el.style.top = c.y + 'px';
+    } else {
+      c.w = Math.round(Math.max(drag.ow + dx, 60));
+      c.h = Math.round(Math.max(drag.oh + dy, 40));
+      drag.el.style.width = c.w + 'px'; drag.el.style.height = c.h + 'px';
+    }
+  });
+
+  document.addEventListener('mouseup', function () {
+    if (!drag) return;
+    if (drag.moved) { markDirty(); renderCanvas(); if (state.selId === drag.id) renderRight(); }
+    drag = null;
+  });
+
+  function applyZoom() {
+    canvasEl.style.transform = 'scale(' + state.zoom + ')';
+    document.getElementById('zoomVal').textContent = Math.round(state.zoom * 100) + '%';
+  }
+  document.getElementById('btnZoomIn').addEventListener('click', function () { state.zoom = Math.min(state.zoom + 0.25, 4); applyZoom(); });
+  document.getElementById('btnZoomOut').addEventListener('click', function () { state.zoom = Math.max(state.zoom - 0.25, 0.2); applyZoom(); });
+
+  /* ================= 顶部工具栏 ================= */
+  document.getElementById('btnUndo').addEventListener('click', function () { toast('原型演示：撤销 (Ctrl+Z)'); });
+  document.getElementById('btnRedo').addEventListener('click', function () { toast('原型演示：重做 (Ctrl+Shift+Z)'); });
+  document.getElementById('btnGrid').addEventListener('click', function () { this.classList.toggle('on'); toast('原型演示：对齐网格已' + (this.classList.contains('on') ? '开启' : '关闭')); });
+
+  function doSave() {
+    var t = document.getElementById('saveTag');
+    toast('大屏已保存', 'ok');
+    t.className = 'tag tag-ok'; t.textContent = '已保存';
+    // TODO: 替换为 request.post('/screens/:id/save', layoutJson)
+  }
+  document.getElementById('btnSave').addEventListener('click', doSave);
+  document.getElementById('btnPreview').addEventListener('click', function () { location.href = 'display.html?preview=1'; });
+
+  var moreMenu = document.getElementById('moreMenu');
+  document.getElementById('btnMore').addEventListener('click', function (e) { e.stopPropagation(); moreMenu.classList.toggle('show'); });
+  document.addEventListener('click', function () { moreMenu.classList.remove('show'); });
+  document.getElementById('btnExport').addEventListener('click', function () { toast('原型演示：导出大屏配置 JSON'); });
+  document.getElementById('btnClear').addEventListener('click', function () {
+    confirmDialog({ title: '清空画布', content: '将删除画布上的全部组件，此操作在原型中不可撤销。', danger: true, okText: '清空' }).then(function (y) {
+      if (!y) return;
+      DB.canvas = []; select(null); renderCanvas(); toast('画布已清空', 'ok'); markDirty();
+    });
+  });
+
+  document.getElementById('btnKeys').addEventListener('click', function () { openModal('#mShortcuts'); });
+  document.getElementById('btnTpl').addEventListener('click', function () { openModal('#mTemplate'); });
+  document.querySelectorAll('[data-close]').forEach(function (b) {
+    b.addEventListener('click', function () { closeModal(b.getAttribute('data-close')); });
+  });
+  document.querySelectorAll('.modal-wrap').forEach(function (w) {
+    w.addEventListener('click', function (e) { if (e.target === w) w.classList.remove('show'); });
+  });
+  document.getElementById('tplSave').addEventListener('click', function () {
+    var name = document.getElementById('tplName').value.trim();
+    if (!name) { toast('请填写模板名称', 'err'); return; }
+    closeModal('#mTemplate');
+    toast('已保存为个人模板「' + name + '」', 'ok');
+    // TODO: 替换为 request.post('/templates', {name, category, screenId})
+  });
+
+  /* 键盘快捷键 */
+  document.addEventListener('keydown', function (e) {
+    var tag = (e.target.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); doSave(); }
+    else if (e.key === 'Delete' && state.selId) {
+      var c = findComp(state.selId);
+      DB.canvas = DB.canvas.filter(function (x) { return x.id !== state.selId; });
+      select(null); renderCanvas(); toast('已删除组件「' + c.name + '」', 'ok'); markDirty();
+    }
+    else if (e.key === 'Escape') select(null);
+  });
+
+  /* ================= AI 客服 ================= */
+  var aiDrawer = document.getElementById('aiDrawer');
+  document.getElementById('aiFab').addEventListener('click', function () { aiDrawer.classList.toggle('show'); });
+  document.getElementById('aiClose').addEventListener('click', function () { aiDrawer.classList.remove('show'); });
+
+  function aiAppend(role, text) {
+    var box = document.getElementById('aiMsgs');
+    var div = document.createElement('div');
+    div.className = 'ai-msg ' + role;
+    div.textContent = text;
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+    return div;
+  }
+  function aiAsk(q) {
+    if (!q) return;
+    aiAppend('me', q);
+    var loading = aiAppend('bot', '正在检索知识库...');
+    aiChat(q).then(function (res) {
+      loading.textContent = res.data.answer;
+      document.getElementById('aiMsgs').scrollTop = 1e6;
+    });
+  }
+  document.getElementById('aiSend').addEventListener('click', function () {
+    var inp = document.getElementById('aiInput');
+    aiAsk(inp.value.trim()); inp.value = '';
+  });
+  document.getElementById('aiInput').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { aiAsk(this.value.trim()); this.value = ''; }
+  });
+  document.querySelectorAll('.ai-chips button').forEach(function (b) {
+    b.addEventListener('click', function () { aiAsk(b.getAttribute('data-q')); });
+  });
+
+  /* ================= 初始化 ================= */
+  renderLibCats();
+  renderLibGrid();
+  renderTree();
+  renderCanvas();
+  renderRight();
+</script>
+</body>
+</html>
