@@ -1,0 +1,360 @@
+import { defineStore } from 'pinia';
+import { computed, ref } from 'vue';
+import type { ComponentDoc, PageDoc, ScreenDoc } from '@screencraft/shared';
+import { fetchScreen, saveScreenApi } from '../api/screen';
+
+const MAX_HISTORY = 50;
+
+/** 深拷贝大屏快照 */
+function cloneScreen(doc: ScreenDoc): ScreenDoc {
+  return structuredClone(doc);
+}
+
+/** 生成短 id */
+function uid(): string {
+  return crypto.randomUUID();
+}
+
+/** 编辑器状态 */
+export const useScreenStore = defineStore('screen', () => {
+  const screen = ref<ScreenDoc | null>(null);
+  const currentPageId = ref('');
+  const selectedIds = ref<string[]>([]);
+  const inGroupId = ref<string | null>(null);
+  const clipboard = ref<ComponentDoc[]>([]);
+  const past = ref<ScreenDoc[]>([]);
+  const future = ref<ScreenDoc[]>([]);
+  const dirty = ref(false);
+  const zoom = ref(50);
+  const showGrid = ref(true);
+  const saving = ref(false);
+
+  const currentPage = computed(() => screen.value?.pages.find((page) => page.id === currentPageId.value) ?? null);
+  const canUndo = computed(() => past.value.length > 0);
+  const canRedo = computed(() => future.value.length > 0);
+
+  /** 当前页可见组件（组内模式仅组内） */
+  const visibleComponents = computed(() => {
+    const page = currentPage.value;
+    if (!page) {
+      return [];
+    }
+    if (inGroupId.value) {
+      return page.components.filter((item) => item.groupId === inGroupId.value);
+    }
+    return page.components;
+  });
+
+  /** 压入历史 */
+  function pushHistory(): void {
+    if (!screen.value) {
+      return;
+    }
+    past.value = [...past.value, cloneScreen(screen.value)].slice(-MAX_HISTORY);
+    future.value = [];
+    dirty.value = true;
+  }
+
+  /** 加载大屏 */
+  async function load(id: string): Promise<void> {
+    screen.value = await fetchScreen(id);
+    currentPageId.value = screen.value.pages[0]?.id ?? '';
+    selectedIds.value = [];
+    inGroupId.value = null;
+    past.value = [];
+    future.value = [];
+    dirty.value = false;
+  }
+
+  /** 保存 */
+  async function save(): Promise<void> {
+    if (!screen.value) {
+      return;
+    }
+    saving.value = true;
+    try {
+      const saved = await saveScreenApi(screen.value._id, {
+        updatedAt: screen.value.updatedAt,
+        name: screen.value.name,
+        category: screen.value.category,
+        fitMode: screen.value.fitMode,
+        pages: screen.value.pages,
+      });
+      screen.value = saved;
+      dirty.value = false;
+    } finally {
+      saving.value = false;
+    }
+  }
+
+  /** 撤销 */
+  function undo(): void {
+    const prev = past.value.at(-1);
+    if (!prev || !screen.value) {
+      return;
+    }
+    future.value = [cloneScreen(screen.value), ...future.value];
+    past.value = past.value.slice(0, -1);
+    screen.value = prev;
+    dirty.value = true;
+  }
+
+  /** 重做 */
+  function redo(): void {
+    const next = future.value[0];
+    if (!next || !screen.value) {
+      return;
+    }
+    past.value = [...past.value, cloneScreen(screen.value)];
+    future.value = future.value.slice(1);
+    screen.value = next;
+    dirty.value = true;
+  }
+
+  /** 当前页组件列表引用更新 */
+  function mutatePage(mutator: (page: PageDoc) => void, record = true): void {
+    if (!screen.value || !currentPage.value) {
+      return;
+    }
+    if (record) {
+      pushHistory();
+    }
+    const pages = screen.value.pages.map((page) => {
+      if (page.id !== currentPageId.value) {
+        return page;
+      }
+      const next = structuredClone(page);
+      mutator(next);
+      return next;
+    });
+    screen.value = { ...screen.value, pages };
+    dirty.value = true;
+  }
+
+  /** 添加组件 */
+  function addComponent(partial: Omit<ComponentDoc, 'id' | 'zIndex' | 'events'> & { events?: ComponentDoc['events'] }): ComponentDoc {
+    const created: ComponentDoc = {
+      ...partial,
+      id: uid(),
+      zIndex: (currentPage.value?.components.length ?? 0) + 1,
+      events: partial.events ?? [],
+    };
+    mutatePage((page) => {
+      page.components.push(created);
+    });
+    selectedIds.value = [created.id];
+    return created;
+  }
+
+  /** 更新几何（拖拽结束记一次） */
+  function updateGeometry(id: string, geom: Partial<Pick<ComponentDoc, 'x' | 'y' | 'w' | 'h'>>, record: boolean): void {
+    mutatePage((page) => {
+      const target = page.components.find((item) => item.id === id);
+      if (!target) {
+        return;
+      }
+      Object.assign(target, geom);
+    }, record);
+  }
+
+  /** 批量更新 */
+  function patchComponent(id: string, patch: Partial<ComponentDoc>): void {
+    mutatePage((page) => {
+      const target = page.components.find((item) => item.id === id);
+      if (target) {
+        Object.assign(target, patch);
+      }
+    });
+  }
+
+  /** 删除选中 */
+  function removeSelected(): void {
+    if (!selectedIds.value.length) {
+      return;
+    }
+    const ids = new Set(selectedIds.value);
+    mutatePage((page) => {
+      page.components = page.components.filter((item) => !ids.has(item.id));
+    });
+    selectedIds.value = [];
+  }
+
+  /** 复制 */
+  function copy(): void {
+    const page = currentPage.value;
+    if (!page) {
+      return;
+    }
+    clipboard.value = page.components.filter((item) => selectedIds.value.includes(item.id)).map((item) => structuredClone(item));
+  }
+
+  /** 粘贴 */
+  function paste(): void {
+    if (!clipboard.value.length) {
+      return;
+    }
+    const created: ComponentDoc[] = clipboard.value.map((item) => ({
+      ...structuredClone(item),
+      id: uid(),
+      x: item.x + 16,
+      y: item.y + 16,
+      name: item.name,
+    }));
+    mutatePage((page) => {
+      page.components.push(...created);
+    });
+    selectedIds.value = created.map((item) => item.id);
+  }
+
+  /** 组合 */
+  function groupSelected(): void {
+    if (selectedIds.value.length < 2) {
+      return;
+    }
+    const gid = uid();
+    mutatePage((page) => {
+      page.components.forEach((item) => {
+        if (selectedIds.value.includes(item.id)) {
+          item.groupId = gid;
+        }
+      });
+    });
+  }
+
+  /** 打散 */
+  function ungroupSelected(): void {
+    mutatePage((page) => {
+      page.components.forEach((item) => {
+        if (selectedIds.value.includes(item.id)) {
+          item.groupId = null;
+        }
+      });
+    });
+    inGroupId.value = null;
+  }
+
+  /** 图层 */
+  function changeLayer(mode: 'top' | 'bottom' | 'up' | 'down'): void {
+    mutatePage((page) => {
+      const selected = page.components.filter((item) => selectedIds.value.includes(item.id));
+      if (!selected.length) {
+        return;
+      }
+      const zs = page.components.map((item) => item.zIndex);
+      const max = Math.max(...zs);
+      const min = Math.min(...zs);
+      selected.forEach((item) => {
+        if (mode === 'top') {
+          item.zIndex = max + 1;
+        } else if (mode === 'bottom') {
+          item.zIndex = min - 1;
+        } else if (mode === 'up') {
+          item.zIndex += 1;
+        } else {
+          item.zIndex -= 1;
+        }
+      });
+    });
+  }
+
+  /** 清空当前页组件 */
+  function clearCanvas(): void {
+    mutatePage((page) => {
+      page.components = [];
+    });
+    selectedIds.value = [];
+  }
+
+  /** 添加页面 */
+  function addPage(parentId: string | null = null): void {
+    if (!screen.value) {
+      return;
+    }
+    pushHistory();
+    const page: PageDoc = {
+      id: uid(),
+      name: `页面 ${screen.value.pages.length + 1}`,
+      parentId,
+      background: { type: 'normal', color: '#0D1730', opacity: 100, fill: 'cover' },
+      components: [],
+    };
+    screen.value = { ...screen.value, pages: [...screen.value.pages, page] };
+    currentPageId.value = page.id;
+    dirty.value = true;
+  }
+
+  /** 删除页面 */
+  function removePage(pageId: string): void {
+    if (!screen.value || screen.value.pages.length <= 1) {
+      return;
+    }
+    pushHistory();
+    const pages = screen.value.pages.filter((page) => page.id !== pageId && page.parentId !== pageId);
+    screen.value = { ...screen.value, pages };
+    if (currentPageId.value === pageId) {
+      currentPageId.value = pages[0].id;
+    }
+    dirty.value = true;
+  }
+
+  /** 重命名页面 */
+  function renamePage(pageId: string, name: string): void {
+    if (!screen.value) {
+      return;
+    }
+    pushHistory();
+    screen.value = {
+      ...screen.value,
+      pages: screen.value.pages.map((page) => (page.id === pageId ? { ...page, name } : page)),
+    };
+    dirty.value = true;
+  }
+
+  /** 微调移动 */
+  function nudge(dx: number, dy: number): void {
+    mutatePage((page) => {
+      page.components.forEach((item) => {
+        if (selectedIds.value.includes(item.id) && !item.locked) {
+          item.x += dx;
+          item.y += dy;
+        }
+      });
+    });
+  }
+
+  return {
+    screen,
+    currentPageId,
+    selectedIds,
+    inGroupId,
+    clipboard,
+    dirty,
+    zoom,
+    showGrid,
+    saving,
+    currentPage,
+    canUndo,
+    canRedo,
+    visibleComponents,
+    load,
+    save,
+    undo,
+    redo,
+    addComponent,
+    updateGeometry,
+    patchComponent,
+    removeSelected,
+    copy,
+    paste,
+    groupSelected,
+    ungroupSelected,
+    changeLayer,
+    clearCanvas,
+    addPage,
+    removePage,
+    renamePage,
+    nudge,
+    mutatePage,
+    pushHistory,
+  };
+});

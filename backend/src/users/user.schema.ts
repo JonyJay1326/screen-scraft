@@ -24,6 +24,9 @@ export class User {
   /** JWT 签发时间需晚于此值，改密后旧令牌失效 */
   @Prop({ required: true, default: () => new Date() })
   passwordChangedAt!: Date;
+
+  createdAt!: Date;
+  updatedAt!: Date;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

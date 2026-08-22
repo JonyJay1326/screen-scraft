@@ -1,8 +1,12 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
+import { AuthModule } from './auth/auth.module';
 import { HealthController } from './health/health.controller';
-import { User, UserSchema } from './users/user.schema';
+import { ProjectsModule } from './projects/projects.module';
+import { ScreensModule } from './screens/screens.module';
+import { TemplatesModule } from './templates/templates.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
@@ -16,7 +20,11 @@ import { User, UserSchema } from './users/user.schema';
         uri: config.getOrThrow<string>('MONGO_URI'),
       }),
     }),
-    MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
+    AuthModule,
+    UsersModule,
+    ProjectsModule,
+    ScreensModule,
+    TemplatesModule,
   ],
   controllers: [HealthController],
 })

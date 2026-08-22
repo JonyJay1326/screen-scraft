@@ -1,0 +1,51 @@
+import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { CreateScreenDto, DeployedDto, SaveScreenDto } from './screens.dto';
+import { ScreensService } from './screens.service';
+
+/** 大屏接口 */
+@Controller()
+export class ScreensController {
+  constructor(private readonly screensService: ScreensService) {}
+
+  /** 项目下列表 */
+  @Get('projects/:pid/screens')
+  list(@Param('pid') pid: string) {
+    return this.screensService.listByProject(pid);
+  }
+
+  /** 新建空白 */
+  @Post('screens')
+  create(@Body() dto: CreateScreenDto) {
+    return this.screensService.create(dto);
+  }
+
+  /** 详情 */
+  @Get('screens/:id')
+  get(@Param('id') id: string) {
+    return this.screensService.getById(id);
+  }
+
+  /** 保存 */
+  @Post('screens/:id/save')
+  save(@Param('id') id: string, @Body() dto: SaveScreenDto) {
+    return this.screensService.save(id, dto);
+  }
+
+  /** 删除 */
+  @Post('screens/:id/delete')
+  remove(@Param('id') id: string) {
+    return this.screensService.remove(id);
+  }
+
+  /** 复制 */
+  @Post('screens/:id/copy')
+  copy(@Param('id') id: string) {
+    return this.screensService.copy(id);
+  }
+
+  /** 投放标记 */
+  @Post('screens/:id/deployed')
+  deployed(@Param('id') id: string, @Body() dto: DeployedDto) {
+    return this.screensService.setDeployed(id, dto.deployed);
+  }
+}
