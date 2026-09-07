@@ -1,3 +1,5 @@
+import type { Component } from 'vue';
+
 export type StyleFieldType = 'text' | 'number' | 'switch' | 'color' | 'select' | 'colorList';
 
 export interface StyleField {
@@ -40,4 +42,5 @@ export interface ComponentTemplate {
   styleSchema: StyleField[];
   hasDataTab: boolean;
   hasEventTab: boolean;
+  renderer: Component;
 }

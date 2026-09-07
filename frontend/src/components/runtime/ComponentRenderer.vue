@@ -1,30 +1,41 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import type { ComponentDoc } from '@screencraft/shared';
 import { getTemplate } from '../../registry';
 
 const props = defineProps<{
   doc: ComponentDoc;
   mode: 'edit' | 'runtime';
+  runtimeData?: unknown;
+  loadFailed?: boolean;
 }>();
 
-const tpl = getTemplate(props.doc.templateId);
-const data = props.doc.data?.staticData;
+defineEmits<{ change: [value: string] }>();
+
+const tpl = computed(() => getTemplate(props.doc.templateId));
+const data = computed(() => (props.mode === 'runtime' && props.runtimeData !== undefined ? props.runtimeData : props.doc.data?.staticData));
 </script>
 
 <template>
-  <component :is="tpl.renderer" v-if="tpl" :doc="doc" :data="data" :mode="mode" />
-  <div v-else class="ph">{{ doc.name }}</div>
+  <div class="rt-root">
+    <div v-if="loadFailed && mode === 'runtime'" class="fail">数据加载失败</div>
+    <component
+      :is="tpl.renderer"
+      v-else-if="tpl"
+      :doc="doc"
+      :data="data"
+      :mode="mode"
+      @change="$emit('change', $event)"
+    />
+    <div v-else class="ph">{{ doc.name }}</div>
+  </div>
 </template>
 
 <style scoped>
-.ph {
-  width: 100%;
-  height: 100%;
-  display: grid;
-  place-items: center;
-  background: rgba(47, 127, 247, 0.12);
-  border: 1px dashed #2f7ff7;
-  color: #9fb3d1;
-  font-size: 13px;
+.rt-root { width: 100%; height: 100%; overflow: hidden; }
+.ph, .fail {
+  width: 100%; height: 100%; display: grid; place-items: center;
+  background: rgba(47, 127, 247, 0.12); border: 1px dashed #2f7ff7; color: #9fb3d1; font-size: 13px;
 }
+.fail { color: var(--err); border-color: var(--err); }
 </style>

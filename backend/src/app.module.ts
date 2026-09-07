@@ -9,6 +9,7 @@ import { ProjectsModule } from './projects/projects.module';
 import { ScreensModule } from './screens/screens.module';
 import { TemplatesModule } from './templates/templates.module';
 import { UsersModule } from './users/users.module';
+import { WeatherModule } from './weather/weather.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { UsersModule } from './users/users.module';
     TemplatesModule,
     ApiConfigsModule,
     DataModule,
+    WeatherModule,
   ],
   controllers: [HealthController],
 })

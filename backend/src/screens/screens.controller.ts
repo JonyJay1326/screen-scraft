@@ -48,4 +48,10 @@ export class ScreensController {
   deployed(@Param('id') id: string, @Body() dto: DeployedDto) {
     return this.screensService.setDeployed(id, dto.deployed);
   }
+
+  /** 展示页只读取已保存版本 */
+  @Get('display/:id')
+  display(@Param('id') id: string) {
+    return this.screensService.getById(id);
+  }
 }

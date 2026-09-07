@@ -115,6 +115,11 @@ async function removeTemplate(tpl: TemplateListItem): Promise<void> {
   await deleteTemplateApi(tpl._id);
   await loadTemplates();
 }
+
+/** 新标签打开展示页 */
+function openDisplay(id: string): void {
+  window.open(`/display/${id}`, '_blank');
+}
 </script>
 
 <template>
@@ -131,7 +136,7 @@ async function removeTemplate(tpl: TemplateListItem): Promise<void> {
           <h1>{{ project?.name ?? '大屏列表' }}</h1>
           <div class="desc">管理该项目下的大屏与模板</div>
         </div>
-        <button class="btn btn-pri" type="button" @click="createVisible = true"><Plus :size="15" />新建空白模板</button>
+        <button class="btn btn-pri" type="button" @click="createVisible = true"><Plus :size="15" />新建空白大屏</button>
       </div>
       <div class="tabs">
         <button class="tab" :class="{ active: tab === 'list' }" type="button" @click="tab = 'list'">大屏列表</button>
@@ -159,19 +164,21 @@ async function removeTemplate(tpl: TemplateListItem): Promise<void> {
         <div class="screen-grid">
           <article v-for="item in filteredScreens" :key="item._id" class="card screen-card">
             <div class="scr-thumb" @click="edit(item)">
-              <div class="ph" />
+              <img v-if="item.thumbnail" class="ph-img" :src="item.thumbnail" alt="" />
+              <div v-else class="ph" />
               <div class="scr-topbar">
                 <span v-if="item.deployed" class="tag">使用中</span>
-                <button class="thumb-btn" type="button" @click.stop>
+                <div class="thumb-btn" @click.stop>
                   <MoreHorizontal :size="14" />
                   <div class="dropdown-menu">
                     <button type="button" @click.stop="copy(item)">复制</button>
+                    <button type="button" @click.stop="openDisplay(item._id)">进入展示页</button>
                     <button type="button" @click.stop="toggleDeploy(item)">
                       {{ item.deployed ? '取消投放' : '标记为投放中' }}
                     </button>
                     <button class="danger" type="button" @click.stop="remove(item)">删除</button>
                   </div>
-                </button>
+                </div>
               </div>
               <div class="scr-acts"><button class="btn btn-pri btn-sm" type="button">编辑</button></div>
             </div>
@@ -243,12 +250,15 @@ async function removeTemplate(tpl: TemplateListItem): Promise<void> {
 .chips { display: flex; gap: 8px; flex-wrap: wrap; }
 .screen-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
 .screen-card, .tpl-card { position: relative; overflow: visible; }
-.scr-thumb { position: relative; aspect-ratio: 16 / 10; overflow: hidden; background: #0d1730; border-radius: var(--r-lg) var(--r-lg) 0 0; }
-.ph { width: 100%; height: 100%; background: radial-gradient(circle at 30% 20%, rgba(47,127,247,.35), transparent 50%), #0d1730; }
-.scr-topbar { position: absolute; top: 8px; right: 8px; display: flex; align-items: center; gap: 6px; z-index: 3; }
-.thumb-btn { position: relative; width: 26px; height: 26px; display: grid; place-items: center; border-radius: var(--r-sm); background: var(--mask); color: #fff; }
+.scr-thumb { position: relative; aspect-ratio: 16 / 10; overflow: visible; background: #0d1730; border-radius: var(--r-lg) var(--r-lg) 0 0; }
+.ph, .ph-img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: var(--r-lg) var(--r-lg) 0 0; overflow: hidden; }
+.ph { background: radial-gradient(circle at 30% 20%, rgba(47,127,247,.35), transparent 50%), #0d1730; }
+.scr-topbar { position: absolute; top: 8px; right: 8px; display: flex; align-items: center; gap: 6px; z-index: 5; }
+.thumb-btn { position: relative; width: 26px; height: 26px; display: grid; place-items: center; border-radius: var(--r-sm); background: var(--mask); color: #fff; cursor: pointer; }
+.thumb-btn .dropdown-menu { right: 0; left: auto; min-width: 140px; }
 .thumb-btn:hover .dropdown-menu, .thumb-btn:focus-within .dropdown-menu { display: block; }
-.scr-acts { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 8px; background: var(--mask); opacity: 0; }
+.scr-acts { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 8px; background: var(--mask); opacity: 0; z-index: 2; pointer-events: none; }
+.scr-acts .btn { pointer-events: auto; }
 .screen-card:hover .scr-acts, .tpl-card:hover .scr-acts { opacity: 1; }
 .scr-body { padding: 12px 14px; }
 .scr-name { font-size: 14px; font-weight: 500; }

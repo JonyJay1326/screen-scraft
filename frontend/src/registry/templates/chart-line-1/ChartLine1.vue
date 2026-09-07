@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import * as echarts from 'echarts';
 import type { AxisData, ComponentDoc } from '@screencraft/shared';
 import { isProtocolValid } from '@screencraft/shared';
 import { chartLine1Template } from './meta';
+import { ensureEchartsThemes, echartsThemeName } from '../../../theme/echarts-theme';
 
 const props = defineProps<{
   doc: ComponentDoc;
@@ -22,13 +23,23 @@ const style = computed(() => {
 
 const valid = computed(() => isProtocolValid('axis', props.data));
 
-/** 初始化图表 */
-function renderChart(): void {
+/** 销毁并重建实例（主题切换必须重建） */
+function disposeChart(): void {
+  observer?.disconnect();
+  observer = null;
+  chart?.dispose();
+  chart = null;
+}
+
+/** 初始化或刷新折线图 */
+async function renderChart(): Promise<void> {
+  await nextTick();
   if (!el.value) {
     return;
   }
+  ensureEchartsThemes();
   if (!chart) {
-    chart = echarts.init(el.value, props.doc.theme === 'light' ? 'ds-light' : 'ds-dark');
+    chart = echarts.init(el.value, echartsThemeName(props.doc.theme));
   }
   if (!valid.value) {
     chart.clear();
@@ -68,7 +79,7 @@ function renderChart(): void {
         smooth: Boolean(style.value.lineSmooth),
         symbol: style.value.showSymbol ? 'circle' : 'none',
         lineStyle: { width: Number(style.value.lineWidth) },
-        label: { show: Boolean(style.value.showLabel) },
+        label: { show: Boolean(style.value.showLabel), color: String(style.value.axisLabelColor) },
         areaStyle:
           Number(style.value.areaOpacity) > 0
             ? { opacity: Number(style.value.areaOpacity) / 100, color: colors[index] }
@@ -78,34 +89,50 @@ function renderChart(): void {
     },
     true,
   );
+  chart.resize();
+}
+
+/** 监听容器尺寸变化 */
+function bindObserver(): void {
+  observer?.disconnect();
+  if (!el.value) {
+    return;
+  }
+  observer = new ResizeObserver(() => chart?.resize());
+  observer.observe(el.value);
 }
 
 onMounted(() => {
-  registerThemes();
-  renderChart();
-  observer = new ResizeObserver(() => chart?.resize());
-  if (el.value) {
-    observer.observe(el.value);
-  }
+  void renderChart().then(() => bindObserver());
 });
 
 onBeforeUnmount(() => {
-  observer?.disconnect();
-  chart?.dispose();
-  chart = null;
+  disposeChart();
 });
 
-watch(() => [props.data, props.doc.style, props.doc.theme], () => renderChart(), { deep: true });
+watch(
+  () => [props.data, props.doc.style, props.doc.w, props.doc.h],
+  () => {
+    void renderChart();
+  },
+  { deep: true },
+);
 
-/** 注册 ECharts 主题包 */
-function registerThemes(): void {
-  echarts.registerTheme('ds-dark', { backgroundColor: 'transparent' });
-  echarts.registerTheme('ds-light', { backgroundColor: 'transparent' });
-}
+watch(
+  () => props.doc.theme,
+  () => {
+    disposeChart();
+    void renderChart().then(() => bindObserver());
+  },
+);
 </script>
 
 <template>
-  <div class="line-wrap" :class="{ board: style.boardEnabled }" :style="{ padding: style.boardEnabled ? style.boardPadding + 'px' : '0' }">
+  <div
+    class="line-wrap"
+    :class="{ board: style.boardEnabled }"
+    :style="{ padding: style.boardEnabled ? style.boardPadding + 'px' : '0' }"
+  >
     <div v-if="style.boardEnabled" class="board-title">{{ style.boardTitle }}</div>
     <div v-if="!valid && mode === 'edit'" class="warn">静态数据不符合协议</div>
     <div v-else-if="!valid && mode === 'runtime'" class="fail">数据加载失败</div>
@@ -114,14 +141,51 @@ function registerThemes(): void {
 </template>
 
 <style scoped>
-.line-wrap { width: 100%; height: 100%; display: flex; flex-direction: column; background: transparent; }
-.line-wrap.board { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; }
+.line-wrap {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+  box-sizing: border-box;
+}
+.line-wrap.board {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
 .board-title {
-  height: 40px; display: flex; align-items: center; font-size: 16px; font-weight: 600; color: var(--t1);
+  height: 40px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--t1);
   border-bottom: 1px solid var(--border);
 }
-.chart { flex: 1; min-height: 0; }
-.warn, .fail { position: absolute; top: 8px; right: 8px; font-size: 12px; padding: 2px 8px; border-radius: 4px; z-index: 2; }
-.warn { background: rgba(245, 158, 11, .15); color: var(--warn); }
-.fail { background: rgba(239, 68, 68, .15); color: var(--err); }
+.chart {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+.warn,
+.fail {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  z-index: 2;
+}
+.warn {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--warn);
+}
+.fail {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--err);
+}
 </style>

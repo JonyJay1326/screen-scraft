@@ -4,6 +4,7 @@ import ElementPlus from 'element-plus';
 import zhCn from 'element-plus/es/locale/lang/zh-cn';
 import VXETable from 'vxe-table';
 import 'element-plus/dist/index.css';
+import 'element-plus/theme-chalk/dark/css-vars.css';
 import 'vxe-table/lib/style.css';
 import App from './App.vue';
 import router from './router';

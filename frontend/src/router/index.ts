@@ -42,6 +42,16 @@ const router = createRouter({
       name: 'editor',
       component: () => import('../views/editor/EditorView.vue'),
     },
+    {
+      path: '/preview/:id',
+      name: 'preview',
+      component: () => import('../views/preview/PreviewView.vue'),
+    },
+    {
+      path: '/display/:id',
+      name: 'display',
+      component: () => import('../views/display/DisplayView.vue'),
+    },
   ],
 });
 

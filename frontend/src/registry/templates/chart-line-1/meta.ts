@@ -1,16 +1,15 @@
-import type { ComponentTemplate } from '../types';
+import type { ComponentTemplate } from '../../types';
 
-export const chartLine1Template: Omit<ComponentTemplate, 'renderer'> & { renderer: string } = {
+export const chartLine1Template: Omit<ComponentTemplate, 'renderer'> = {
   id: 'chart-line-1',
   category: 'chart',
   group: '折线图',
   label: '折线图·样式1',
-  previews: { dark: 'previews/chart-line-1.dark.png', light: 'previews/chart-line-1.light.png' },
+  previews: { dark: 'previews/chart-line-1.dark.svg', light: 'previews/chart-line-1.light.svg' },
   defaultSize: { w: 700, h: 300 },
   dataProtocol: 'axis',
   hasDataTab: true,
   hasEventTab: true,
-  renderer: 'ChartLine1',
   styleSchema: [
     { key: 'boardEnabled', label: '底板框', type: 'switch', group: '底板框' },
     { key: 'boardTitle', label: '标题文字', type: 'text', group: '底板框' },
