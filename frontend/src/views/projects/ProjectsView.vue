@@ -114,13 +114,13 @@ async function remove(item: ProjectListItem): Promise<void> {
           <div class="proj-top">
             <span class="proj-ico"><Folder :size="18" /></span>
             <div class="proj-name">{{ item.name }}</div>
-            <button class="icon-btn" type="button" @click.stop>
+            <div class="icon-btn" @click.stop>
               <MoreHorizontal :size="16" />
               <div class="dropdown-menu">
                 <button type="button" @click.stop="openRename(item)">重命名</button>
                 <button class="danger" type="button" @click.stop="remove(item)">删除</button>
               </div>
-            </button>
+            </div>
           </div>
           <div class="proj-meta">
             <span class="muted">{{ item.screenCount }} 块大屏</span>
@@ -168,7 +168,7 @@ async function remove(item: ProjectListItem): Promise<void> {
   color: #fff; display: grid; place-items: center; flex: none;
 }
 .proj-name { flex: 1; min-width: 0; font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.icon-btn { position: relative; width: 28px; height: 28px; display: grid; place-items: center; border-radius: var(--r-sm); color: var(--t2); }
+.icon-btn { position: relative; width: 28px; height: 28px; display: grid; place-items: center; border-radius: var(--r-sm); color: var(--t2); cursor: pointer; }
 .icon-btn:hover { background: var(--panel2); color: var(--t1); }
 .icon-btn:hover .dropdown-menu, .icon-btn:focus-within .dropdown-menu { display: block; }
 .proj-meta { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; font-size: 13px; }

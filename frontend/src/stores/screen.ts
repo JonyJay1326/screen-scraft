@@ -2,12 +2,13 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import type { ComponentDoc, PageDoc, ScreenDoc } from '@screencraft/shared';
 import { fetchScreen, saveScreenApi } from '../api/screen';
+import { cloneJson } from '../utils/clone';
 
 const MAX_HISTORY = 50;
 
 /** 深拷贝大屏快照 */
 function cloneScreen(doc: ScreenDoc): ScreenDoc {
-  return structuredClone(doc);
+  return cloneJson(doc);
 }
 
 /** 生成短 id */
@@ -66,8 +67,8 @@ export const useScreenStore = defineStore('screen', () => {
     dirty.value = false;
   }
 
-  /** 保存 */
-  async function save(): Promise<void> {
+  /** 保存（可附带缩略图 data URL） */
+  async function save(thumbnail?: string): Promise<void> {
     if (!screen.value) {
       return;
     }
@@ -79,6 +80,7 @@ export const useScreenStore = defineStore('screen', () => {
         category: screen.value.category,
         fitMode: screen.value.fitMode,
         pages: screen.value.pages,
+        thumbnail,
       });
       screen.value = saved;
       dirty.value = false;
@@ -123,7 +125,7 @@ export const useScreenStore = defineStore('screen', () => {
       if (page.id !== currentPageId.value) {
         return page;
       }
-      const next = structuredClone(page);
+      const next = cloneJson(page);
       mutator(next);
       return next;
     });
@@ -137,6 +139,7 @@ export const useScreenStore = defineStore('screen', () => {
       ...partial,
       id: uid(),
       zIndex: (currentPage.value?.components.length ?? 0) + 1,
+      groupId: partial.groupId ?? inGroupId.value,
       events: partial.events ?? [],
     };
     mutatePage((page) => {
@@ -157,14 +160,14 @@ export const useScreenStore = defineStore('screen', () => {
     }, record);
   }
 
-  /** 批量更新 */
-  function patchComponent(id: string, patch: Partial<ComponentDoc>): void {
+  /** 批量更新；record=false 用于输入过程中不刷历史 */
+  function patchComponent(id: string, patch: Partial<ComponentDoc>, record = true): void {
     mutatePage((page) => {
       const target = page.components.find((item) => item.id === id);
       if (target) {
         Object.assign(target, patch);
       }
-    });
+    }, record);
   }
 
   /** 删除选中 */
@@ -185,7 +188,7 @@ export const useScreenStore = defineStore('screen', () => {
     if (!page) {
       return;
     }
-    clipboard.value = page.components.filter((item) => selectedIds.value.includes(item.id)).map((item) => structuredClone(item));
+    clipboard.value = page.components.filter((item) => selectedIds.value.includes(item.id)).map((item) => cloneJson(item));
   }
 
   /** 粘贴 */
@@ -194,7 +197,7 @@ export const useScreenStore = defineStore('screen', () => {
       return;
     }
     const created: ComponentDoc[] = clipboard.value.map((item) => ({
-      ...structuredClone(item),
+      ...cloneJson(item),
       id: uid(),
       x: item.x + 16,
       y: item.y + 16,
