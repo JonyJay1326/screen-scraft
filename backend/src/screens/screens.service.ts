@@ -100,6 +100,22 @@ export class ScreensService {
     return toScreenDoc(doc);
   }
 
+  /** 统计 API 被组件引用次数 */
+  async countApiRefs(apiId: string): Promise<number> {
+    const rows = await this.screenModel.find({ 'pages.components.data.apiId': apiId }).exec();
+    let count = 0;
+    rows.forEach((row) => {
+      row.pages.forEach((page) => {
+        page.components.forEach((comp) => {
+          if (comp.data?.apiId === apiId) {
+            count += 1;
+          }
+        });
+      });
+    });
+    return count;
+  }
+
   /** 校验项目存在 */
   private async requireProject(projectId: string) {
     const project = await this.projectModel.findById(projectId).exec();

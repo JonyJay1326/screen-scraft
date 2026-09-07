@@ -19,7 +19,7 @@ frontend/.env
 
 # 上传与本地数据库
 uploads
-data
+/data
 .tools
 
 # Editor

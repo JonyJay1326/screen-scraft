@@ -29,4 +29,19 @@ export class BizException extends HttpException {
   static notFound(message = '资源不存在'): BizException {
     return new BizException(ErrorCode.NOT_FOUND, message, HttpStatus.NOT_FOUND);
   }
+
+  /** SQL 只读校验或执行失败 */
+  static sqlFail(message: string): BizException {
+    return new BizException(ErrorCode.SQL_FAIL, message, HttpStatus.BAD_REQUEST);
+  }
+
+  /** 外部代理 / SSRF / 天气代理失败 */
+  static proxyFail(message: string): BizException {
+    return new BizException(ErrorCode.PROXY_FAIL, message, HttpStatus.BAD_REQUEST);
+  }
+
+  /** 数据不符合组件协议 */
+  static protocol(message: string): BizException {
+    return new BizException(ErrorCode.PROTOCOL, message, HttpStatus.BAD_REQUEST);
+  }
 }

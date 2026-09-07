@@ -32,6 +32,12 @@ const router = createRouter({
       meta: { admin: true },
     },
     {
+      path: '/api-configs',
+      name: 'api-configs',
+      component: () => import('../views/api-config/ApiConfigView.vue'),
+      meta: { admin: true },
+    },
+    {
       path: '/editor/:id',
       name: 'editor',
       component: () => import('../views/editor/EditorView.vue'),

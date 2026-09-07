@@ -18,6 +18,19 @@ export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
 }
 
+/** 强制改密期间业务接口 403 不弹重复 toast（改密弹窗已提示） */
+function isForcedChangePassword(message?: string): boolean {
+  if (!message?.includes('请先修改初始密码')) {
+    return false;
+  }
+  try {
+    const cached = JSON.parse(localStorage.getItem('sc_user') || 'null') as { mustChangePassword?: boolean } | null;
+    return Boolean(cached?.mustChangePassword);
+  } catch {
+    return false;
+  }
+}
+
 /** 创建仅暴露 get/post 的 Axios 单例 */
 function createHttp(): AxiosInstance {
   const instance = axios.create({
@@ -41,7 +54,7 @@ function createHttp(): AxiosInstance {
         const error = Object.assign(new Error(body.message), { code: body.code });
         return Promise.reject(error);
       }
-      return body.data;
+      return body.data as never;
     },
     (error: unknown) => {
       const status = (error as { response?: { status?: number; data?: { message?: string } } }).response
@@ -50,11 +63,15 @@ function createHttp(): AxiosInstance {
         ?.message;
       if (status === 401) {
         clearToken();
-        if (!location.pathname.startsWith('/login') && !location.pathname.startsWith('/display')) {
+        if (!location.pathname.startsWith('/login')) {
           window.location.assign('/login');
         }
       }
-      ElMessage.error(serverMessage || (error as Error).message || '网络错误');
+      if (!status) {
+        ElMessage.error('无法连接服务器，请确认后端已启动');
+      } else if (!isForcedChangePassword(serverMessage)) {
+        ElMessage.error(serverMessage || (error as Error).message || '网络错误');
+      }
       return Promise.reject(error);
     },
   );

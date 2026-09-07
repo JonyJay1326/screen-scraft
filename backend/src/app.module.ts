@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
+import { ApiConfigsModule } from './api-configs/api-configs.module';
 import { AuthModule } from './auth/auth.module';
+import { DataModule } from './data/data.module';
 import { HealthController } from './health/health.controller';
 import { ProjectsModule } from './projects/projects.module';
 import { ScreensModule } from './screens/screens.module';
@@ -25,6 +27,8 @@ import { UsersModule } from './users/users.module';
     ProjectsModule,
     ScreensModule,
     TemplatesModule,
+    ApiConfigsModule,
+    DataModule,
   ],
   controllers: [HealthController],
 })

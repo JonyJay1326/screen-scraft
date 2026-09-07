@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ChevronDown, Folder, LogOut, Settings } from 'lucide-vue-next';
+import { ChevronDown, Folder, LogOut, Plug, Settings } from 'lucide-vue-next';
 import { useUserStore } from '../../stores/user';
 
 const props = defineProps<{ nav?: 'projects' | 'api-config' | 'admin' }>();
@@ -29,11 +29,20 @@ function logout(): void {
         <span class="brand-sub">大屏配置平台</span>
       </RouterLink>
       <nav class="topnav">
-        <RouterLink data-nav="projects" to="/projects" :class="{ active: active === 'projects' || route.path.startsWith('/projects') }">
-          <Folder :size="16" />项目
+        <RouterLink v-slot="{ href, navigate }" custom to="/projects">
+          <a :href="href" data-nav="projects" :class="{ active: active === 'projects' || route.path.startsWith('/projects') }" @click="navigate">
+            <Folder :size="16" />项目
+          </a>
         </RouterLink>
-        <RouterLink v-if="userStore.isAdmin" data-nav="admin" to="/admin" :class="{ active: active === 'admin' }">
-          <Settings :size="16" />管理后台
+        <RouterLink v-if="userStore.isAdmin" v-slot="{ href, navigate }" custom to="/api-configs">
+          <a :href="href" data-nav="api-config" :class="{ active: active === 'api-config' }" @click="navigate">
+            <Plug :size="16" />API 配置
+          </a>
+        </RouterLink>
+        <RouterLink v-if="userStore.isAdmin" v-slot="{ href, navigate }" custom to="/admin">
+          <a :href="href" data-nav="admin" :class="{ active: active === 'admin' }" @click="navigate">
+            <Settings :size="16" />管理后台
+          </a>
         </RouterLink>
       </nav>
       <div class="topbar-right">
