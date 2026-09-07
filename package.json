@@ -7,6 +7,7 @@
     "dev": "pnpm --filter @screencraft/shared build && pnpm -r --parallel --filter @screencraft/shared --filter frontend --filter backend dev",
     "build": "pnpm -r --filter @screencraft/shared --filter frontend --filter backend build",
     "test": "pnpm -r test",
+    "previews": "node ./scripts/gen-previews.mjs",
     "seed": "pnpm --filter backend seed",
     "mongo:start": "powershell -ExecutionPolicy Bypass -File ./scripts/start-mongo.ps1"
   }

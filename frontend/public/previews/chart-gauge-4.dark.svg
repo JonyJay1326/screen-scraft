@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="96" viewBox="0 0 160 96">
+  <rect width="160" height="96" rx="8" fill="#0D1730"/>
+  <path d="M28 72 A52 52 0 0 1 132 72" fill="none" stroke="#9FB3D1" stroke-width="10"/><path d="M28 72 A52 52 0 0 1 110 32" fill="none" stroke="#2F7FF7" stroke-width="10"/><circle cx="80" cy="72" r="6" fill="#2F7FF7"/>
+  <text x="8" y="92" fill="#E8EEF7" font-size="8" font-family="sans-serif">chart-gauge-4</text>
+</svg>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="96" viewBox="0 0 160 96">
+  <rect width="160" height="96" rx="8" fill="#F4F7FB"/>
+  <text x="24" y="42" fill="#6B7280" font-size="11">指标</text><text x="24" y="78" fill="#2F7FF7" font-size="28" font-weight="700">96.4%</text>
+  <text x="8" y="92" fill="#1F2937" font-size="8" font-family="sans-serif">kpi-card-list</text>
+</svg>

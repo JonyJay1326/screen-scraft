@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="96" viewBox="0 0 160 96">
+  <rect width="160" height="96" rx="8" fill="#0D1730"/>
+  <circle cx="80" cy="52" r="28" fill="none" stroke="#2F7FF7" stroke-width="14" stroke-dasharray="50 120"/><circle cx="80" cy="52" r="28" fill="none" stroke="#9FB3D1" stroke-width="14" stroke-dasharray="30 140" stroke-dashoffset="-50"/>
+  <text x="8" y="92" fill="#E8EEF7" font-size="8" font-family="sans-serif">chart-pie-4</text>
+</svg>

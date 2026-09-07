@@ -4,8 +4,10 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { User as UserIcon } from 'lucide-vue-next';
 import type { UserDoc } from '@screencraft/shared';
 import AppTopbar from '../../components/ui/AppTopbar.vue';
+import AdminAiPanel from './AdminAiPanel.vue';
 import { createUserApi, fetchUsers, resetPasswordApi, setUserStatusApi } from '../../api/users';
 
+const pageTab = ref<'users' | 'ai'>('users');
 const users = ref<UserDoc[]>([]);
 const creating = ref(false);
 const createVisible = ref(false);
@@ -98,42 +100,47 @@ function formatTime(iso: string): string {
         </div>
       </div>
       <div class="tabs">
-        <button class="tab active" type="button">用户管理</button>
-        <button class="tab" type="button" disabled title="M8 实现">AI 设置</button>
+        <button class="tab" type="button" :class="{ active: pageTab === 'users' }" @click="pageTab = 'users'">用户管理</button>
+        <button class="tab" type="button" :class="{ active: pageTab === 'ai' }" @click="pageTab = 'ai'">AI 设置</button>
       </div>
-      <div class="toolbar-row">
-        <span class="muted">共 <b class="num">{{ users.length }}</b> 位用户</span>
-        <button class="btn btn-pri" type="button" @click="createVisible = true"><UserIcon :size="15" />新建用户</button>
-      </div>
-      <div class="card">
-        <table class="table">
-          <thead>
-            <tr>
-              <th>用户名</th>
-              <th>角色</th>
-              <th>状态</th>
-              <th>创建时间</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="row in users" :key="row._id">
-              <td>{{ row.username }}</td>
-              <td>{{ roleLabel(row.role) }}</td>
-              <td>
-                <span class="tag" :class="row.enabled ? 'tag-ok' : 'tag-err'">{{ row.enabled ? '启用' : '禁用' }}</span>
-              </td>
-              <td class="muted">{{ formatTime(row.createdAt) }}</td>
-              <td>
-                <div class="row-ops">
-                  <button class="btn btn-ghost" type="button" @click="openReset(row)">重置密码</button>
-                  <button class="btn btn-ghost" type="button" @click="toggleStatus(row)">{{ row.enabled ? '禁用' : '启用' }}</button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+
+      <template v-if="pageTab === 'users'">
+        <div class="toolbar-row">
+          <span class="muted">共 <b class="num">{{ users.length }}</b> 位用户</span>
+          <button class="btn btn-pri" type="button" @click="createVisible = true"><UserIcon :size="15" />新建用户</button>
+        </div>
+        <div class="card">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>用户名</th>
+                <th>角色</th>
+                <th>状态</th>
+                <th>创建时间</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in users" :key="row._id">
+                <td>{{ row.username }}</td>
+                <td>{{ roleLabel(row.role) }}</td>
+                <td>
+                  <span class="tag" :class="row.enabled ? 'tag-ok' : 'tag-err'">{{ row.enabled ? '启用' : '禁用' }}</span>
+                </td>
+                <td class="muted">{{ formatTime(row.createdAt) }}</td>
+                <td>
+                  <div class="row-ops">
+                    <button class="btn btn-ghost" type="button" @click="openReset(row)">重置密码</button>
+                    <button class="btn btn-ghost" type="button" @click="toggleStatus(row)">{{ row.enabled ? '禁用' : '启用' }}</button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </template>
+
+      <AdminAiPanel v-else />
     </main>
 
     <el-dialog v-model="createVisible" title="新建用户" width="440px">

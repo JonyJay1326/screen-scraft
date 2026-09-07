@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="96" viewBox="0 0 160 96">
+  <rect width="160" height="96" rx="8" fill="#F4F7FB"/>
+  <rect x="20" y="22" width="120" height="14" fill="#2F7FF7" opacity=".5"/><rect x="20" y="40" width="120" height="12" fill="#6B7280" opacity=".25"/><rect x="20" y="56" width="120" height="12" fill="#6B7280" opacity=".15"/><rect x="20" y="72" width="120" height="12" fill="#6B7280" opacity=".25"/>
+  <text x="8" y="92" fill="#1F2937" font-size="8" font-family="sans-serif">table-list</text>
+</svg>

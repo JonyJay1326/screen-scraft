@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="96" viewBox="0 0 160 96">
+  <rect width="160" height="96" rx="8" fill="#0D1730"/>
+  <polyline fill="none" stroke="#2F7FF7" stroke-width="3" points="16,70 40,48 64,56 88,28 112,36 140,18"/><polyline fill="none" stroke="#9FB3D1" stroke-width="2" points="16,78 40,62 64,68 88,50 112,58 140,42"/>
+  <text x="8" y="92" fill="#E8EEF7" font-size="8" font-family="sans-serif">chart-line-1</text>
+</svg>

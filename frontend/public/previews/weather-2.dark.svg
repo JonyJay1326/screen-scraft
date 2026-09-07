@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="96" viewBox="0 0 160 96">
+  <rect width="160" height="96" rx="8" fill="#0D1730"/>
+  <circle cx="40" cy="40" r="14" fill="#F59E0B"/><text x="64" y="48" fill="#2F7FF7" font-size="16" font-weight="600">29°C</text><text x="24" y="80" fill="#9FB3D1" font-size="11">多云 · 杭州</text>
+  <text x="8" y="92" fill="#E8EEF7" font-size="8" font-family="sans-serif">weather-2</text>
+</svg>

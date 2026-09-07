@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="96" viewBox="0 0 160 96">
+  <rect width="160" height="96" rx="8" fill="#0D1730"/>
+  <polygon points="30,18 130,18 110,40 50,40" fill="#2F7FF7"/><polygon points="50,44 110,44 98,66 62,66" fill="#9FB3D1"/><polygon points="62,70 98,70 88,90 72,90" fill="#2F7FF7"/>
+  <text x="8" y="92" fill="#E8EEF7" font-size="8" font-family="sans-serif">chart-funnel-4</text>
+</svg>
