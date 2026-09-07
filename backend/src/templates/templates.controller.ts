@@ -33,6 +33,12 @@ export class TemplatesController {
     return this.templatesService.list(scope === 'public' ? 'public' : 'personal', req.user.id, category);
   }
 
+  /** 模板详情（含预览快照） */
+  @Get('templates/:id')
+  detail(@Param('id') id: string, @Req() req: Request & { user: { id: string; role: string } }) {
+    return this.templatesService.getById(id, req.user.id, req.user.role === 'admin');
+  }
+
   /** 另存为个人模板 */
   @Post('screens/:id/save-as-template')
   saveAs(

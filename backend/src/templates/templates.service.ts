@@ -33,7 +33,34 @@ export class TemplatesService {
       filter.category = category;
     }
     const rows = await this.templateModel.find(filter).sort({ updatedAt: -1 }).exec();
-    return rows.map((row) => ({
+    return rows.map((row) => this.toListItem(row));
+  }
+
+  /**
+   * 模板详情：返回列表字段 + 可直接喂给运行时预览的 screen 快照。
+   * 个人模板仅本人或管理员可看。
+   */
+  async getById(
+    id: string,
+    userId: string,
+    isAdmin: boolean,
+  ): Promise<TemplateListItem & { screen: ScreenDoc }> {
+    const tpl = await this.templateModel.findById(id).exec();
+    if (!tpl) {
+      throw BizException.notFound('模板不存在');
+    }
+    if (tpl.scope === 'personal' && tpl.ownerId !== userId && !isAdmin) {
+      throw BizException.forbidden();
+    }
+    return {
+      ...this.toListItem(tpl),
+      screen: this.toPreviewScreen(tpl),
+    };
+  }
+
+  /** 转为列表项 */
+  private toListItem(row: ScreenTemplate): TemplateListItem {
+    return {
       _id: String(row._id),
       name: row.name,
       category: row.category,
@@ -41,7 +68,25 @@ export class TemplatesService {
       thumbnail: row.screenSnapshot.thumbnail,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
-    }));
+    };
+  }
+
+  /** 快照转运行时 ScreenDoc（无真实 projectId） */
+  private toPreviewScreen(tpl: ScreenTemplate): ScreenDoc {
+    const snap = tpl.screenSnapshot;
+    return {
+      _id: `tpl:${String(tpl._id)}`,
+      projectId: '',
+      name: snap.name || tpl.name,
+      category: snap.category || tpl.category,
+      deployed: false,
+      fitMode: snap.fitMode || 'center',
+      canvas: snap.canvas || { width: 1920, height: 1080 },
+      pages: snap.pages?.length ? JSON.parse(JSON.stringify(snap.pages)) : [createBlankPage()],
+      thumbnail: snap.thumbnail,
+      createdAt: tpl.createdAt.toISOString(),
+      updatedAt: tpl.updatedAt.toISOString(),
+    };
   }
 
   /** 另存为个人模板 */
@@ -125,14 +170,6 @@ export class TemplatesService {
     }
     tpl.scope = 'public';
     await tpl.save();
-    return {
-      _id: String(tpl._id),
-      name: tpl.name,
-      category: tpl.category,
-      scope: tpl.scope,
-      thumbnail: tpl.screenSnapshot.thumbnail,
-      createdAt: tpl.createdAt.toISOString(),
-      updatedAt: tpl.updatedAt.toISOString(),
-    };
+    return this.toListItem(tpl);
   }
 }

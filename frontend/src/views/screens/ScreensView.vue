@@ -17,6 +17,7 @@ import {
   createScreenFromTemplateApi,
   deleteTemplateApi,
   fetchTemplates,
+  promoteTemplateApi,
   type TemplateListItem,
 } from '../../api/template';
 import { CATEGORIES, formatRelative } from '../../utils/format';
@@ -35,6 +36,7 @@ const tplScope = ref<'public' | 'personal'>('public');
 const createVisible = ref(false);
 const createName = ref('未命名大屏');
 const createCategory = ref<Category>('通用');
+const promotingId = ref('');
 
 onMounted(() => {
   document.documentElement.setAttribute('data-theme', 'light');
@@ -47,6 +49,14 @@ async function bootstrap(): Promise<void> {
   project.value = list.find((item) => item._id === projectId.value) ?? null;
   screens.value = await fetchScreens(projectId.value);
   await loadTemplates();
+}
+
+/** 切换分类并刷新当前 Tab 数据 */
+async function setCategory(next: Category | '全部'): Promise<void> {
+  category.value = next;
+  if (tab.value === 'tpl') {
+    await loadTemplates();
+  }
 }
 
 /** 加载模板 */
@@ -109,6 +119,29 @@ async function useTemplate(tpl: TemplateListItem): Promise<void> {
   await router.push(`/editor/${created._id}`);
 }
 
+/** 新标签打开模板预览（全屏无控制条） */
+function previewTemplate(tpl: TemplateListItem): void {
+  window.open(`/preview/${tpl._id}?from=template`, '_blank');
+}
+
+/** 管理员将个人模板提升为公共 */
+async function promoteTemplate(tpl: TemplateListItem): Promise<void> {
+  await ElMessageBox.confirm(
+    `将个人模板「${tpl.name}」提升为公共模板后，所有成员可见可用。是否继续？`,
+    '提升为公共模板',
+    { type: 'warning', confirmButtonText: '提升' },
+  );
+  promotingId.value = tpl._id;
+  try {
+    await promoteTemplateApi(tpl._id);
+    ElMessage.success('已提升为公共模板');
+    tplScope.value = 'public';
+    await loadTemplates();
+  } finally {
+    promotingId.value = '';
+  }
+}
+
 /** 删除个人模板 */
 async function removeTemplate(tpl: TemplateListItem): Promise<void> {
   await ElMessageBox.confirm(`删除模板「${tpl.name}」？`, '删除模板', { type: 'warning' });
@@ -146,14 +179,14 @@ function openDisplay(id: string): void {
       <div v-if="tab === 'list'">
         <div class="tool-row">
           <div class="chips">
-            <button class="chip" :class="{ active: category === '全部' }" type="button" @click="category = '全部'">全部</button>
+            <button class="chip" :class="{ active: category === '全部' }" type="button" @click="setCategory('全部')">全部</button>
             <button
               v-for="item in CATEGORIES"
               :key="item"
               class="chip"
               :class="{ active: category === item }"
               type="button"
-              @click="category = item"
+              @click="setCategory(item)"
             >
               {{ item }}
             </button>
@@ -199,14 +232,41 @@ function openDisplay(id: string): void {
             <button class="seg-item" :class="{ active: tplScope === 'public' }" type="button" @click="tplScope = 'public'; loadTemplates()">公共模板</button>
             <button class="seg-item" :class="{ active: tplScope === 'personal' }" type="button" @click="tplScope = 'personal'; loadTemplates()">个人模板</button>
           </div>
+          <span class="muted">共 {{ templates.length }} 个</span>
+        </div>
+        <div class="tool-row">
+          <div class="chips">
+            <button class="chip" :class="{ active: category === '全部' }" type="button" @click="setCategory('全部')">全部</button>
+            <button
+              v-for="item in CATEGORIES"
+              :key="item"
+              class="chip"
+              :class="{ active: category === item }"
+              type="button"
+              @click="setCategory(item)"
+            >
+              {{ item }}
+            </button>
+          </div>
         </div>
         <div v-if="!templates.length" class="empty">暂无模板</div>
         <div class="screen-grid">
           <article v-for="tpl in templates" :key="tpl._id" class="card tpl-card">
             <div class="scr-thumb">
-              <div class="ph" />
+              <img v-if="tpl.thumbnail" class="ph-img" :src="tpl.thumbnail" alt="" />
+              <div v-else class="ph" />
               <div class="scr-acts">
                 <button class="btn btn-pri btn-sm" type="button" @click="useTemplate(tpl)">以此新建</button>
+                <button class="btn btn-sm" type="button" @click="previewTemplate(tpl)">预览</button>
+                <button
+                  v-if="userStore.isAdmin && tpl.scope === 'personal'"
+                  class="btn btn-sm"
+                  type="button"
+                  :disabled="promotingId === tpl._id"
+                  @click="promoteTemplate(tpl)"
+                >
+                  提升为公共
+                </button>
                 <button
                   v-if="tpl.scope === 'personal' || userStore.isAdmin"
                   class="btn btn-sm"
@@ -219,7 +279,10 @@ function openDisplay(id: string): void {
             </div>
             <div class="scr-body">
               <div class="scr-name">{{ tpl.name }}</div>
-              <div class="scr-meta"><span class="tag">{{ tpl.category }}</span></div>
+              <div class="scr-meta">
+                <span class="tag">{{ tpl.category }}</span>
+                <span class="muted">{{ formatRelative(tpl.updatedAt) }}</span>
+              </div>
             </div>
           </article>
         </div>
@@ -257,7 +320,10 @@ function openDisplay(id: string): void {
 .thumb-btn { position: relative; width: 26px; height: 26px; display: grid; place-items: center; border-radius: var(--r-sm); background: var(--mask); color: #fff; cursor: pointer; }
 .thumb-btn .dropdown-menu { right: 0; left: auto; min-width: 140px; }
 .thumb-btn:hover .dropdown-menu, .thumb-btn:focus-within .dropdown-menu { display: block; }
-.scr-acts { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 8px; background: var(--mask); opacity: 0; z-index: 2; pointer-events: none; }
+.scr-acts {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  flex-wrap: wrap; gap: 8px; padding: 12px; background: var(--mask); opacity: 0; z-index: 2; pointer-events: none;
+}
 .scr-acts .btn { pointer-events: auto; }
 .screen-card:hover .scr-acts, .tpl-card:hover .scr-acts { opacity: 1; }
 .scr-body { padding: 12px 14px; }

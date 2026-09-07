@@ -187,6 +187,7 @@ type TencentWeatherData = {
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | /templates | `?scope=public|personal&category=` |
+| GET | /templates/:id | 模板详情（含 `screen` 快照，供模板库预览；个人模板仅本人或管理员） |
 | POST | /screens/:id/save-as-template | `{name,category}` → 个人模板 |
 | POST | /templates/:id/create-screen | 以此模板新建大屏并返回 screenId |
 | POST | /templates/:id/delete | 删除个人模板 |

@@ -17,6 +17,11 @@ export function fetchTemplates(scope: 'public' | 'personal', category?: string):
   return get<TemplateListItem[]>(`/templates${query}`);
 }
 
+/** 模板详情（含预览用 screen 快照） */
+export function fetchTemplateDetail(id: string): Promise<TemplateListItem & { screen: ScreenDoc }> {
+  return get<TemplateListItem & { screen: ScreenDoc }>(`/templates/${id}`);
+}
+
 /** 另存为模板 */
 export function saveAsTemplateApi(screenId: string, name: string, category: Category): Promise<TemplateListItem> {
   return post<TemplateListItem>(`/screens/${screenId}/save-as-template`, { name, category });
