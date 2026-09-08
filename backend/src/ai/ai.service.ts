@@ -113,14 +113,15 @@ export class AiService {
     }
     const model = dto.capability === 'text' ? settings.textModel : settings.visionModel;
     const url = `${settings.baseUrl.replace(/\/$/, '')}/chat/completions`;
+    const payload =
+      dto.capability === 'text' ? this.textCapabilityPayload(model) : this.visionCapabilityPayload(model);
     try {
-      const result = await axios.post(
-        url,
-        dto.capability === 'text' ? this.textCapabilityPayload(model) : this.visionCapabilityPayload(model),
-        { headers: { Authorization: `Bearer ${apiKey}` }, timeout: 30000 },
-      );
-      const content = result.data?.choices?.[0]?.message?.content;
-      if (typeof content !== 'string' || !content.trim()) {
+      // V4 默认开启 thinking，能力探测关闭思考并在空 content 时按契约重试一次
+      let content = await this.requestChatCompletionContent(url, payload, apiKey);
+      if (!content.trim()) {
+        content = await this.requestChatCompletionContent(url, payload, apiKey);
+      }
+      if (!content.trim()) {
         throw BizException.aiOutputInvalid('DeepSeek 返回内容为空');
       }
       if (dto.capability === 'text') {
@@ -189,6 +190,8 @@ export class AiService {
             { role: 'user', content: `手册摘录：\n${context}\n\n问题：${question}` },
           ],
           temperature: 0.2,
+          // 客服问答关闭默认 thinking，避免 token 耗尽后 content 为空
+          thinking: { type: 'disabled' },
         },
         { headers: { Authorization: `Bearer ${apiKey}` }, timeout: 30000 },
       );
@@ -261,19 +264,22 @@ export class AiService {
     };
   }
 
+  /** 文本 JSON 能力探测：关闭 thinking，保证 content 有配额。 */
   private textCapabilityPayload(model: string): Record<string, unknown> {
     return {
       model,
       messages: [
-        { role: 'system', content: '只返回合法 JSON，不要输出 Markdown。' },
-        { role: 'user', content: '返回 {"ok":true}。' },
+        { role: 'system', content: '你必须只返回合法 JSON 对象，不要输出 Markdown 或其它文字。' },
+        { role: 'user', content: '请返回 JSON：{"ok":true}' },
       ],
       response_format: { type: 'json_object' },
       temperature: 0,
-      max_tokens: 32,
+      max_tokens: 256,
+      thinking: { type: 'disabled' },
     };
   }
 
+  /** 视觉能力探测：关闭 thinking，保证 content 有配额。 */
   private visionCapabilityPayload(model: string): Record<string, unknown> {
     return {
       model,
@@ -293,8 +299,38 @@ export class AiService {
         },
       ],
       temperature: 0,
-      max_tokens: 16,
+      max_tokens: 64,
+      thinking: { type: 'disabled' },
     };
+  }
+
+  /** 调用 Chat Completions 并取出 message.content；网络/上游错误转为业务异常。 */
+  private async requestChatCompletionContent(
+    url: string,
+    payload: Record<string, unknown>,
+    apiKey: string,
+  ): Promise<string> {
+    try {
+      const result = await axios.post(url, payload, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        timeout: 60000,
+      });
+      const content = result.data?.choices?.[0]?.message?.content;
+      return typeof content === 'string' ? content : '';
+    } catch (error) {
+      if (error instanceof BizException) {
+        throw error;
+      }
+      if (axios.isAxiosError(error)) {
+        const upstream =
+          (error.response?.data as { error?: { message?: string }; message?: string } | undefined)?.error
+            ?.message
+          || (error.response?.data as { message?: string } | undefined)?.message
+          || error.message;
+        throw BizException.aiUnavailable(`DeepSeek 请求失败：${upstream}`);
+      }
+      throw BizException.aiUnavailable('DeepSeek 能力测试失败，请检查 BaseURL、模型名、Key 和网络');
+    }
   }
 
   /** 解密 key */

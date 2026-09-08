@@ -163,7 +163,7 @@ interface ComponentTemplate {
 ### 3.1 DeepSeek 模型适配
 
 - 默认 BaseURL `https://api.deepseek.com`；文本模型默认 `deepseek-v4-flash`，视觉模型默认 `deepseek-v4-flash-vision-exp`，均允许管理员修改。
-- 统一走 Axios 直连 OpenAI 兼容 Chat Completions，不新增 SDK。文本方案启用 JSON Output，并在 prompt 中明确 JSON 结构；模型返回空内容时自动重试一次。
+- 统一走 Axios 直连 OpenAI 兼容 Chat Completions，不新增 SDK。文本方案启用 JSON Output，并在 prompt 中明确 JSON 结构；能力探测与结构化调用关闭默认 `thinking`（V4 默认开启，否则 `max_tokens` 易被 CoT 占满导致 `content` 为空）；模型返回空内容时自动重试一次。
 - 视觉请求将经过文件头校验的图片以内联 Base64 放入 user message，并使用 `detail='original'`；不生成公网 URL，不把图片放入 system/assistant message。
 - 模型响应始终按不可信字符串解析：限制响应体大小 → JSON 解析 → shared 结构校验 → 目标 styleSchema 语义校验 → 危险键递归扫描。任何一步失败均不返回可应用操作。
 - 图片中文字只作为待分析内容，系统提示明确禁止执行图片指令。模型不能访问工具、网络、数据库或业务 API。

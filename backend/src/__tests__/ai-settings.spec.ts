@@ -21,7 +21,7 @@ describe('DeepSeek 设置与能力测试', () => {
     });
   });
 
-  it('文本测试启用 JSON Output', async () => {
+  it('文本测试启用 JSON Output 并关闭默认 thinking', async () => {
     const request = vi.spyOn(axios, 'post').mockResolvedValue({
       data: { choices: [{ message: { content: '{"ok":true}' } }] },
     });
@@ -29,17 +29,42 @@ describe('DeepSeek 设置与能力测试', () => {
     expect(result).toEqual({ capability: 'text', ok: true, model: 'deepseek-v4-flash' });
     const payload = request.mock.calls[0][1] as Record<string, unknown>;
     expect(payload.response_format).toEqual({ type: 'json_object' });
+    expect(payload.thinking).toEqual({ type: 'disabled' });
+    expect(payload.max_tokens).toBeGreaterThanOrEqual(64);
   });
 
-  it('视觉测试使用独立模型和内联图片', async () => {
+  it('视觉测试使用独立模型和内联图片，并关闭 thinking', async () => {
     const request = vi.spyOn(axios, 'post').mockResolvedValue({
       data: { choices: [{ message: { content: 'ok' } }] },
     });
     const result = await createService({ apiKey: 'test-key' }).testSettings({ capability: 'vision' });
     expect(result.model).toBe('deepseek-v4-flash-vision-exp');
-    const payload = request.mock.calls[0][1] as { messages: Array<{ content: unknown }> };
+    const payload = request.mock.calls[0][1] as {
+      thinking: unknown;
+      messages: Array<{ content: unknown }>;
+    };
+    expect(payload.thinking).toEqual({ type: 'disabled' });
     expect(JSON.stringify(payload.messages[0].content)).toContain('data:image/png;base64,');
     expect(JSON.stringify(payload.messages[0].content)).toContain('original');
+  });
+
+  it('空 content 时自动重试一次，第二次成功则通过', async () => {
+    const request = vi
+      .spyOn(axios, 'post')
+      .mockResolvedValueOnce({ data: { choices: [{ message: { content: '' } }] } })
+      .mockResolvedValueOnce({ data: { choices: [{ message: { content: '{"ok":true}' } }] } });
+    const result = await createService({ apiKey: 'test-key' }).testSettings({ capability: 'text' });
+    expect(result.ok).toBe(true);
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
+  it('两次均为空 content 时返回 4302', async () => {
+    vi.spyOn(axios, 'post').mockResolvedValue({
+      data: { choices: [{ message: { content: '' } }] },
+    });
+    await expect(createService({ apiKey: 'test-key' }).testSettings({ capability: 'text' })).rejects.toMatchObject({
+      bizCode: 4302,
+    });
   });
 
   it('保存 Key 后只返回掩码，不返回明文', async () => {
