@@ -158,7 +158,7 @@ defaultData: {
 
 ## 3. 其余模板的量产规则（M8 执行）
 
-1. **命名**：`chart-{族}-{1..5}`（折线 line / 柱状 bar / 饼图 pie / 组合 combo / 漏斗 funnel / 雷达 radar / 仪表盘 gauge）；`kpi-card-{n}` 按 PRD §5.1 的样式编号（1、2、2plus→2p、3、3p、5、5p、8、9、10、11、指标列表→list）；`table-{list|alarm}`；`weather-{1|2}`；`border-{1..5}`；`media-{image|video}`；`control-{button|imageButton|hotspot|dropdown|text}`。
+1. **命名**：`chart-{族}-{1..5}`（折线 line / 柱状 bar / 饼图 pie / 组合 combo / 漏斗 funnel / 雷达 radar / 仪表盘 gauge）；`kpi-card-{n}` 按 PRD §5.1 的样式编号（1、2、3、5、8、10、11、指标列表→list）；`table-{list|alarm}`；`weather-{1|2}`；`border-{1..3}`；`media-{image|video}`；`control-{button|imageButton|hotspot|dropdown|text}`。
 2. **styleSchema**：先复用黄金样例的「底板框」三件套（boardEnabled/boardTitle/boardPadding，全部数据组件通用）；再按族增字段（柱状图：柱宽 barWidth、柱间距；饼图：环宽 radius、中心文字；仪表盘：量程 min/max、进度色；指标卡：数值字号/单位/趋势色…）。**同族 5 个变体的 schema 差异要体现在默认值与少量专属字段上，不许为变体改字段命名**。
 3. **defaultStyle**：双主题成对产出，颜色一律取 design.md §2.1~2.3 变量表/色板，禁止自创色值。
 4. **defaultData**：符合该族协议，中文示例、与演示场景一致。

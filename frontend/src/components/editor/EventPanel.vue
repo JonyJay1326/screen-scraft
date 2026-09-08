@@ -103,34 +103,40 @@ const actionLabel: Record<EventDoc['action'], string> = {
     </div>
     <p v-if="!selected.events.length" class="muted">尚未配置事件。运行时（预览/展示）生效。</p>
 
-    <el-dialog v-model="showEv" title="事件配置" width="440px">
+    <el-dialog
+      v-model="showEv"
+      class="ed-dialog"
+      title="事件配置"
+      width="440px"
+      append-to-body
+    >
       <el-form label-width="88px">
-        <el-form-item label="名称"><el-input v-model="form.name" /></el-form-item>
+        <el-form-item label="名称"><el-input v-model="form.name" size="small" /></el-form-item>
         <el-form-item label="触发">
-          <el-select v-model="form.trigger">
+          <el-select v-model="form.trigger" popper-class="ed-select-popper" size="small" style="width: 100%">
             <el-option v-for="(lab, key) in triggerLabel" :key="key" :label="lab" :value="key" />
           </el-select>
         </el-form-item>
         <el-form-item label="动作">
-          <el-select v-model="form.action">
+          <el-select v-model="form.action" popper-class="ed-select-popper" size="small" style="width: 100%">
             <el-option v-for="(lab, key) in actionLabel" :key="key" :label="lab" :value="key" />
           </el-select>
         </el-form-item>
         <el-form-item v-if="form.action === 'jumpPage'" label="目标页面">
-          <el-select v-model="form.config.pageId">
+          <el-select v-model="form.config.pageId" popper-class="ed-select-popper" size="small" placeholder="请选择" style="width: 100%">
             <el-option v-for="p in store.screen?.pages" :key="p.id" :label="p.name" :value="p.id" />
           </el-select>
         </el-form-item>
         <el-form-item v-if="form.action === 'jumpLink'" label="链接">
-          <el-input v-model="form.config.url" />
+          <el-input v-model="form.config.url" size="small" />
         </el-form-item>
         <el-form-item v-if="form.action === 'toggleVisibility'" label="目标组件">
-          <el-select v-model="visibilityIds" multiple placeholder="选择要控制的组件">
+          <el-select v-model="visibilityIds" popper-class="ed-select-popper" size="small" multiple placeholder="选择要控制的组件" style="width: 100%">
             <el-option v-for="c in others" :key="c.id" :label="c.name" :value="c.id" />
           </el-select>
         </el-form-item>
         <el-form-item v-if="form.action === 'callApi'" label="刷新组件">
-          <el-select v-model="apiTargetIds" multiple placeholder="选择要刷新的组件">
+          <el-select v-model="apiTargetIds" popper-class="ed-select-popper" size="small" multiple placeholder="选择要刷新的组件" style="width: 100%">
             <el-option v-for="c in others" :key="c.id" :label="c.name" :value="c.id" />
           </el-select>
         </el-form-item>

@@ -1,4 +1,4 @@
-# 启动本机 MongoDB：优先系统服务 / mongod PATH，其次 winget 安装路径，最后便携目录
+# Start local MongoDB: Windows service, PATH, install dir, or portable .tools
 $ErrorActionPreference = 'Stop'
 $port = 27017
 $dataDir = Join-Path $PSScriptRoot '..\data\db'
@@ -18,18 +18,22 @@ function Test-PortOpen {
 }
 
 if (Test-PortOpen -Port $port) {
-  Write-Host "MongoDB 已在 127.0.0.1:$port 监听"
+  Write-Host "MongoDB already listening on 127.0.0.1:$port"
   exit 0
 }
 
 $service = Get-Service -Name MongoDB -ErrorAction SilentlyContinue
 if ($service) {
   if ($service.Status -ne 'Running') {
-    Start-Service MongoDB
+    try {
+      Start-Service MongoDB -ErrorAction Stop
+    } catch {
+      Write-Host "Windows service MongoDB could not start, falling back to mongod.exe"
+    }
   }
   Start-Sleep -Seconds 2
   if (Test-PortOpen -Port $port) {
-    Write-Host '已启动 Windows 服务 MongoDB'
+    Write-Host 'Started Windows service MongoDB'
     exit 0
   }
 }
@@ -44,16 +48,16 @@ $candidates = @(
 
 $mongod = $candidates | Select-Object -First 1
 if (-not $mongod) {
-  Write-Error '未找到 mongod.exe。请先安装 MongoDB.Server，或将便携版解压到 .tools/mongodb'
+  Write-Error 'mongod.exe not found. Install MongoDB.Server or unpack portable build to .tools/mongodb'
   exit 1
 }
 
-Write-Host "使用 $mongod 启动（dbpath=$dataDir）"
+Write-Host "Starting $mongod (dbpath=$dataDir)"
 Start-Process -FilePath $mongod -ArgumentList @('--dbpath', (Resolve-Path $dataDir), '--bind_ip', '127.0.0.1', '--port', "$port") -WindowStyle Hidden
 Start-Sleep -Seconds 2
 if (Test-PortOpen -Port $port) {
-  Write-Host "MongoDB 已启动 127.0.0.1:$port"
+  Write-Host "MongoDB started on 127.0.0.1:$port"
   exit 0
 }
-Write-Error 'mongod 已拉起但端口仍未就绪'
+Write-Error 'mongod launched but port is not ready'
 exit 1

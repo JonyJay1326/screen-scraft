@@ -2,5 +2,4 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="160" height="96" viewBox="0 0 160 96">
   <rect width="160" height="96" rx="8" fill="#F4F7FB"/>
   <rect x="36" y="36" width="88" height="32" rx="6" fill="#2F7FF7"/><text x="80" y="57" text-anchor="middle" fill="#fff" font-size="12">查询</text>
-  <text x="8" y="92" fill="#1F2937" font-size="8" font-family="sans-serif">control-button</text>
 </svg>

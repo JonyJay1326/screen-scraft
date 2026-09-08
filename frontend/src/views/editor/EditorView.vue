@@ -82,6 +82,7 @@ function isEditableTarget(event: Event): boolean {
 onMounted(async () => {
   document.documentElement.setAttribute('data-theme', 'dark');
   document.documentElement.classList.add('dark');
+  document.documentElement.setAttribute('data-vxe-ui-theme', 'dark');
   try {
     await store.load(String(route.params.id));
     await nextTick();
@@ -99,6 +100,7 @@ onMounted(async () => {
 onUnmounted(() => {
   document.documentElement.classList.remove('dark');
   document.documentElement.setAttribute('data-theme', 'light');
+  document.documentElement.setAttribute('data-vxe-ui-theme', 'light');
   window.removeEventListener('keydown', onKey);
   window.removeEventListener('keyup', onKeyUp);
   window.removeEventListener('beforeunload', onBeforeUnload);
@@ -149,10 +151,14 @@ function onKey(event: KeyboardEvent): void {
   }
   if (meta && event.code === 'KeyG' && event.shiftKey) {
     event.preventDefault();
-    store.ungroupSelected();
+    if (!store.ungroupSelected()) {
+      ElMessage.warning('请先选中已组合的组件再打散');
+    }
   } else if (meta && event.code === 'KeyG') {
     event.preventDefault();
-    store.groupSelected();
+    if (!store.groupSelected()) {
+      ElMessage.warning('请先多选至少 2 个组件再组合（Shift+点击）');
+    }
   }
   if (event.code === 'Delete' || (meta && event.code === 'Backspace')) {
     event.preventDefault();
@@ -231,18 +237,48 @@ function onWrapPointerDown(event: PointerEvent): void {
   window.addEventListener('pointerup', onUp);
 }
 
-/** 保存，成功返回 true */
-async function doSave(): Promise<boolean> {
-  let thumbnail: string | undefined;
+/** 生成列表缩略图：按逻辑 1920×1080 抓取，再缩到约 768 宽，避免模糊 */
+async function captureThumbnail(): Promise<string | undefined> {
+  if (!canvasEl.value) {
+    return undefined;
+  }
+  const canvasW = store.screen?.canvas?.width ?? CANVAS_W;
+  const canvasH = store.screen?.canvas?.height ?? CANVAS_H;
+  const targetW = 768;
+  const scale = Math.max(0.35, targetW / canvasW);
   try {
-    if (canvasEl.value) {
-      const { default: html2canvas } = await import('html2canvas');
-      const pic = await html2canvas(canvasEl.value, { backgroundColor: '#0D1730', scale: 0.12, logging: false });
-      thumbnail = pic.toDataURL('image/jpeg', 0.55);
-    }
+    const { default: html2canvas } = await import('html2canvas');
+    const pic = await html2canvas(canvasEl.value, {
+      backgroundColor: '#0D1730',
+      width: canvasW,
+      height: canvasH,
+      scale,
+      logging: false,
+      useCORS: true,
+      onclone: (_doc, node) => {
+        const el = node as HTMLElement;
+        // 去掉编辑器缩放，按设计稿尺寸截图
+        el.style.transform = 'none';
+        el.style.width = `${canvasW}px`;
+        el.style.height = `${canvasH}px`;
+        el.querySelectorAll('.cv-label, .cv-handle, .ratio, .del, .cv-guide').forEach((item) => {
+          (item as HTMLElement).style.display = 'none';
+        });
+        el.querySelectorAll('.cv-comp').forEach((item) => {
+          (item as HTMLElement).style.borderColor = 'transparent';
+        });
+      },
+    });
+    return pic.toDataURL('image/jpeg', 0.86);
   } catch {
     /* 视频等跨域节点可能失败，忽略缩略图 */
+    return undefined;
   }
+}
+
+/** 保存，成功返回 true */
+async function doSave(): Promise<boolean> {
+  const thumbnail = await captureThumbnail();
   try {
     await store.save(thumbnail);
     ElMessage.success('已保存');
@@ -389,16 +425,39 @@ function addPlaceholder(): void {
   });
 }
 
-/** 选中 */
-function select(id: string, additive: boolean): void {
-  if (additive) {
-    store.selectedIds = store.selectedIds.includes(id)
-      ? store.selectedIds.filter((item) => item !== id)
-      : [...store.selectedIds, id];
-  } else {
-    store.selectedIds = [id];
+/** 组合 */
+function onGroup(): void {
+  if (!store.groupSelected()) {
+    ElMessage.warning('请先多选至少 2 个组件再组合（Shift+点击）');
   }
 }
+
+/** 打散 */
+function onUngroup(): void {
+  if (!store.ungroupSelected()) {
+    ElMessage.warning('请先选中已组合的组件再打散');
+  }
+}
+
+/** 当前选中组的包围盒（组外模式提示） */
+const groupFrame = computed(() => {
+  if (store.inGroupId) {
+    return null;
+  }
+  const comps = (store.currentPage?.components ?? []).filter((item) => store.selectedIds.includes(item.id));
+  if (comps.length < 2) {
+    return null;
+  }
+  const gid = comps[0]?.groupId;
+  if (!gid || comps.some((item) => item.groupId !== gid)) {
+    return null;
+  }
+  const x = Math.min(...comps.map((item) => item.x));
+  const y = Math.min(...comps.map((item) => item.y));
+  const right = Math.max(...comps.map((item) => item.x + item.w));
+  const bottom = Math.max(...comps.map((item) => item.y + item.h));
+  return { x, y, w: right - x, h: bottom - y };
+});
 
 /** 新标签打开展示页 */
 function openDisplay(): void {
@@ -490,7 +549,13 @@ async function renamePage(pageId: string, name: string): Promise<void> {
       <span class="ed-sep" />
       <button class="ed-tool" :class="{ on: store.showGrid }" type="button" title="网格" @click="store.showGrid = !store.showGrid"><Grid3x3 :size="16" /></button>
       <span class="ed-fit" title="展示适配">
-        <el-select v-model="store.screen.fitMode" size="small" @change="store.dirty = true">
+        <el-select
+          v-model="store.screen.fitMode"
+          class="ed-fit-select ed-select"
+          size="small"
+          popper-class="ed-select-popper"
+          @change="store.dirty = true"
+        >
           <el-option label="画面居中" value="center" />
           <el-option label="宽度铺满" value="width" />
           <el-option label="高度铺满" value="height" />
@@ -592,7 +657,19 @@ async function renamePage(pageId: string, name: string): Promise<void> {
             :style="canvasStyle"
             @mousedown.self="store.selectedIds = []; store.inGroupId = null"
           >
-            <CanvasItem v-for="comp in canvasList" :key="comp.id" :doc="comp" @select="select" />
+            <CanvasItem v-for="comp in canvasList" :key="comp.id" :doc="comp" />
+            <div
+              v-if="groupFrame"
+              class="cv-group-frame"
+              :style="{ left: groupFrame.x + 'px', top: groupFrame.y + 'px', width: groupFrame.w + 'px', height: groupFrame.h + 'px' }"
+            />
+            <div
+              v-for="(guide, gi) in store.alignGuides"
+              :key="gi"
+              class="cv-guide"
+              :class="guide.orient === 'v' ? 'v' : 'h'"
+              :style="guide.orient === 'v' ? { left: guide.pos + 'px' } : { top: guide.pos + 'px' }"
+            />
           </div>
         </div>
       </div>
@@ -611,8 +688,9 @@ async function renamePage(pageId: string, name: string): Promise<void> {
           <button class="btn btn-sm" type="button" @click="store.changeLayer('bottom')">置底</button>
           <button class="btn btn-sm" type="button" @click="store.changeLayer('up')">上一层</button>
           <button class="btn btn-sm" type="button" @click="store.changeLayer('down')">下一层</button>
-          <button class="btn btn-sm" type="button" @click="store.groupSelected()">组合</button>
-          <button class="btn btn-sm" type="button" @click="store.ungroupSelected()">打散</button>
+          <button class="btn btn-sm" type="button" @click="onGroup">组合</button>
+          <button class="btn btn-sm" type="button" @click="onUngroup">打散</button>
+          <button class="btn btn-sm danger" type="button" @click="store.removeSelected()">删除</button>
         </div>
         <div class="tabs">
           <button class="tab" :class="{ active: rightTab === 'data' }" type="button" @click="rightTab = 'data'">数据绑定</button>
@@ -638,11 +716,11 @@ async function renamePage(pageId: string, name: string): Promise<void> {
     </div>
   </div>
 
-  <el-dialog v-model="tplVisible" title="保存为模板" width="400px">
+  <el-dialog v-model="tplVisible" class="ed-dialog" title="保存为模板" width="400px" append-to-body>
     <el-form label-width="80px">
-      <el-form-item label="名称"><el-input v-model="tplName" maxlength="20" placeholder="例如：水务运营通用版" /></el-form-item>
+      <el-form-item label="名称"><el-input v-model="tplName" size="small" maxlength="20" placeholder="例如：水务运营通用版" /></el-form-item>
       <el-form-item label="分类">
-        <el-select v-model="tplCat">
+        <el-select v-model="tplCat" popper-class="ed-select-popper" size="small" style="width: 100%">
           <el-option v-for="c in CATEGORIES" :key="c" :label="c" :value="c" />
         </el-select>
       </el-form-item>
@@ -653,7 +731,7 @@ async function renamePage(pageId: string, name: string): Promise<void> {
       <el-button type="primary" @click="saveTpl">保存模板</el-button>
     </template>
   </el-dialog>
-  <el-dialog v-model="shortcutVisible" title="快捷键说明" width="420px">
+  <el-dialog v-model="shortcutVisible" class="ed-dialog" title="快捷键说明" width="420px" append-to-body>
     <table class="kbd-table">
       <tr><td>保存大屏</td><td><kbd>Ctrl</kbd><kbd>S</kbd></td></tr>
       <tr><td>撤销 / 重做</td><td><kbd>Ctrl</kbd><kbd>Z</kbd> / <kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>Z</kbd></td></tr>
@@ -670,14 +748,14 @@ async function renamePage(pageId: string, name: string): Promise<void> {
 
 <style scoped>
 .ed-canvas.nogrid::before { display: none; }
-.ed-fit { width: 118px; margin-left: 6px; display: inline-block; }
-.ed-fit :deep(.el-select) { width: 100%; }
 .ed-state { align-items: center; justify-content: center; gap: 16px; color: var(--t2); }
 .seg { width: 100%; }
 .seg .seg-item { flex: 1; text-align: center; }
 .kbd-table { width: 100%; font-size: 13px; border-collapse: collapse; }
 .kbd-table td { padding: 8px 6px; border-bottom: 1px solid var(--border); color: var(--t2); }
 .kbd-table td:last-child { text-align: right; color: var(--t1); }
+.btn.danger { color: var(--err); border-color: color-mix(in srgb, var(--err) 40%, var(--border)); }
+.btn.danger:hover { background: rgba(239, 68, 68, .1); }
 kbd {
   display: inline-block; padding: 2px 7px; background: var(--panel2); border: 1px solid var(--border);
   border-bottom-width: 2px; border-radius: 4px; font-family: var(--font-num); font-size: 11.5px; color: var(--t1); margin-left: 4px;

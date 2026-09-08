@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="160" height="96" viewBox="0 0 160 96">
-  <rect width="160" height="96" rx="8" fill="#F4F7FB"/>
-  <rect x="18" y="16" width="124" height="72" rx="6" fill="none" stroke="#2F7FF7" stroke-width="2"/><rect x="18" y="16" width="10" height="10" fill="#2F7FF7"/><rect x="132" y="16" width="10" height="10" fill="#2F7FF7"/><rect x="18" y="78" width="10" height="10" fill="#2F7FF7"/><rect x="132" y="78" width="10" height="10" fill="#2F7FF7"/>
-  <text x="8" y="92" fill="#1F2937" font-size="8" font-family="sans-serif">border-3</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="160" viewBox="0 0 320 160">
+  <rect width="320" height="160" rx="8" fill="#F4F7FB"/>
+  <rect x="18" y="16" width="284" height="128" rx="6" fill="rgba(28,20,48,.45)"/>
+  <rect x="18" y="16" width="284" height="128" rx="6" fill="none" stroke="#A78BFA" stroke-width="1.5"/>
+  <path d="M18 27V16H29" fill="none" stroke="#C4B5FD" stroke-width="2"/>
+  <path d="M291 16H302V27" fill="none" stroke="#C4B5FD" stroke-width="2"/>
+  <path d="M18 133V144H29" fill="none" stroke="#C4B5FD" stroke-width="2"/>
+  <path d="M291 144H302V133" fill="none" stroke="#C4B5FD" stroke-width="2"/>
+  <text x="32" y="38" fill="#303133" font-size="12" font-family="sans-serif" letter-spacing="1">科幻紫</text>
 </svg>

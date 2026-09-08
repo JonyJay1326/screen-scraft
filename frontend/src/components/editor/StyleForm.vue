@@ -68,6 +68,7 @@ function removeColor(index: number): void {
           <el-switch v-if="field.type === 'switch'" :model-value="Boolean(merged[field.key])" @change="setStyle(field.key, $event)" />
           <el-input
             v-else-if="field.type === 'text'"
+            size="small"
             :model-value="String(merged[field.key] ?? '')"
             :maxlength="field.key === 'src' || field.key === 'content' ? 500 : 40"
             @change="setStyle(field.key, $event)"
@@ -83,7 +84,13 @@ function removeColor(index: number): void {
             @change="(v: number | undefined) => setStyle(field.key, v ?? 0)"
           />
           <el-color-picker v-else-if="field.type === 'color'" :model-value="String(merged[field.key] ?? '#ffffff')" @change="(v: string | null) => v && setStyle(field.key, v)" />
-          <el-select v-else-if="field.type === 'select'" :model-value="String(merged[field.key] ?? '')" @change="setStyle(field.key, $event)">
+          <el-select
+            v-else-if="field.type === 'select'"
+            class="ed-select"
+            popper-class="ed-select-popper"
+            :model-value="String(merged[field.key] ?? '')"
+            @change="setStyle(field.key, $event)"
+          >
             <el-option v-for="opt in field.options" :key="opt.value" :label="opt.label" :value="opt.value" />
           </el-select>
           <div v-else-if="field.type === 'colorList'" class="colors">

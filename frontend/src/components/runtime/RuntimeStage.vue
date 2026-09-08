@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import type { ComponentDoc, EventDoc, ScreenDoc } from '@screencraft/shared';
 import { isProtocolValid } from '@screencraft/shared';
 import { getTemplate } from '../../registry';
@@ -26,13 +26,21 @@ const timers: number[] = [];
 
 const page = computed(() => props.screen.pages.find((item) => item.id === pageId.value) ?? props.screen.pages[0]);
 const comps = computed(() => [...(page.value?.components ?? [])].sort((a, b) => a.zIndex - b.zIndex));
+const canvasW = computed(() => props.screen.canvas?.width || 1920);
+const canvasH = computed(() => props.screen.canvas?.height || 1080);
 
-/** 适配缩放 */
+/** 适配缩放（transform-origin: left top，与 calcFit 坐标系一致） */
 function applyFit(): void {
   if (!stage.value) {
     return;
   }
-  const next = calcFit(props.screen.fitMode, stage.value.clientWidth, stage.value.clientHeight);
+  const next = calcFit(
+    props.screen.fitMode,
+    stage.value.clientWidth,
+    stage.value.clientHeight,
+    canvasW.value,
+    canvasH.value,
+  );
   Object.assign(fit, next);
 }
 
@@ -151,7 +159,8 @@ function bumpBar(): void {
   }, 3000);
 }
 
-onMounted(() => {
+onMounted(async () => {
+  await nextTick();
   applyFit();
   bindPage();
   window.addEventListener('resize', applyFit);
@@ -165,6 +174,12 @@ onUnmounted(() => {
   }
 });
 watch(pageId, () => bindPage());
+watch(
+  () => [props.screen.fitMode, canvasW.value, canvasH.value] as const,
+  () => {
+    void nextTick().then(applyFit);
+  },
+);
 </script>
 
 <template>
@@ -172,11 +187,12 @@ watch(pageId, () => bindPage());
     <div
       class="stage-inner"
       :style="{
-        width: '1920px',
-        height: '1080px',
+        width: canvasW + 'px',
+        height: canvasH + 'px',
         left: fit.left + 'px',
         top: fit.top + 'px',
         transform: `scale(${fit.scaleX}, ${fit.scaleY})`,
+        transformOrigin: 'left top',
         background: page?.background.color || '#0D1730',
       }"
     >
@@ -213,4 +229,8 @@ watch(pageId, () => bindPage());
 <style scoped>
 .rt-item { position: absolute; }
 .ctrl-bar.show { opacity: 1; }
+.stage-inner {
+  position: absolute;
+  transform-origin: left top;
+}
 </style>

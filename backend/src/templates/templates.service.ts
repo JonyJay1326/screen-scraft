@@ -6,7 +6,7 @@ import { BizException } from '../common/biz.exception';
 import { createBlankPage } from '../screens/page.factory';
 import { toScreenDoc } from '../screens/screen.mapper';
 import { Screen } from '../screens/screen.schema';
-import { ScreenTemplate } from './template.schema';
+import { ScreenTemplate, type TemplateDocument } from './template.schema';
 
 export interface TemplateListItem {
   _id: string;
@@ -59,7 +59,7 @@ export class TemplatesService {
   }
 
   /** 转为列表项 */
-  private toListItem(row: ScreenTemplate): TemplateListItem {
+  private toListItem(row: TemplateDocument): TemplateListItem {
     return {
       _id: String(row._id),
       name: row.name,
@@ -72,7 +72,7 @@ export class TemplatesService {
   }
 
   /** 快照转运行时 ScreenDoc（无真实 projectId） */
-  private toPreviewScreen(tpl: ScreenTemplate): ScreenDoc {
+  private toPreviewScreen(tpl: TemplateDocument): ScreenDoc {
     const snap = tpl.screenSnapshot;
     return {
       _id: `tpl:${String(tpl._id)}`,

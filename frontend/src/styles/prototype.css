@@ -263,6 +263,125 @@ html[data-theme="light"] .topbar { background: rgba(255, 255, 255, .92); backdro
 .ed-tool-txt { width: auto; padding: 0 10px; font-size: 12px; gap: 4px; display: inline-flex; align-items: center; }
 .ed-screen-name { font-size: 13.5px; font-weight: 600; color: var(--t1); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ed-zoom { font-size: 12px; color: var(--t2); width: 44px; text-align: center; font-family: var(--font-num); }
+
+/* 编辑器统一下拉：与「画面居中」同款（无描边盒子） */
+.ed-fit {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  margin-left: 2px;
+}
+.ed-fit .ed-select,
+.ed-fit .ed-fit-select {
+  width: auto;
+  min-width: 104px;
+}
+.ed-select .el-select__wrapper,
+.ed-fit-select .el-select__wrapper,
+.ed-right .el-select .el-select__wrapper {
+  min-height: 32px !important;
+  height: 32px;
+  padding: 0 8px 0 10px;
+  background: transparent !important;
+  box-shadow: none !important;
+  border-radius: var(--r-md);
+  gap: 2px;
+  transition: background .14s, color .14s;
+}
+.ed-select .el-select__wrapper:hover,
+.ed-fit-select .el-select__wrapper:hover,
+.ed-right .el-select .el-select__wrapper:hover,
+.ed-select .el-select__wrapper.is-hovering:not(.is-focused),
+.ed-fit-select .el-select__wrapper.is-hovering:not(.is-focused),
+.ed-right .el-select .el-select__wrapper.is-hovering:not(.is-focused),
+.ed-select .el-select__wrapper.is-focused,
+.ed-fit-select .el-select__wrapper.is-focused,
+.ed-right .el-select .el-select__wrapper.is-focused {
+  background: var(--panel2) !important;
+  box-shadow: none !important;
+}
+.ed-select .el-select__selected-item,
+.ed-fit-select .el-select__selected-item,
+.ed-right .el-select .el-select__selected-item,
+.ed-select .el-select__placeholder,
+.ed-fit-select .el-select__placeholder,
+.ed-right .el-select .el-select__placeholder {
+  color: var(--t2);
+  font-size: 12px;
+  line-height: 32px;
+}
+.ed-select .el-select__wrapper:hover .el-select__selected-item,
+.ed-fit-select .el-select__wrapper:hover .el-select__selected-item,
+.ed-right .el-select .el-select__wrapper:hover .el-select__selected-item,
+.ed-select .el-select__wrapper.is-focused .el-select__selected-item,
+.ed-fit-select .el-select__wrapper.is-focused .el-select__selected-item,
+.ed-right .el-select .el-select__wrapper.is-focused .el-select__selected-item {
+  color: var(--t1);
+}
+.ed-select .el-select__caret,
+.ed-fit-select .el-select__caret,
+.ed-right .el-select .el-select__caret {
+  color: var(--t2);
+  font-size: 12px;
+  width: 14px;
+}
+.ed-select .el-select__suffix,
+.ed-fit-select .el-select__suffix,
+.ed-right .el-select .el-select__suffix {
+  color: var(--t2);
+}
+
+/* 统一下拉面板（teleport 到 body；兼容旧类名 ed-fit-popper） */
+.ed-select-popper.el-popper,
+.ed-select-popper,
+.ed-fit-popper.el-popper,
+.ed-fit-popper {
+  background: var(--panel) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--r-md) !important;
+  box-shadow: var(--sh-md) !important;
+  padding: 4px !important;
+  overflow: hidden;
+}
+.ed-select-popper .el-popper__arrow::before,
+.ed-fit-popper .el-popper__arrow::before {
+  background: var(--panel) !important;
+  border: 1px solid var(--border) !important;
+}
+.ed-select-popper .el-select-dropdown__list,
+.ed-fit-popper .el-select-dropdown__list {
+  padding: 0;
+  margin: 0;
+}
+.ed-select-popper .el-select-dropdown__item,
+.ed-fit-popper .el-select-dropdown__item {
+  height: 32px;
+  line-height: 32px;
+  padding: 0 12px;
+  margin: 0;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--t2);
+}
+.ed-select-popper .el-select-dropdown__item:hover,
+.ed-fit-popper .el-select-dropdown__item:hover,
+.ed-select-popper .el-select-dropdown__item.is-hovering,
+.ed-fit-popper .el-select-dropdown__item.is-hovering {
+  background: var(--panel2);
+  color: var(--t1);
+}
+.ed-select-popper .el-select-dropdown__item.is-selected,
+.ed-fit-popper .el-select-dropdown__item.is-selected {
+  color: var(--pri);
+  font-weight: 600;
+  background: var(--pri-bg);
+}
+.ed-select-popper .el-select-dropdown__item.is-selected:hover,
+.ed-fit-popper .el-select-dropdown__item.is-selected:hover {
+  background: var(--pri-bg);
+  color: var(--pri);
+}
+
 .ed-top-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 
 .ed-body { flex: 1; display: flex; min-height: 0; }
@@ -291,8 +410,8 @@ html[data-theme="light"] .topbar { background: rgba(255, 255, 255, .92); backdro
 .lib-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .lib-item { border: 1px solid var(--border); border-radius: var(--r-md); padding: 8px; cursor: pointer; transition: all .15s; background: var(--panel2); user-select: none; }
 .lib-item:hover { border-color: var(--pri); transform: translateY(-1px); }
-.lib-item .lib-thumb { height: 56px; border-radius: var(--r-sm); background: var(--bg); display: grid; place-items: center; margin-bottom: 6px; overflow: hidden; color: var(--acc); }
-.lib-item .lib-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.lib-item .lib-thumb { height: 80px; border-radius: var(--r-sm); background: var(--bg); display: grid; place-items: center; margin-bottom: 6px; overflow: hidden; color: var(--acc); }
+.lib-item .lib-thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .lib-item .lib-name { font-size: 12px; color: var(--t1); display: flex; justify-content: space-between; align-items: center; }
 .lib-item .lib-name .cnt { font-size: 11px; color: var(--t2); }
 
@@ -316,6 +435,21 @@ html[data-theme="light"] .topbar { background: rgba(255, 255, 255, .92); backdro
 .cv-handle.l { left: -4px; top: 50%; margin-top: -4px; cursor: ew-resize; }
 .cv-handle.r { right: -4px; top: 50%; margin-top: -4px; cursor: ew-resize; }
 
+/* 拖拽吸附辅助线 */
+.cv-guide { position: absolute; pointer-events: none; z-index: 9999; background: #ff4d6d; }
+.cv-guide.v { top: 0; bottom: 0; width: 1px; }
+.cv-guide.h { left: 0; right: 0; height: 1px; }
+
+/* 组合包围盒 */
+.cv-group-frame {
+  position: absolute;
+  pointer-events: none;
+  z-index: 9990;
+  border: 1px dashed var(--pri);
+  box-shadow: 0 0 0 1px rgba(47, 127, 247, 0.2);
+  border-radius: 2px;
+}
+
 /* 右侧设置面板 */
 .ed-right { width: 324px; flex: none; background: var(--panel); border-left: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; }
 .ed-right .tabs { padding: 0 16px; gap: 18px; flex: none; }
@@ -330,6 +464,318 @@ html[data-theme="light"] .topbar { background: rgba(255, 255, 255, .92); backdro
 .f-ctrl .input-sm, .f-ctrl .select { width: 110px; flex: none; }
 .f-ctrl .input-sm.wide { width: 170px; }
 .color-dot { width: 26px; height: 26px; border-radius: var(--r-sm); border: 1px solid var(--border); cursor: pointer; flex: none; }
+
+/* 右侧面板：EP 输入/数字框贴合编辑器 token */
+.ed-right .el-input {
+  --el-input-bg-color: var(--panel2);
+  --el-input-border-color: var(--border);
+  --el-input-hover-border-color: var(--pri);
+  --el-input-focus-border-color: var(--pri);
+  --el-input-text-color: var(--t1);
+  --el-input-placeholder-color: var(--t2);
+  --el-input-border-radius: var(--r-md);
+}
+.ed-right .el-input__wrapper {
+  background: var(--panel2) !important;
+  box-shadow: 0 0 0 1px var(--border) inset !important;
+  border-radius: var(--r-md);
+  padding: 0 10px;
+  min-height: 32px;
+}
+.ed-right .el-input__wrapper:hover,
+.ed-right .el-input__wrapper.is-focus {
+  box-shadow: 0 0 0 1px var(--pri) inset !important;
+}
+.ed-right .el-input__inner {
+  color: var(--t1);
+  font-size: 12px;
+  height: 30px;
+  line-height: 30px;
+}
+.ed-right .el-input-number {
+  width: 118px;
+  --el-fill-color-blank: var(--panel2);
+  --el-border-color: var(--border);
+  --el-text-color-regular: var(--t1);
+}
+.ed-right .el-input-number .el-input__wrapper {
+  padding-left: 8px;
+  padding-right: 36px;
+}
+.ed-right .el-input-number__decrease,
+.ed-right .el-input-number__increase {
+  background: var(--panel) !important;
+  border-color: var(--border) !important;
+  color: var(--t2) !important;
+  width: 28px;
+}
+.ed-right .el-input-number__decrease:hover,
+.ed-right .el-input-number__increase:hover {
+  color: var(--pri) !important;
+}
+.ed-right .textarea,
+.ed-right textarea.json {
+  width: 100%;
+  min-height: 160px;
+  padding: 8px 10px;
+  border-radius: var(--r-md);
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  color: var(--t1);
+  font-family: var(--font-num);
+  font-size: 12px;
+  line-height: 1.55;
+  resize: vertical;
+}
+.ed-right .textarea:focus,
+.ed-right textarea.json:focus {
+  border-color: var(--pri);
+  box-shadow: 0 0 0 2px var(--pri-bg);
+  outline: none;
+}
+.ed-right .btn.danger {
+  color: var(--err);
+  border-color: rgba(239, 68, 68, .35);
+}
+.ed-right .btn.danger:hover {
+  background: rgba(239, 68, 68, .08);
+  border-color: var(--err);
+  color: var(--err);
+}
+
+/* 静态数据表：强制贴合编辑器 token（vxe dark 主题之上再微调） */
+.ed-right .ed-static-table {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  background: var(--panel2);
+  --vxe-table-header-background-color: #0e1b38;
+  --vxe-table-body-background-color: var(--panel2);
+  --vxe-table-footer-background-color: var(--panel2);
+  --vxe-table-row-hover-background-color: var(--pri-bg);
+  --vxe-table-row-striped-background-color: rgba(14, 27, 56, .55);
+  --vxe-table-border-color: var(--border);
+  --vxe-table-header-font-color: var(--t2);
+  --vxe-table-header-font-weight: 500;
+  --vxe-table-font-color: var(--t1);
+  --vxe-ui-font-color: var(--t1);
+  --vxe-font-color: var(--t1);
+  --vxe-table-column-padding-mini: 4px 6px;
+}
+.ed-right .ed-static-table .vxe-table--render-wrapper,
+.ed-right .ed-static-table .vxe-table--main-wrapper,
+.ed-right .ed-static-table .vxe-table--body-wrapper.body--wrapper,
+.ed-right .ed-static-table .vxe-table--header-wrapper.body--wrapper,
+.ed-right .ed-static-table .vxe-table--body,
+.ed-right .ed-static-table .vxe-table--header,
+.ed-right .ed-static-table table {
+  background-color: var(--panel2) !important;
+  color: var(--t1) !important;
+}
+.ed-right .ed-static-table .vxe-body--row,
+.ed-right .ed-static-table .vxe-body--column,
+.ed-right .ed-static-table .vxe-header--column {
+  background-color: transparent !important;
+  color: inherit !important;
+}
+.ed-right .ed-static-table .vxe-header--row {
+  background-color: #0e1b38 !important;
+}
+.ed-right .ed-static-table .vxe-header--column {
+  color: var(--t2) !important;
+}
+.ed-right .ed-static-table .vxe-body--row.row--hover,
+.ed-right .ed-static-table .vxe-body--row:hover {
+  background-color: var(--pri-bg) !important;
+}
+.ed-right .ed-static-table .vxe-cell {
+  color: inherit;
+  font-size: 12px;
+}
+.ed-right .ed-static-table .vxe-cell--edit,
+.ed-right .ed-static-table .vxe-input,
+.ed-right .ed-static-table .vxe-input--inner,
+.ed-right .ed-static-table input {
+  background: var(--panel) !important;
+  color: var(--t1) !important;
+  border-color: var(--pri) !important;
+  box-shadow: none !important;
+  font-size: 12px;
+}
+.ed-right .ed-static-table .vxe-table--border-line,
+.ed-right .ed-static-table .vxe-table--header-border-line {
+  border-color: var(--border) !important;
+}
+.ed-right .ed-static-table .vxe-table--border .vxe-body--column,
+.ed-right .ed-static-table .vxe-table--border .vxe-header--column,
+.ed-right .ed-static-table .vxe-table--border .vxe-footer--column {
+  background-image: linear-gradient(var(--border), var(--border)), linear-gradient(var(--border), var(--border)) !important;
+}
+
+/* ============================================================
+   统一弹层：el-dialog + ElMessageBox（跟 token，明暗自适应）
+   视觉基准：编辑器「重命名页面」——面板底、描边输入、主色确定按钮
+   ============================================================ */
+.el-dialog,
+.el-message-box,
+.ed-dialog.el-dialog,
+.ed-dialog .el-dialog {
+  --el-dialog-bg-color: var(--panel);
+  --el-dialog-title-font-size: 15px;
+  --el-text-color-primary: var(--t1);
+  --el-messagebox-title-color: var(--t1);
+  --el-messagebox-content-color: var(--t2);
+  background: var(--panel) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--r-lg) !important;
+  box-shadow: var(--sh-lg) !important;
+}
+.el-dialog__header,
+.el-message-box__header {
+  border-bottom: 1px solid var(--border);
+  margin-right: 0 !important;
+  padding-bottom: 12px;
+}
+.el-dialog__title,
+.el-message-box__title {
+  color: var(--t1) !important;
+  font-weight: 600;
+  font-size: 15px;
+}
+.el-dialog__headerbtn .el-dialog__close,
+.el-message-box__headerbtn .el-message-box__close {
+  color: var(--t2) !important;
+}
+.el-dialog__headerbtn:hover .el-dialog__close,
+.el-message-box__headerbtn:hover .el-message-box__close {
+  color: var(--pri) !important;
+}
+.el-dialog__body,
+.el-message-box__content {
+  color: var(--t1);
+  padding-top: 16px;
+}
+.el-message-box__message,
+.el-message-box__message p {
+  color: var(--t2) !important;
+  font-size: 13px;
+  line-height: 1.65;
+}
+.el-dialog__footer,
+.el-message-box__btns {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  margin-top: 4px;
+}
+.el-dialog .el-form-item__label,
+.el-message-box .el-form-item__label {
+  color: var(--t2) !important;
+}
+.el-message-box__input {
+  padding-top: 8px;
+}
+.el-dialog .el-input,
+.el-dialog .el-select,
+.el-message-box .el-input,
+.el-message-box .el-select {
+  width: 100%;
+}
+.el-dialog .el-input__wrapper,
+.el-dialog .el-select__wrapper,
+.el-message-box .el-input__wrapper,
+.el-message-box .el-select__wrapper,
+.el-message-box .el-textarea__inner {
+  min-height: 32px !important;
+  background: var(--panel2) !important;
+  box-shadow: 0 0 0 1px var(--border) inset !important;
+  border-radius: var(--r-md) !important;
+}
+.el-message-box .el-textarea__inner {
+  min-height: 72px !important;
+  color: var(--t1) !important;
+  border: none !important;
+}
+.el-dialog .el-input__wrapper:hover,
+.el-dialog .el-input__wrapper.is-focus,
+.el-dialog .el-select__wrapper:hover,
+.el-dialog .el-select__wrapper.is-focused,
+.el-dialog .el-select__wrapper.is-hovering,
+.el-message-box .el-input__wrapper:hover,
+.el-message-box .el-input__wrapper.is-focus,
+.el-message-box .el-select__wrapper:hover,
+.el-message-box .el-select__wrapper.is-focused {
+  box-shadow: 0 0 0 1px var(--pri) inset !important;
+  background: var(--panel2) !important;
+}
+.el-dialog .el-input__inner,
+.el-dialog .el-select__selected-item,
+.el-dialog .el-select__placeholder,
+.el-message-box .el-input__inner,
+.el-message-box .el-select__selected-item,
+.el-message-box .el-select__placeholder {
+  color: var(--t1) !important;
+  font-size: 13px;
+}
+.el-dialog .el-select__placeholder,
+.el-message-box .el-select__placeholder {
+  color: var(--t2) !important;
+}
+.el-dialog .el-select__caret,
+.el-message-box .el-select__caret {
+  color: var(--t2);
+}
+.el-dialog .el-textarea__inner {
+  background: var(--panel2) !important;
+  box-shadow: 0 0 0 1px var(--border) inset !important;
+  border: none !important;
+  color: var(--t1) !important;
+  border-radius: var(--r-md) !important;
+}
+.el-dialog .el-textarea__inner:focus {
+  box-shadow: 0 0 0 1px var(--pri) inset !important;
+}
+.el-dialog .el-button,
+.el-message-box .el-button {
+  --el-button-bg-color: var(--panel2);
+  --el-button-border-color: var(--border);
+  --el-button-text-color: var(--t1);
+  --el-button-hover-bg-color: var(--pri-bg);
+  --el-button-hover-border-color: var(--pri);
+  --el-button-hover-text-color: var(--pri);
+}
+.el-dialog .el-button--primary,
+.el-message-box .el-button--primary {
+  --el-button-bg-color: var(--pri);
+  --el-button-border-color: var(--pri);
+  --el-button-text-color: #fff;
+  --el-button-hover-bg-color: var(--pri-hover);
+  --el-button-hover-border-color: var(--pri-hover);
+  --el-button-hover-text-color: #fff;
+}
+.el-overlay-dialog .el-overlay-dialog,
+.el-overlay {
+  --el-overlay-color-lighter: var(--mask);
+}
+
+.vxe-table--ctxmenu-wrapper .vxe-ctxmenu--link-wrapper,
+.vxe-context-menu {
+  background: var(--panel) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--r-md) !important;
+  box-shadow: var(--sh-md) !important;
+  color: var(--t1) !important;
+}
+.vxe-table--ctxmenu-wrapper .vxe-ctxmenu--link,
+.vxe-context-menu--item {
+  color: var(--t2) !important;
+  font-size: 12px;
+}
+.vxe-table--ctxmenu-wrapper .vxe-ctxmenu--link:hover,
+.vxe-context-menu--item:hover {
+  background: var(--panel2) !important;
+  color: var(--t1) !important;
+}
 
 /* 静态数据小表格 */
 .mini-table { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -355,7 +801,16 @@ html[data-theme="light"] .topbar { background: rgba(255, 255, 255, .92); backdro
    展示页 / 预览页（display.html 专用）
    ============================================================ */
 .stage { position: fixed; inset: 0; background: #060B18; overflow: hidden; }
-.stage-inner { position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px; transform: translate(-50%, -50%) scale(var(--scale, 1)); transform-origin: center; }
+/* 实际 left/top/scale 由 RuntimeStage 按 fitMode 计算；原点必须左上，与 calcFit 一致 */
+.stage-inner {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1920px;
+  height: 1080px;
+  transform-origin: left top;
+  will-change: transform;
+}
 
 .d-panel { position: absolute; background: linear-gradient(180deg, rgba(22, 41, 78, .82), rgba(14, 26, 51, .92)); border: 1px solid rgba(53, 114, 200, .35); border-radius: var(--r-lg); padding: 14px 16px; backdrop-filter: blur(2px); }
 .d-panel::before { content: ""; position: absolute; top: -1px; left: 12px; width: 42px; height: 2px; background: linear-gradient(90deg, var(--acc), transparent); border-radius: 2px; }

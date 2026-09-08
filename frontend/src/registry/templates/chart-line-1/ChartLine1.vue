@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import * as echarts from 'echarts';
-import type { AxisData, ComponentDoc } from '@screencraft/shared';
+import type { ComponentDoc } from '@screencraft/shared';
 import { isProtocolValid } from '@screencraft/shared';
 import { chartLine1Template } from './meta';
+import { buildChartOption } from '../../chart-option';
 import { ensureEchartsThemes, echartsThemeName } from '../../../theme/echarts-theme';
 
 const props = defineProps<{
@@ -45,48 +46,13 @@ async function renderChart(): Promise<void> {
     chart.clear();
     return;
   }
-  const data = props.data as AxisData;
-  const colors = (style.value.seriesColors as string[]) ?? [];
-  const legendPos = String(style.value.legendPosition);
-  const legend =
-    legendPos === 'topRight'
-      ? { top: 8, right: 12 }
-      : legendPos === 'bottom'
-        ? { bottom: 0, left: 'center' }
-        : { top: 8, left: 'center' };
   chart.setOption(
-    {
-      color: colors,
-      legend: { show: Boolean(style.value.showLegend), textStyle: { color: style.value.axisLabelColor }, ...legend },
-      grid: { left: 48, right: 24, top: 40, bottom: 32 },
-      tooltip: { trigger: 'axis' },
-      xAxis: {
-        type: 'category',
-        data: data.categories,
-        show: Boolean(style.value.showXAxis),
-        axisLabel: { color: String(style.value.axisLabelColor) },
-        axisLine: { lineStyle: { color: '#1E3A66' } },
-      },
-      yAxis: {
-        type: 'value',
-        show: Boolean(style.value.showYAxis),
-        axisLabel: { color: String(style.value.axisLabelColor) },
-        splitLine: { lineStyle: { color: String(style.value.gridColor), type: 'dashed' } },
-      },
-      series: data.series.map((serie, index) => ({
-        name: serie.name,
-        type: 'line',
-        smooth: Boolean(style.value.lineSmooth),
-        symbol: style.value.showSymbol ? 'circle' : 'none',
-        lineStyle: { width: Number(style.value.lineWidth) },
-        label: { show: Boolean(style.value.showLabel), color: String(style.value.axisLabelColor) },
-        areaStyle:
-          Number(style.value.areaOpacity) > 0
-            ? { opacity: Number(style.value.areaOpacity) / 100, color: colors[index] }
-            : undefined,
-        data: serie.data,
-      })),
-    },
+    buildChartOption({
+      templateId: chartLine1Template.id,
+      style: style.value,
+      data: props.data,
+      protocol: 'axis',
+    }),
     true,
   );
   chart.resize();

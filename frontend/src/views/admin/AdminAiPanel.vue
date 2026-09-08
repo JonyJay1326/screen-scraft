@@ -181,11 +181,11 @@ async function onFile(ev: Event): Promise<void> {
       </div>
     </div>
 
-    <el-dialog v-model="docVisible" :title="editingId ? '编辑文档' : '新建文档'" width="720px">
+    <el-dialog v-model="docVisible" class="ed-dialog" :title="editingId ? '编辑文档' : '新建文档'" width="720px" append-to-body>
       <el-form label-width="88px">
-        <el-form-item label="标题"><el-input v-model="docForm.title" /></el-form-item>
+        <el-form-item label="标题"><el-input v-model="docForm.title" size="small" /></el-form-item>
         <el-form-item label="格式">
-          <el-select v-model="docForm.format" style="width: 120px">
+          <el-select v-model="docForm.format" popper-class="ed-select-popper" size="small" style="width: 120px">
             <el-option label="Markdown" value="md" />
             <el-option label="纯文本" value="txt" />
           </el-select>

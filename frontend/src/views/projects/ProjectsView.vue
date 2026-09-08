@@ -130,10 +130,10 @@ async function remove(item: ProjectListItem): Promise<void> {
       </div>
     </main>
 
-    <el-dialog v-model="createVisible" title="新建项目" width="440px">
+    <el-dialog v-model="createVisible" class="ed-dialog" title="新建项目" width="440px" append-to-body>
       <el-form label-width="88px">
         <el-form-item label="项目名称">
-          <el-input v-model="createName" maxlength="20" placeholder="请输入项目名称（20 字以内）" />
+          <el-input v-model="createName" size="small" maxlength="20" placeholder="请输入项目名称（20 字以内）" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -142,10 +142,10 @@ async function remove(item: ProjectListItem): Promise<void> {
       </template>
     </el-dialog>
 
-    <el-dialog v-model="renameVisible" title="重命名项目" width="440px">
+    <el-dialog v-model="renameVisible" class="ed-dialog" title="重命名项目" width="440px" append-to-body>
       <el-form label-width="88px">
         <el-form-item label="项目名称">
-          <el-input v-model="renameName" maxlength="20" />
+          <el-input v-model="renameName" size="small" maxlength="20" />
         </el-form-item>
       </el-form>
       <template #footer>

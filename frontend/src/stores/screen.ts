@@ -28,6 +28,8 @@ export const useScreenStore = defineStore('screen', () => {
   const dirty = ref(false);
   const zoom = ref(50);
   const showGrid = ref(true);
+  /** 拖拽吸附辅助线（仅编辑态临时显示） */
+  const alignGuides = ref<{ orient: 'v' | 'h'; pos: number }[]>([]);
   const saving = ref(false);
 
   const currentPage = computed(() => screen.value?.pages.find((page) => page.id === currentPageId.value) ?? null);
@@ -182,6 +184,59 @@ export const useScreenStore = defineStore('screen', () => {
     selectedIds.value = [];
   }
 
+  /** 将 id 列表展开为整组（非组内模式） */
+  function expandToGroups(ids: string[]): string[] {
+    const page = currentPage.value;
+    if (!page || inGroupId.value) {
+      return [...ids];
+    }
+    const set = new Set(ids);
+    ids.forEach((id) => {
+      const target = page.components.find((item) => item.id === id);
+      if (!target?.groupId) {
+        return;
+      }
+      page.components.forEach((item) => {
+        if (item.groupId === target.groupId) {
+          set.add(item.id);
+        }
+      });
+    });
+    return [...set];
+  }
+
+  /** 选中组件：组外模式点任一成员选中整组；Shift 追加/取消 */
+  function selectComponent(id: string, additive = false): void {
+    if (additive) {
+      if (selectedIds.value.includes(id)) {
+        const remove = new Set(expandToGroups([id]));
+        selectedIds.value = selectedIds.value.filter((item) => !remove.has(item));
+      } else {
+        selectedIds.value = expandToGroups([...selectedIds.value, id]);
+      }
+      return;
+    }
+    selectedIds.value = expandToGroups([id]);
+  }
+
+  /** 批量写几何（拖拽整组） */
+  function updateGeometries(
+    updates: { id: string; geom: Partial<Pick<ComponentDoc, 'x' | 'y' | 'w' | 'h'>> }[],
+    record: boolean,
+  ): void {
+    if (!updates.length) {
+      return;
+    }
+    mutatePage((page) => {
+      updates.forEach(({ id, geom }) => {
+        const target = page.components.find((item) => item.id === id);
+        if (target && !target.locked) {
+          Object.assign(target, geom);
+        }
+      });
+    }, record);
+  }
+
   /** 复制 */
   function copy(): void {
     const page = currentPage.value;
@@ -191,28 +246,39 @@ export const useScreenStore = defineStore('screen', () => {
     clipboard.value = page.components.filter((item) => selectedIds.value.includes(item.id)).map((item) => cloneJson(item));
   }
 
-  /** 粘贴 */
+  /** 粘贴（保留组关系，生成新 groupId） */
   function paste(): void {
     if (!clipboard.value.length) {
       return;
     }
-    const created: ComponentDoc[] = clipboard.value.map((item) => ({
-      ...cloneJson(item),
-      id: uid(),
-      x: item.x + 16,
-      y: item.y + 16,
-      name: item.name,
-    }));
+    const gidMap = new Map<string, string>();
+    const created: ComponentDoc[] = clipboard.value.map((item) => {
+      let nextGroup = item.groupId;
+      if (nextGroup) {
+        if (!gidMap.has(nextGroup)) {
+          gidMap.set(nextGroup, uid());
+        }
+        nextGroup = gidMap.get(nextGroup)!;
+      }
+      return {
+        ...cloneJson(item),
+        id: uid(),
+        x: item.x + 16,
+        y: item.y + 16,
+        groupId: nextGroup ?? inGroupId.value,
+        name: item.name,
+      };
+    });
     mutatePage((page) => {
       page.components.push(...created);
     });
     selectedIds.value = created.map((item) => item.id);
   }
 
-  /** 组合 */
-  function groupSelected(): void {
+  /** 组合：至少 2 个选中；返回是否成功 */
+  function groupSelected(): boolean {
     if (selectedIds.value.length < 2) {
-      return;
+      return false;
     }
     const gid = uid();
     mutatePage((page) => {
@@ -222,18 +288,32 @@ export const useScreenStore = defineStore('screen', () => {
         }
       });
     });
+    return true;
   }
 
-  /** 打散 */
-  function ungroupSelected(): void {
-    mutatePage((page) => {
-      page.components.forEach((item) => {
-        if (selectedIds.value.includes(item.id)) {
+  /** 打散：清除选中项所属整组的 groupId；返回是否成功 */
+  function ungroupSelected(): boolean {
+    const page = currentPage.value;
+    if (!page) {
+      return false;
+    }
+    const gids = new Set(
+      page.components
+        .filter((item) => selectedIds.value.includes(item.id) && item.groupId)
+        .map((item) => item.groupId as string),
+    );
+    if (!gids.size) {
+      return false;
+    }
+    mutatePage((pageNext) => {
+      pageNext.components.forEach((item) => {
+        if (item.groupId && gids.has(item.groupId)) {
           item.groupId = null;
         }
       });
     });
     inGroupId.value = null;
+    return true;
   }
 
   /** 图层 */
@@ -334,6 +414,7 @@ export const useScreenStore = defineStore('screen', () => {
     dirty,
     zoom,
     showGrid,
+    alignGuides,
     saving,
     currentPage,
     canUndo,
@@ -345,8 +426,10 @@ export const useScreenStore = defineStore('screen', () => {
     redo,
     addComponent,
     updateGeometry,
+    updateGeometries,
     patchComponent,
     removeSelected,
+    selectComponent,
     copy,
     paste,
     groupSelected,

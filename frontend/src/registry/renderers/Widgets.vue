@@ -12,6 +12,22 @@ const id = computed(() => props.doc.templateId);
 
 /** 文本内容：样式优先，画布双击在编辑器改 style.content */
 const text = computed(() => String(style.value.content ?? style.value.text ?? ''));
+
+/** 热区样式：编辑态强制可视，预览/展示按配置透明度（默认可全透明但仍可点击） */
+const hotspotStyle = computed(() => {
+  const configured = Number(style.value.opacity ?? 0);
+  if (props.mode === 'edit') {
+    const visible = Math.max(configured, 14);
+    return {
+      background: `rgba(47, 127, 247, ${visible / 100})`,
+      border: '1px dashed rgba(47, 127, 247, 0.9)',
+    };
+  }
+  return {
+    background: `rgba(47, 127, 247, ${configured / 100})`,
+    border: 'none',
+  };
+});
 </script>
 
 <template>
@@ -33,7 +49,14 @@ const text = computed(() => String(style.value.content ?? style.value.text ?? ''
   <button v-else-if="id === 'control-imageButton'" class="btn-img" type="button" :style="{ backgroundImage: style.src ? `url(${style.src})` : undefined }">
     {{ style.text }}
   </button>
-  <div v-else-if="id === 'control-hotspot'" class="hot" :style="{ background: `rgba(47,127,247,${Number(style.opacity || 0) / 100})` }" />
+  <div
+    v-else-if="id === 'control-hotspot'"
+    class="hot"
+    :class="{ 'hot-edit': mode === 'edit' }"
+    :style="hotspotStyle"
+  >
+    <span v-if="mode === 'edit'" class="hot-label">热区</span>
+  </div>
   <label v-else-if="id === 'control-dropdown'" class="dd">
     <select :value="String(style.defaultValue ?? '')" @change="mode === 'runtime' && emit('change', ($event.target as HTMLSelectElement).value)">
       <option v-for="opt in ((data as { label: string; value: string }[]) ?? [])" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
@@ -46,7 +69,15 @@ const text = computed(() => String(style.value.content ?? style.value.text ?? ''
 
 <style scoped>
 .img, .video, video { width: 100%; height: 100%; object-fit: cover; display: block; background: #0A1428; }
-.ph, .hot { width: 100%; height: 100%; display: grid; place-items: center; color: var(--t2); font-size: 12px; }
+.ph, .hot { width: 100%; height: 100%; display: grid; place-items: center; color: var(--t2); font-size: 12px; box-sizing: border-box; }
+.hot { cursor: pointer; }
+.hot-edit { color: var(--pri); }
+.hot-label {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  user-select: none;
+  pointer-events: none;
+}
 .btn-reg, .btn-img {
   width: 100%; height: 100%; border: none; border-radius: 6px; color: #fff; letter-spacing: 4px; font-weight: 500;
   background: linear-gradient(135deg, var(--pri), #1E6AE0);

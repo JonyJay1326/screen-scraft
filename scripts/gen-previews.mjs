@@ -1,39 +1,24 @@
+/**
+ * 组件库预览图生成：
+ * - 图表：ECharts SSR（默认样式 + mock）
+ * - 指标卡/表格：真实布局 SVG
+ * - 其余：示意 SVG
+ * 用法：pnpm previews
+ */
 import { mkdirSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const outDir = join(root, 'frontend/public/previews');
+const frontendRoot = join(root, 'frontend');
+const outDir = join(frontendRoot, 'public/previews');
 
-const ids = [
-  ...[1, 2, 3, 4, 5].map((n) => `chart-line-${n}`),
-  ...[1, 2, 3, 4, 5].map((n) => `chart-bar-${n}`),
-  'chart-pie-1',
-  'chart-pie-1p',
-  'chart-pie-2',
-  'chart-pie-3',
-  'chart-pie-4',
-  ...[1, 2, 3, 4, 5].map((n) => `chart-combo-${n}`),
-  ...[1, 2, 3, 4, 5].map((n) => `chart-funnel-${n}`),
-  ...[1, 2, 3, 4, 5].map((n) => `chart-radar-${n}`),
-  ...[1, 2, 3, 4, 5].map((n) => `chart-gauge-${n}`),
-  'kpi-card-1',
-  'kpi-card-2',
-  'kpi-card-2p',
-  'kpi-card-3',
-  'kpi-card-3p',
-  'kpi-card-5',
-  'kpi-card-5p',
-  'kpi-card-8',
-  'kpi-card-9',
-  'kpi-card-10',
-  'kpi-card-11',
-  'kpi-card-list',
-  'table-list',
-  'table-alarm',
-  'weather-1',
-  'weather-2',
-  ...[1, 2, 3, 4, 5].map((n) => `border-${n}`),
+/** 从 frontend 依赖解析 vite（根目录未安装 vite） */
+const requireFromFrontend = createRequire(join(frontendRoot, 'package.json'));
+const { createServer } = await import(pathToFileURL(requireFromFrontend.resolve('vite')).href);
+
+const glyphIds = [
   'media-image',
   'media-video',
   'control-button',
@@ -43,38 +28,8 @@ const ids = [
   'control-text',
 ];
 
-/** 按族画简易预览形状 */
+/** 按族画非图表示意形状 */
 function glyph(id, accent, muted) {
-  if (id.startsWith('chart-line') || id.startsWith('chart-combo')) {
-    return `<polyline fill="none" stroke="${accent}" stroke-width="3" points="16,70 40,48 64,56 88,28 112,36 140,18"/><polyline fill="none" stroke="${muted}" stroke-width="2" points="16,78 40,62 64,68 88,50 112,58 140,42"/>`;
-  }
-  if (id.startsWith('chart-bar')) {
-    return `<rect x="22" y="40" width="14" height="44" rx="2" fill="${accent}"/><rect x="44" y="28" width="14" height="56" rx="2" fill="${muted}"/><rect x="66" y="48" width="14" height="36" rx="2" fill="${accent}"/><rect x="88" y="22" width="14" height="62" rx="2" fill="${muted}"/><rect x="110" y="36" width="14" height="48" rx="2" fill="${accent}"/>`;
-  }
-  if (id.startsWith('chart-pie')) {
-    return `<circle cx="80" cy="52" r="28" fill="none" stroke="${accent}" stroke-width="14" stroke-dasharray="50 120"/><circle cx="80" cy="52" r="28" fill="none" stroke="${muted}" stroke-width="14" stroke-dasharray="30 140" stroke-dashoffset="-50"/>`;
-  }
-  if (id.startsWith('chart-funnel')) {
-    return `<polygon points="30,18 130,18 110,40 50,40" fill="${accent}"/><polygon points="50,44 110,44 98,66 62,66" fill="${muted}"/><polygon points="62,70 98,70 88,90 72,90" fill="${accent}"/>`;
-  }
-  if (id.startsWith('chart-radar')) {
-    return `<polygon points="80,16 118,40 104,84 56,84 42,40" fill="none" stroke="${muted}" stroke-width="1"/><polygon points="80,28 104,44 96,72 64,72 56,44" fill="${accent}" fill-opacity=".35" stroke="${accent}"/>`;
-  }
-  if (id.startsWith('chart-gauge')) {
-    return `<path d="M28 72 A52 52 0 0 1 132 72" fill="none" stroke="${muted}" stroke-width="10"/><path d="M28 72 A52 52 0 0 1 110 32" fill="none" stroke="${accent}" stroke-width="10"/><circle cx="80" cy="72" r="6" fill="${accent}"/>`;
-  }
-  if (id.startsWith('kpi')) {
-    return `<text x="24" y="42" fill="${muted}" font-size="11">指标</text><text x="24" y="78" fill="${accent}" font-size="28" font-weight="700">96.4%</text>`;
-  }
-  if (id.startsWith('table')) {
-    return `<rect x="20" y="22" width="120" height="14" fill="${accent}" opacity=".5"/><rect x="20" y="40" width="120" height="12" fill="${muted}" opacity=".25"/><rect x="20" y="56" width="120" height="12" fill="${muted}" opacity=".15"/><rect x="20" y="72" width="120" height="12" fill="${muted}" opacity=".25"/>`;
-  }
-  if (id.startsWith('weather')) {
-    return `<circle cx="40" cy="40" r="14" fill="#F59E0B"/><text x="64" y="48" fill="${accent}" font-size="16" font-weight="600">29°C</text><text x="24" y="80" fill="${muted}" font-size="11">多云 · 杭州</text>`;
-  }
-  if (id.startsWith('border')) {
-    return `<rect x="18" y="16" width="124" height="72" rx="6" fill="none" stroke="${accent}" stroke-width="2"/><rect x="18" y="16" width="10" height="10" fill="${accent}"/><rect x="132" y="16" width="10" height="10" fill="${accent}"/><rect x="18" y="78" width="10" height="10" fill="${accent}"/><rect x="132" y="78" width="10" height="10" fill="${accent}"/>`;
-  }
   if (id === 'media-image') {
     return `<rect x="28" y="20" width="104" height="64" rx="6" fill="${muted}" opacity=".3"/><polygon points="40,72 64,44 84,60 96,50 124,72" fill="${accent}" opacity=".7"/>`;
   }
@@ -93,25 +48,120 @@ function glyph(id, accent, muted) {
   return `<text x="24" y="58" fill="${muted}" font-size="12">文本组件</text>`;
 }
 
-/** 生成一张 160×96 的 SVG 预览 */
-function svgFor(id, theme) {
+/** 生成示意 SVG */
+function glyphSvg(id, theme) {
   const dark = theme === 'dark';
   const bg = dark ? '#0D1730' : '#F4F7FB';
   const accent = '#2F7FF7';
   const muted = dark ? '#9FB3D1' : '#6B7280';
-  const label = dark ? '#E8EEF7' : '#1F2937';
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="160" height="96" viewBox="0 0 160 96">
   <rect width="160" height="96" rx="8" fill="${bg}"/>
   ${glyph(id, accent, muted)}
-  <text x="8" y="92" fill="${label}" font-size="8" font-family="sans-serif">${id}</text>
 </svg>
 `;
 }
 
-mkdirSync(outDir, { recursive: true });
-for (const id of ids) {
-  writeFileSync(join(outDir, `${id}.dark.svg`), svgFor(id, 'dark'));
-  writeFileSync(join(outDir, `${id}.light.svg`), svgFor(id, 'light'));
+/**
+ * 用 ECharts SSR 按模板默认样式渲染真实预览 SVG
+ * @param {import('echarts')} echarts
+ * @param {(input: object) => object} buildChartOption
+ * @param {object} meta
+ * @param {'dark'|'light'} theme
+ */
+function chartSvg(echarts, buildChartOption, meta, theme) {
+  const dark = theme === 'dark';
+  const bg = dark ? '#0D1730' : '#F4F7FB';
+  const style = meta.defaultStyle[theme] ?? {};
+  const option = buildChartOption({
+    templateId: meta.id,
+    style,
+    data: meta.defaultData,
+    protocol: meta.dataProtocol,
+    forPreview: true,
+  });
+  option.backgroundColor = bg;
+
+  const chart = echarts.init(null, null, {
+    renderer: 'svg',
+    ssr: true,
+    width: 320,
+    height: 160,
+  });
+  chart.setOption(option, true);
+  let svg = chart.renderToSVGString();
+  chart.dispose();
+
+  if (svg.includes('<svg ')) {
+    svg = svg.replace('<svg ', '<svg rx="8" ry="8" ');
+  }
+  if (!svg.startsWith('<?xml')) {
+    svg = `<?xml version="1.0" encoding="UTF-8"?>\n${svg}`;
+  }
+  return svg;
 }
-console.log(`generated ${ids.length * 2} previews for ${ids.length} templates`);
+
+/** 主流程 */
+async function main() {
+  mkdirSync(outDir, { recursive: true });
+
+  const server = await createServer({
+    configFile: join(frontendRoot, 'vite.config.ts'),
+    root: frontendRoot,
+    server: { middlewareMode: true },
+    appType: 'custom',
+  });
+
+  try {
+    const echarts = await server.ssrLoadModule('echarts');
+    const { listMetas } = await server.ssrLoadModule('/src/registry/meta-lookup.ts');
+    const { buildChartOption } = await server.ssrLoadModule('/src/registry/chart-option.ts');
+    const { buildWidgetPreviewSvg, isWidgetPreviewId } = await server.ssrLoadModule(
+      '/src/registry/widget-preview-svg.ts',
+    );
+
+    const metas = listMetas();
+    let chartCount = 0;
+    let widgetCount = 0;
+
+    for (const meta of metas) {
+      if (meta.id.startsWith('chart-')) {
+        writeFileSync(join(outDir, `${meta.id}.dark.svg`), chartSvg(echarts, buildChartOption, meta, 'dark'));
+        writeFileSync(join(outDir, `${meta.id}.light.svg`), chartSvg(echarts, buildChartOption, meta, 'light'));
+        chartCount += 1;
+        continue;
+      }
+
+      if (isWidgetPreviewId(meta.id)) {
+        for (const theme of /** @type {const} */ (['dark', 'light'])) {
+          const svg = buildWidgetPreviewSvg({
+            id: meta.id,
+            theme,
+            style: meta.defaultStyle[theme] ?? {},
+            data: meta.defaultData,
+          });
+          if (svg) {
+            writeFileSync(join(outDir, `${meta.id}.${theme}.svg`), svg);
+          }
+        }
+        widgetCount += 1;
+      }
+    }
+
+    for (const id of glyphIds) {
+      writeFileSync(join(outDir, `${id}.dark.svg`), glyphSvg(id, 'dark'));
+      writeFileSync(join(outDir, `${id}.light.svg`), glyphSvg(id, 'light'));
+    }
+
+    console.log(
+      `generated ${chartCount * 2} chart + ${widgetCount * 2} widget + ${glyphIds.length * 2} glyph previews`,
+    );
+  } finally {
+    await server.close();
+  }
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

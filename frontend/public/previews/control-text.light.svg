@@ -2,5 +2,4 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="160" height="96" viewBox="0 0 160 96">
   <rect width="160" height="96" rx="8" fill="#F4F7FB"/>
   <text x="24" y="58" fill="#6B7280" font-size="12">文本组件</text>
-  <text x="8" y="92" fill="#1F2937" font-size="8" font-family="sans-serif">control-text</text>
 </svg>

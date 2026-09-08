@@ -195,7 +195,14 @@ const axisMode = computed(() => protocol.value === 'axis' || protocol.value === 
   <div v-if="selected && tpl?.hasDataTab" class="p-sec data-panel">
     <div class="f-row">
       <span class="f-label">数据来源</span>
-      <el-select :model-value="weatherMode ? 'builtin' : source" size="small" style="width: 140px" @change="(v: string) => setSource(v as 'static' | 'api' | 'builtin')">
+      <el-select
+        class="ed-select"
+        popper-class="ed-select-popper"
+        :model-value="weatherMode ? 'builtin' : source"
+        size="small"
+        style="width: 140px"
+        @change="(v: string) => setSource(v as 'static' | 'api' | 'builtin')"
+      >
         <el-option v-if="!weatherMode" label="静态数据" value="static" />
         <el-option v-if="!weatherMode" label="API 接入" value="api" />
         <el-option v-if="weatherMode" label="内置天气" value="builtin" />
@@ -217,7 +224,14 @@ const axisMode = computed(() => protocol.value === 'axis' || protocol.value === 
     <template v-else-if="source === 'api'">
       <div class="f-row">
         <span class="f-label">选择 API</span>
-        <el-select :model-value="selected.data?.apiId" size="small" style="width: 170px" @change="(v: string) => patchData({ source: 'api', apiId: v })">
+        <el-select
+          class="ed-select"
+          popper-class="ed-select-popper"
+          :model-value="selected.data?.apiId"
+          size="small"
+          style="width: 170px"
+          @change="(v: string) => patchData({ source: 'api', apiId: v })"
+        >
           <el-option v-for="item in apis" :key="item._id" :label="item.name" :value="item._id" />
         </el-select>
       </div>
@@ -234,20 +248,22 @@ const axisMode = computed(() => protocol.value === 'axis' || protocol.value === 
           <button class="btn btn-sm" type="button" @click="addRow">加行</button>
           <button class="btn btn-sm" type="button" @click="addCol">加列</button>
         </div>
-        <vxe-table
-          :data="rows"
-          border
-          size="mini"
-          max-height="280"
-          :edit-config="{ trigger: 'click', mode: 'cell' }"
-          :menu-config="menuConfig"
-          @edit-closed="onEditClosed"
-          @menu-click="onMenuClick"
-        >
-          <template v-for="col in columns" :key="col.key">
-            <vxe-column :field="col.key" :title="col.label" :edit-render="{ name: 'input' }" min-width="88" />
-          </template>
-        </vxe-table>
+        <div class="ed-static-table" data-vxe-ui-theme="dark">
+          <vxe-table
+            :data="rows"
+            border
+            size="mini"
+            max-height="280"
+            :edit-config="{ trigger: 'click', mode: 'cell' }"
+            :menu-config="menuConfig"
+            @edit-closed="onEditClosed"
+            @menu-click="onMenuClick"
+          >
+            <template v-for="col in columns" :key="col.key">
+              <vxe-column :field="col.key" :title="col.label" :edit-render="{ name: 'input' }" min-width="88" />
+            </template>
+          </vxe-table>
+        </div>
         <p class="muted hint">点击编辑；右键插入行上/下、删除行、插入列左/右、删除列。</p>
       </template>
       <textarea v-else class="textarea json" :value="jsonText" @change="onJson" />

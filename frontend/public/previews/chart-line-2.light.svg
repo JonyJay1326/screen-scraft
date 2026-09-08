@@ -1,6 +1,41 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="160" height="96" viewBox="0 0 160 96">
-  <rect width="160" height="96" rx="8" fill="#F4F7FB"/>
-  <polyline fill="none" stroke="#2F7FF7" stroke-width="3" points="16,70 40,48 64,56 88,28 112,36 140,18"/><polyline fill="none" stroke="#6B7280" stroke-width="2" points="16,78 40,62 64,68 88,50 112,58 140,42"/>
-  <text x="8" y="92" fill="#1F2937" font-size="8" font-family="sans-serif">chart-line-2</text>
+<svg rx="8" ry="8" width="320" height="160" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" baseProfile="full" viewBox="0 0 320 160">
+<rect width="320" height="160" x="0" y="0" fill="#F4F7FB"></rect>
+<path d="M12 148.5L308 148.5" fill="none" pointer-events="visible" stroke="rgb(228,231,237)" stroke-opacity="0.9" stroke-dasharray="4,2" class="zr3-cls-13"></path>
+<path d="M12 126.5L308 126.5" fill="none" pointer-events="visible" stroke="rgb(228,231,237)" stroke-opacity="0.9" stroke-dasharray="4,2" class="zr3-cls-13"></path>
+<path d="M12 104.5L308 104.5" fill="none" pointer-events="visible" stroke="rgb(228,231,237)" stroke-opacity="0.9" stroke-dasharray="4,2" class="zr3-cls-13"></path>
+<path d="M12 82.5L308 82.5" fill="none" pointer-events="visible" stroke="rgb(228,231,237)" stroke-opacity="0.9" stroke-dasharray="4,2" class="zr3-cls-13"></path>
+<path d="M12 60.5L308 60.5" fill="none" pointer-events="visible" stroke="rgb(228,231,237)" stroke-opacity="0.9" stroke-dasharray="4,2" class="zr3-cls-13"></path>
+<path d="M12 38.5L308 38.5" fill="none" pointer-events="visible" stroke="rgb(228,231,237)" stroke-opacity="0.9" stroke-dasharray="4,2" class="zr3-cls-13"></path>
+<path d="M12 16.5L308 16.5" fill="none" pointer-events="visible" stroke="rgb(228,231,237)" stroke-opacity="0.9" stroke-dasharray="4,2" class="zr3-cls-13"></path>
+<path d="M12 148.5L308 148.5" fill="none" pointer-events="visible" stroke="#6E7079" stroke-linecap="round" class="zr3-cls-13"></path>
+<g clip-path="url(#zr3-c0)">
+<path d="M36.7 87.9L86 79.7L135.3 81.9L184.7 53.4L234 50.5L283.3 36.5" fill="none" pointer-events="visible" stroke="#2F7FF7" stroke-width="3" stroke-linejoin="bevel" class="zr3-cls-15"></path>
+</g>
+<g clip-path="url(#zr3-c1)">
+<path d="M36.7 96.7L86 88.6L135.3 90.8L184.7 67.3L234 61.5L283.3 48.3" fill="none" pointer-events="visible" stroke="#0EA5E9" stroke-width="3" stroke-linejoin="bevel" class="zr3-cls-15"></path>
+</g>
+<defs >
+<clipPath id="zr3-c0">
+<path d="M10 14.5l300 0l0 135l-300 0Z" fill="#000" class="zr3-cls-14"></path>
+</clipPath>
+<clipPath id="zr3-c1">
+<path d="M10 14.5l300 0l0 135l-300 0Z" fill="#000" class="zr3-cls-14"></path>
+</clipPath>
+</defs>
+<style ><![CDATA[
+.zr3-cls-13:hover {
+pointer-events:none;
+}
+.zr3-cls-14:hover {
+cursor:pointer;
+fill:rgba(0,0,0,1);
+}
+.zr3-cls-15:hover {
+cursor:pointer;
+}
+
+]]>
+
+</style>
 </svg>

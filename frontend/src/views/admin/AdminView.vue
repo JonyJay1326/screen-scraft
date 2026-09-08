@@ -143,16 +143,16 @@ function formatTime(iso: string): string {
       <AdminAiPanel v-else />
     </main>
 
-    <el-dialog v-model="createVisible" title="新建用户" width="440px">
+    <el-dialog v-model="createVisible" class="ed-dialog" title="新建用户" width="440px" append-to-body>
       <el-form label-width="88px">
         <el-form-item label="用户名">
-          <el-input v-model="createForm.username" maxlength="20" />
+          <el-input v-model="createForm.username" size="small" maxlength="20" />
         </el-form-item>
         <el-form-item label="密码">
-          <el-input v-model="createForm.password" type="password" show-password />
+          <el-input v-model="createForm.password" size="small" type="password" show-password />
         </el-form-item>
         <el-form-item label="角色">
-          <el-select v-model="createForm.role">
+          <el-select v-model="createForm.role" popper-class="ed-select-popper" size="small" style="width: 100%">
             <el-option label="普通成员" value="member" />
             <el-option label="管理员" value="admin" />
           </el-select>
@@ -164,11 +164,11 @@ function formatTime(iso: string): string {
       </template>
     </el-dialog>
 
-    <el-dialog v-model="resetVisible" title="重置密码" width="440px">
+    <el-dialog v-model="resetVisible" class="ed-dialog" title="重置密码" width="440px" append-to-body>
       <p class="muted">将重置「{{ resetTarget?.username }}」的密码，并强制其下次登录改密。</p>
       <el-form label-width="88px" class="mt-16">
         <el-form-item label="新密码">
-          <el-input v-model="resetForm.password" type="password" show-password />
+          <el-input v-model="resetForm.password" size="small" type="password" show-password />
         </el-form-item>
       </el-form>
       <template #footer>

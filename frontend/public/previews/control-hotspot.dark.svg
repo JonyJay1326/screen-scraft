@@ -2,5 +2,4 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="160" height="96" viewBox="0 0 160 96">
   <rect width="160" height="96" rx="8" fill="#0D1730"/>
   <rect x="40" y="24" width="80" height="56" rx="4" fill="#2F7FF7" fill-opacity=".2" stroke="#2F7FF7" stroke-dasharray="4 3"/>
-  <text x="8" y="92" fill="#E8EEF7" font-size="8" font-family="sans-serif">control-hotspot</text>
 </svg>

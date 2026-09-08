@@ -32,23 +32,25 @@ async function submit(): Promise<void> {
 
 <template>
   <el-dialog
+    class="ed-dialog"
     :model-value="userStore.mustChangePassword"
     title="首次登录请修改密码"
     :close-on-click-modal="false"
     :close-on-press-escape="false"
     :show-close="false"
     width="420px"
+    append-to-body
   >
     <p class="hint">为保障账号安全，首次登录或管理员重置后必须修改密码，旧密码将立即失效。</p>
     <el-form label-width="96px">
       <el-form-item label="原密码">
-        <el-input v-model="form.oldPassword" type="password" show-password autocomplete="current-password" />
+        <el-input v-model="form.oldPassword" size="small" type="password" show-password autocomplete="current-password" />
       </el-form-item>
       <el-form-item label="新密码">
-        <el-input v-model="form.newPassword" type="password" show-password autocomplete="new-password" />
+        <el-input v-model="form.newPassword" size="small" type="password" show-password autocomplete="new-password" />
       </el-form-item>
       <el-form-item label="确认新密码">
-        <el-input v-model="form.confirm" type="password" show-password autocomplete="new-password" />
+        <el-input v-model="form.confirm" size="small" type="password" show-password autocomplete="new-password" />
       </el-form-item>
     </el-form>
     <template #footer>
@@ -60,7 +62,7 @@ async function submit(): Promise<void> {
 <style scoped>
 .hint {
   font-size: 13px;
-  color: #909399;
+  color: var(--t2);
   margin: 0 0 16px;
   line-height: 1.7;
 }

@@ -1,6 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="160" height="96" viewBox="0 0 160 96">
-  <rect width="160" height="96" rx="8" fill="#F4F7FB"/>
-  <text x="24" y="42" fill="#6B7280" font-size="11">指标</text><text x="24" y="78" fill="#2F7FF7" font-size="28" font-weight="700">96.4%</text>
-  <text x="8" y="92" fill="#1F2937" font-size="8" font-family="sans-serif">kpi-card-list</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="160" viewBox="0 0 320 160">
+  <rect width="320" height="160" rx="8" fill="#F4F7FB"/>
+  <rect x="6" y="6" width="308" height="148" rx="8" fill="#FFFFFF" stroke="#E4E7ED"/>
+       <text x="16" y="24" fill="#6B7280" font-size="11" font-family="sans-serif">站点压力</text>
+  <g transform="translate(0 36)">
+        <text x="16" y="22" fill="#6B7280" font-size="12" font-family="sans-serif">滨江站</text>
+        <text x="300" y="22" text-anchor="end" fill="#303133" font-size="13" font-weight="700" font-family="sans-serif">0.38</text>
+        <line x1="16" y1="32" x2="300" y2="32" stroke="#E4E7ED"/>
+        <text x="16" y="54" fill="#6B7280" font-size="12" font-family="sans-serif">萧山站</text>
+        <text x="300" y="54" text-anchor="end" fill="#303133" font-size="13" font-weight="700" font-family="sans-serif">0.41</text>
+        <line x1="16" y1="64" x2="300" y2="64" stroke="#E4E7ED"/>
+        <text x="16" y="86" fill="#6B7280" font-size="12" font-family="sans-serif">余杭站</text>
+        <text x="300" y="86" text-anchor="end" fill="#303133" font-size="13" font-weight="700" font-family="sans-serif">0.35</text>
+        <line x1="16" y1="96" x2="300" y2="96" stroke="#E4E7ED"/></g>
 </svg>

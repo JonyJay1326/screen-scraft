@@ -1,6 +1,33 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="160" height="96" viewBox="0 0 160 96">
-  <rect width="160" height="96" rx="8" fill="#0D1730"/>
-  <polygon points="30,18 130,18 110,40 50,40" fill="#2F7FF7"/><polygon points="50,44 110,44 98,66 62,66" fill="#9FB3D1"/><polygon points="62,70 98,70 88,90 72,90" fill="#2F7FF7"/>
-  <text x="8" y="92" fill="#E8EEF7" font-size="8" font-family="sans-serif">chart-funnel-4</text>
+<svg rx="8" ry="8" width="320" height="160" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" baseProfile="full" viewBox="0 0 320 160">
+<rect width="320" height="160" x="0" y="0" fill="#0D1730"></rect>
+<polygon points="19.2 10 288 10 197 42 19.2 42" fill="#35E0FF" stroke="none" pointer-events="visible" stroke-width="0" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart" class="zr40-cls-162"></polygon>
+<polygon points="19.2 46 197 46 147.4 78 19.2 78" fill="#2F7FF7" stroke="none" pointer-events="visible" stroke-width="0" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="1" ecmeta_ssr_type="chart" class="zr40-cls-163"></polygon>
+<polygon points="19.2 82 147.4 82 110.2 114 19.2 114" fill="#A78BFA" stroke="none" pointer-events="visible" stroke-width="0" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="2" ecmeta_ssr_type="chart" class="zr40-cls-164"></polygon>
+<polygon points="19.2 118 110.2 118 73 150 19.2 150" fill="#F472B6" stroke="none" pointer-events="visible" stroke-width="0" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="3" ecmeta_ssr_type="chart" class="zr40-cls-165"></polygon>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:9px;font-family:Microsoft YaHei;" x="130.85538461538462" y="26" fill="#fff" stroke="#35E0FF" stroke-width="2" paint-order="stroke" stroke-miterlimit="2">线索</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:9px;font-family:Microsoft YaHei;" x="95.70461538461538" y="62" fill="#fff" stroke="#2F7FF7" stroke-width="2" paint-order="stroke" stroke-miterlimit="2">跟进</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:9px;font-family:Microsoft YaHei;" x="73.99384615384615" y="98" fill="#fff" stroke="#A78BFA" stroke-width="2" paint-order="stroke" stroke-miterlimit="2">方案</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:9px;font-family:Microsoft YaHei;" x="55.38461538461539" y="134" fill="#fff" stroke="#F472B6" stroke-width="2" paint-order="stroke" stroke-miterlimit="2">签约</text>
+<style ><![CDATA[
+.zr40-cls-162:hover {
+cursor:pointer;
+fill:rgba(58,246,255,1);
+}
+.zr40-cls-163:hover {
+cursor:pointer;
+fill:rgba(51,139,255,1);
+}
+.zr40-cls-164:hover {
+cursor:pointer;
+fill:rgba(183,152,255,1);
+}
+.zr40-cls-165:hover {
+cursor:pointer;
+fill:rgba(255,125,200,1);
+}
+
+]]>
+
+</style>
 </svg>

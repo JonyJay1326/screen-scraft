@@ -1,6 +1,36 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="160" height="96" viewBox="0 0 160 96">
-  <rect width="160" height="96" rx="8" fill="#F4F7FB"/>
-  <polygon points="80,16 118,40 104,84 56,84 42,40" fill="none" stroke="#6B7280" stroke-width="1"/><polygon points="80,28 104,44 96,72 64,72 56,44" fill="#2F7FF7" fill-opacity=".35" stroke="#2F7FF7"/>
-  <text x="8" y="92" fill="#1F2937" font-size="8" font-family="sans-serif">chart-radar-5</text>
+<svg rx="8" ry="8" width="320" height="160" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" baseProfile="full" viewBox="0 0 320 160">
+<rect width="320" height="160" x="0" y="0" fill="#F4F7FB"></rect>
+<path d="M176.5 88A16.5 16.5 0 1 1 176.5 86.3A16.5 16.5 0 0 1 176.5 88M160 88A0 0 0 1 0 160 88A0 0 0 0 0 160 88M209.6 88A49.6 49.6 0 1 1 209.4 83A49.6 49.6 0 0 1 209.6 88M193.1 88A33.1 33.1 0 1 0 192.9 91.3A33.1 33.1 0 0 0 193.1 88" fill="rgb(250,250,250)" fill-opacity="0.2" class="zr63-cls-232"></path>
+<path d="M193.1 88A33.1 33.1 0 1 1 192.9 84.7A33.1 33.1 0 0 1 193.1 88M176.5 88A16.5 16.5 0 1 0 176.5 89.7A16.5 16.5 0 0 0 176.5 88" fill="rgb(210,219,238)" fill-opacity="0.2" class="zr63-cls-232"></path>
+<path d="M160 88A0 0 0 1 1 160 88A0 0 0 0 1 160 88M176.5 88A16.5 16.5 0 1 1 176.5 86.3A16.5 16.5 0 0 1 176.5 88M193.1 88A33.1 33.1 0 1 1 192.9 84.7A33.1 33.1 0 0 1 193.1 88M209.6 88A49.6 49.6 0 1 1 209.4 83A49.6 49.6 0 0 1 209.6 88" fill="none" pointer-events="visible" stroke="#E0E6F1" class="zr63-cls-232"></path>
+<path d="M160.5 88L160.5 38.4" fill="none" pointer-events="visible" stroke="#bbb" stroke-linecap="round" class="zr63-cls-232"></path>
+<path d="M160 88L117 63.2" fill="none" pointer-events="visible" stroke="#bbb" stroke-linecap="round" class="zr63-cls-232"></path>
+<path d="M160 88L117 112.8" fill="none" pointer-events="visible" stroke="#bbb" stroke-linecap="round" class="zr63-cls-232"></path>
+<path d="M160.5 88L160.5 137.6" fill="none" pointer-events="visible" stroke="#bbb" stroke-linecap="round" class="zr63-cls-232"></path>
+<path d="M160 88L203 112.8" fill="none" pointer-events="visible" stroke="#bbb" stroke-linecap="round" class="zr63-cls-232"></path>
+<path d="M160 88L203 63.2" fill="none" pointer-events="visible" stroke="#bbb" stroke-linecap="round" class="zr63-cls-232"></path>
+<polyline points="160 45.3 129.1 70.1 121.3 110.3 160 119.7 193.5 107.3 195.2 67.7 160 45.3" fill="none" pointer-events="visible" stroke="#2F7FF7" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart" class="zr63-cls-233"></polyline>
+<polygon points="160 45.3 129.1 70.1 121.3 110.3 160 119.7 193.5 107.3 195.2 67.7 160 45.3" fill="#2F7FF7" fill-opacity="0.18" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart" class="zr63-cls-234"></polygon>
+<polyline points="160 53.3 125.6 68.2 127.8 106.6 160 131.6 185.8 102.9 190.1 70.6 160 53.3" fill="none" pointer-events="visible" stroke="#0EA5E9" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="1" ecmeta_data_index="0" ecmeta_ssr_type="chart" class="zr63-cls-233"></polyline>
+<polygon points="160 53.3 125.6 68.2 127.8 106.6 160 131.6 185.8 102.9 190.1 70.6 160 53.3" fill="#0EA5E9" fill-opacity="0.18" ecmeta_series_index="1" ecmeta_data_index="0" ecmeta_ssr_type="chart" class="zr63-cls-235"></polygon>
+<style ><![CDATA[
+.zr63-cls-232:hover {
+pointer-events:none;
+}
+.zr63-cls-233:hover {
+cursor:pointer;
+}
+.zr63-cls-234:hover {
+cursor:pointer;
+fill:rgba(51,139,255,1);
+}
+.zr63-cls-235:hover {
+cursor:pointer;
+fill:rgba(15,181,255,1);
+}
+
+]]>
+
+</style>
 </svg>

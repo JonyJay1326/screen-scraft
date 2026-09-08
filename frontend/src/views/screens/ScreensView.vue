@@ -289,13 +289,13 @@ function openDisplay(id: string): void {
       </div>
     </main>
 
-    <el-dialog v-model="createVisible" title="新建空白大屏" width="440px">
+    <el-dialog v-model="createVisible" class="ed-dialog" title="新建空白大屏" width="440px" append-to-body>
       <el-form label-width="88px">
         <el-form-item label="名称">
-          <el-input v-model="createName" maxlength="20" />
+          <el-input v-model="createName" size="small" maxlength="20" />
         </el-form-item>
         <el-form-item label="分类">
-          <el-select v-model="createCategory">
+          <el-select v-model="createCategory" popper-class="ed-select-popper" size="small" style="width: 100%">
             <el-option v-for="item in CATEGORIES" :key="item" :label="item" :value="item" />
           </el-select>
         </el-form-item>
@@ -313,8 +313,16 @@ function openDisplay(id: string): void {
 .chips { display: flex; gap: 8px; flex-wrap: wrap; }
 .screen-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
 .screen-card, .tpl-card { position: relative; overflow: visible; }
-.scr-thumb { position: relative; aspect-ratio: 16 / 10; overflow: visible; background: #0d1730; border-radius: var(--r-lg) var(--r-lg) 0 0; }
-.ph, .ph-img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: var(--r-lg) var(--r-lg) 0 0; overflow: hidden; }
+.scr-thumb { position: relative; aspect-ratio: 16 / 9; overflow: hidden; background: #0d1730; border-radius: var(--r-lg) var(--r-lg) 0 0; }
+.ph, .ph-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  display: block;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  image-rendering: auto;
+}
 .ph { background: radial-gradient(circle at 30% 20%, rgba(47,127,247,.35), transparent 50%), #0d1730; }
 .scr-topbar { position: absolute; top: 8px; right: 8px; display: flex; align-items: center; gap: 6px; z-index: 5; }
 .thumb-btn { position: relative; width: 26px; height: 26px; display: grid; place-items: center; border-radius: var(--r-sm); background: var(--mask); color: #fff; cursor: pointer; }

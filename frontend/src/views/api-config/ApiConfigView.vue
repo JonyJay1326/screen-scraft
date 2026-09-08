@@ -198,9 +198,9 @@ function setApiType(value: string | number | boolean | undefined): void {
       </div>
     </main>
 
-    <el-dialog v-model="visible" :title="editingId ? '编辑 API' : '新建 API'" width="720px">
+    <el-dialog v-model="visible" class="ed-dialog api-dialog" :title="editingId ? '编辑 API' : '新建 API'" width="960px" append-to-body>
       <el-form label-width="100px">
-        <el-form-item label="名称"><el-input v-model="form.name" /></el-form-item>
+        <el-form-item label="名称"><el-input v-model="form.name" size="small" /></el-form-item>
         <el-form-item label="类型">
           <el-radio-group :model-value="form.type" @change="setApiType">
             <el-radio value="sql">SQL 生成</el-radio>
@@ -211,14 +211,14 @@ function setApiType(value: string | number | boolean | undefined): void {
           <SqlEditor v-model="form.sql" />
         </el-form-item>
         <template v-else>
-          <el-form-item label="URL"><el-input v-model="form.external.url" /></el-form-item>
+          <el-form-item label="URL"><el-input v-model="form.external.url" size="small" /></el-form-item>
           <el-form-item label="方法">
-            <el-select v-model="form.external.method" style="width:120px">
+            <el-select v-model="form.external.method" popper-class="ed-select-popper" size="small" style="width:120px">
               <el-option label="GET" value="GET" /><el-option label="POST" value="POST" />
             </el-select>
           </el-form-item>
           <el-form-item label="鉴权">
-            <el-select v-model="form.external.authType" style="width:160px">
+            <el-select v-model="form.external.authType" popper-class="ed-select-popper" size="small" style="width:160px">
               <el-option label="无" value="none" />
               <el-option label="Bearer" value="bearer" />
               <el-option label="Basic" value="basic" />
@@ -275,4 +275,19 @@ function setApiType(value: string | number | boolean | undefined): void {
 .test-box { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px; }
 .test-table { max-height: 240px; overflow: auto; }
 .test-meta { font-size: 12px; color: var(--t2); margin-bottom: 8px; }
+</style>
+
+<style>
+/* API 弹窗加宽加高，SQL 编辑区占满 */
+.api-dialog.el-dialog {
+  max-width: min(960px, calc(100vw - 48px));
+}
+.api-dialog .el-dialog__body {
+  max-height: min(72vh, 780px);
+  overflow-y: auto;
+}
+.api-dialog .el-form-item:has(.sql-host) .el-form-item__content {
+  width: 100%;
+  max-width: 100%;
+}
 </style>

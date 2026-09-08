@@ -1,6 +1,29 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="160" height="96" viewBox="0 0 160 96">
-  <rect width="160" height="96" rx="8" fill="#0D1730"/>
-  <path d="M28 72 A52 52 0 0 1 132 72" fill="none" stroke="#9FB3D1" stroke-width="10"/><path d="M28 72 A52 52 0 0 1 110 32" fill="none" stroke="#2F7FF7" stroke-width="10"/><circle cx="80" cy="72" r="6" fill="#2F7FF7"/>
-  <text x="8" y="92" fill="#E8EEF7" font-size="8" font-family="sans-serif">chart-gauge-3</text>
+<svg rx="8" ry="8" width="320" height="160" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" baseProfile="full" viewBox="0 0 320 160">
+<rect width="320" height="160" x="0" y="0" fill="#0D1730"></rect>
+<path d="M206 39.5A70.4 70.4 0 0 1 221 128L207.1 120A54.4 54.4 0 0 0 195.5 51.6Z" fill="#EF4444" class="zr48-cls-188"></path>
+<path d="M114 39.5A70.4 70.4 0 0 1 206 39.5L195.5 51.6A54.4 54.4 0 0 0 124.5 51.6Z" fill="#F59E0B" class="zr48-cls-188"></path>
+<path d="M99 128A70.4 70.4 0 0 1 114 39.5L124.5 51.6A54.4 54.4 0 0 0 112.9 120Z" fill="#22C55E" class="zr48-cls-188"></path>
+<path d="M121.5 115L128.5 111" fill="none" pointer-events="visible" stroke="#9FB3D1" class="zr48-cls-188"></path>
+<path d="M117.8 79.1L125.4 81.6" fill="none" pointer-events="visible" stroke="#9FB3D1" class="zr48-cls-188"></path>
+<path d="M141.9 52.2L145.2 59.5" fill="none" pointer-events="visible" stroke="#9FB3D1" class="zr48-cls-188"></path>
+<path d="M178.1 52.2L174.8 59.5" fill="none" pointer-events="visible" stroke="#9FB3D1" class="zr48-cls-188"></path>
+<path d="M202.2 79.1L194.6 81.6" fill="none" pointer-events="visible" stroke="#9FB3D1" class="zr48-cls-188"></path>
+<path d="M198.5 115L191.5 111" fill="none" pointer-events="visible" stroke="#9FB3D1" class="zr48-cls-188"></path>
+<path d="M100 89.7l120 0l0 40l-120 0Z" fill="rgb(0,0,0)" fill-opacity="0" class="zr48-cls-188"></path>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:16px;font-family:Microsoft YaHei;font-weight:bold;" x="160" y="109.696" fill="#9FB3D1">42</text>
+<path d="M163 92.8A3 3 0 1 1 163 92.5A3 3 0 0 1 163 92.8" fill="#F59E0B" stroke="#5470c6" stroke-width="0" class="zr48-cls-189"></path>
+<path d="M0 8L-4 0L0 -42.2L4 0L0 8" transform="matrix(0.944,-0.329,0.329,0.944,160,92.8)" fill="#F59E0B" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart" class="zr48-cls-189"></path>
+<style ><![CDATA[
+.zr48-cls-188:hover {
+pointer-events:none;
+}
+.zr48-cls-189:hover {
+cursor:pointer;
+fill:rgba(255,173,12,1);
+}
+
+]]>
+
+</style>
 </svg>
