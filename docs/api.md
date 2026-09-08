@@ -1,6 +1,7 @@
 # 大屏配置系统 接口定义（api.md）
 
-> 版本：v0.3.1（交付开发版）。与 PRD v0.3、architecture.md v0.3 配套；数据模型以本文第 2 章 TypeScript 接口为唯一契约。
+> 版本：v0.4（AI 智能样式编辑契约版）。与 PRD v0.4、architecture.md v0.4 配套；数据模型以本文第 2 章 TypeScript 接口为唯一契约。
+> v0.4 变更：① `ComponentDoc` 增加安全组件定义快照；② `StyleField`、AI 修改方案、安全图表/边框描述和个人组件预设进入共享契约；③ 新增 AI 编辑、参考图和个人组件接口；④ DeepSeek 文本/视觉模型配置取代面向用户的知识库客服；⑤ 旧 `/ai/chat`、`/ai/kb-docs*` 进入废弃期但不删除数据。
 > v0.3 变更：① §2 `category` 值域统一为「通用/工业/政务/医疗/交通/能源」（与冻结原型一致）；② §3.9 移除明文密钥，改为环境变量 `WEATHER_KEY`；③ 原【待确认 12】各项已全部确认（PRD §10-12），正文中【待确认 12】标注均按默认方案生效。
 > v0.3.1 补丁（开发确认）：① `UserDoc` 增加 `mustChangePassword`；② 新增 `POST /auth/change-password`；③ 种子管理员与管理员重置密码后强制改密，改密成功后旧 JWT 失效；④ 大屏保存 `updatedAt` 冲突复用错误码 4001；⑤ 新增 `GET /health` 供脚手架探活。
 > 约定：BaseURL `/api/v1`；鉴权 `Authorization: Bearer <token>`；统一响应 `{ code: 0, message: 'ok', data }`，非 0 为错误码；分页 `{ list, total, page, pageSize }`。
@@ -63,6 +64,52 @@ interface ComponentDoc {
   style: Record<string, unknown>;    // 样式配置，schema 由 templateId 决定
   data?: DataBinding;
   events: EventDoc[];
+  definitionSnapshot?: ComponentDefinitionSnapshot; // 仅动态/AI 组件必填；内置组件省略
+}
+
+// ---------- 共享样式字段与动态组件快照 ----------
+type StyleFieldType = 'text' | 'number' | 'switch' | 'color' | 'select' | 'colorList';
+type StyleValue = string | number | boolean | string[];
+type ProtocolKind =
+  | 'axis' | 'combo' | 'radar' | 'nameValue' | 'table' | 'options' | 'weather'
+  | 'kpi-1' | 'kpi-2' | 'kpi-3' | 'kpi-5' | 'kpi-8' | 'kpi-list';
+type CustomComponentGroup = 'line' | 'bar' | 'pie' | 'combo' | 'funnel' | 'radar' | 'gauge' | 'border';
+
+interface StyleField {
+  key: string;
+  label: string;
+  type: StyleFieldType;
+  options?: { label: string; value: string }[];
+  min?: number;
+  max?: number;
+  step?: number;
+  unit?: string;
+  group: string;                       // 样式面板分组标题
+  aiWritable: boolean;               // AI 只允许写入 true 的字段
+  readOnly?: boolean;
+}
+
+type SafeRendererKey =
+  | 'echarts-safe-v1'
+  | 'border-parametric-v1'
+  | 'border-nine-slice-v1';          // M9.6 预留；启用前服务端必须拒绝
+
+interface ComponentDefinitionSnapshot {
+  source: 'generated' | 'personal' | 'public';
+  presetId?: string;                 // 预设删除后只作追踪，不作为渲染依赖
+  rendererKey: SafeRendererKey;
+  specVersion: number;
+  category: 'chart' | 'decoration';
+  group: CustomComponentGroup;
+  dataProtocol?: ProtocolKind;
+  defaultSize: { w: number; h: number };
+  styleSchema: StyleField[];
+  styleMode: 'editable' | 'locked';
+  defaultStyle: {
+    dark: Record<string, unknown>;
+    light: Record<string, unknown>;
+  };
+  safeSpec: SafeChartSpec | SafeBorderSpec | SafeNineSliceSpec;
 }
 
 interface DataBinding {
@@ -141,6 +188,149 @@ type TencentWeatherData = {
     }[];
   };
 };
+
+// ---------- AI 安全描述 ----------
+type ChartFamily = 'line' | 'bar' | 'pie' | 'combo' | 'funnel' | 'radar' | 'gauge';
+
+interface SafeChartSpec {
+  kind: 'chart';
+  schemaVersion: 1;
+  family: ChartFamily;
+  option: SafeChartOption;
+}
+
+interface SafeChartOption {
+  grid?: { left: number; right: number; top: number; bottom: number };
+  palette?: string[];
+  legend?: { show: boolean; position: 'top' | 'topRight' | 'bottom' };
+  axis?: { showX: boolean; showY: boolean; labelColor: string; gridColor: string };
+  line?: { smooth: boolean; width: number; areaOpacity: number; symbol: 'none' | 'circle' | 'rect' };
+  bar?: { width: number; radius: number; stack: boolean; horizontal: boolean };
+  pie?: { innerRadius: number; outerRadius: number; roseType: 'none' | 'radius' | 'area' };
+  funnel?: { sort: 'ascending' | 'descending'; align: 'left' | 'center' | 'right'; gap: number };
+  radar?: { shape: 'polygon' | 'circle'; splitNumber: number; areaOpacity: number };
+  gauge?: { min: number; max: number; startAngle: number; endAngle: number; showPointer: boolean; showProgress: boolean };
+}
+
+interface SafeBorderSpec {
+  kind: 'border';
+  schemaVersion: 1;
+  cornerType: 'cut' | 'bracket' | 'notch' | 'line';
+  cornerSize: number;
+  primaryColor: string;
+  accentColor: string;
+  backgroundColor: string;
+  lineWidth: number;
+  lineOpacity: number;
+  innerGlow: number;
+  outerGlow: number;
+  glowOpacity: number;
+  titlePosition: 'none' | 'topLeft' | 'topCenter';
+  contentPadding: number;
+}
+
+interface SafeNineSliceSpec {
+  kind: 'nineSlice';                  // M9.6 可选能力
+  schemaVersion: 1;
+  assetId: string;
+  slice: { top: number; right: number; bottom: number; left: number };
+}
+
+// ---------- AI 修改方案 ----------
+type AiStyleOperation =
+  | {
+      targetType: 'component';
+      targetId: string;
+      stylePatch: Record<string, StyleValue>; // 每个键仍须按目标 StyleField 做类型、范围、枚举校验
+    }
+  | {
+      targetType: 'page';
+      targetId: string;
+      backgroundPatch: Partial<Pick<PageDoc['background'], 'color' | 'opacity'>>;
+    };
+
+interface AiEditorContext {
+  pageBackground?: Pick<PageDoc['background'], 'color' | 'opacity'>;
+  components: Array<Pick<ComponentDoc,
+    'id' | 'templateId' | 'name' | 'theme' | 'locked' | 'hidden' | 'style' | 'definitionSnapshot'
+  >>;
+}
+
+interface AiEditorPlanRequest {
+  screenId: string;
+  pageId: string;
+  scope: 'selected' | 'page' | 'screen';
+  componentIds: string[];
+  instruction: string;
+  referenceAssetId?: string;
+  editorRevision: number;            // 前端本地单调递增版本，不等同于 updatedAt
+  context: AiEditorContext;          // 仅包含完成本次任务所需的当前未保存状态
+}
+
+interface AiEditorPlanResponse {
+  planId: string;                    // 请求追踪 ID，不代表服务端持久化方案
+  summary: string;
+  operations: AiStyleOperation[];
+  skipped: { targetId: string; reason: string }[];
+  unsupportedFeatures: Array<{
+    description: string;
+    reason: string;
+    handling: 'approximate' | 'customComponent' | 'lockedStyleChart' | 'unsupported';
+    suggestion?: string;
+  }>;
+  warnings: string[];
+  editorRevision: number;
+}
+
+interface AiGenerateComponentRequest {
+  screenId: string;
+  pageId: string;
+  instruction: string;
+  kind: 'chart' | 'border';
+  referenceAssetId?: string;
+  editorRevision: number;
+}
+
+interface AiGeneratedComponent {
+  name: string;
+  theme: 'dark' | 'light';
+  definitionSnapshot: ComponentDefinitionSnapshot;
+  style: Record<string, unknown>;
+  defaultData?: unknown;
+  warnings: string[];
+  editorRevision: number;
+}
+
+interface AiReferenceAsset {
+  _id: string;
+  mimeType: 'image/png' | 'image/jpeg' | 'image/webp';
+  size: number;
+  width: number;
+  height: number;
+  expiresAt: string;
+}
+
+interface AiSettingsView {
+  provider: 'deepseek';
+  baseUrl: string;
+  textModel: string;
+  visionModel: string;
+  visionEnabled: boolean;
+  apiKeyMasked: string;
+}
+
+// ---------- 个人组件预设 ----------
+interface CustomComponentPreset {
+  _id: string;
+  ownerId: string;                   // 只读，由鉴权身份写入
+  name: string;
+  description?: string;
+  scope: 'personal' | 'public';
+  definition: ComponentDefinitionSnapshot;
+  thumbnail?: string;
+  createdAt: string;
+  updatedAt: string;
+}
 ```
 
 ---
@@ -215,19 +405,41 @@ type TencentWeatherData = {
 |---|---|---|
 | POST | /assets/upload | multipart（图片/视频）→ `{url}`；单文件 ≤ 200MB【已确认】 |
 
-### 3.8 AI 客服
+### 3.8 AI 智能设计助手
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| POST | /ai/chat | `{question, sessionId?}` → `{answer}`（基于知识库检索增强） |
-| GET | /ai/kb-docs | 管理员：知识库文档列表 |
-| POST | /ai/kb-docs | 管理员：上传文档（v1 支持 md / txt）【已确认】 |
-| POST | /ai/kb-docs/:id/update | 管理员：更新文档（重新分块索引） |
-| POST | /ai/kb-docs/:id/delete | 管理员：删除文档 |
-| GET | /ai/settings | 管理员：读取大模型 API 配置 |
-| POST | /ai/settings | 管理员：保存大模型 API 配置 `{baseUrl, apiKey, chatModel, embeddingModel?}`（apiKey 不回显明文） |
+| POST | /ai/editor/plan | `AiEditorPlanRequest` → `AiEditorPlanResponse`；生成已有组件/页面样式方案，不写数据库 |
+| POST | /ai/editor/generate-component | `AiGenerateComponentRequest` → `AiGeneratedComponent`；返回临时安全组件定义，不直接写大屏 |
+| POST | /ai/editor/reference-assets | multipart 单图 → `AiReferenceAsset`；仅 PNG/JPEG/WebP，真实文件头校验，≤10MB、单边≤8192px，默认 24 小时过期 |
+| POST | /ai/editor/reference-assets/:id/delete | 主动清理本人临时参考图；未调用时由 TTL 清理 |
+| GET | /ai/settings | 管理员：读取 `{provider:'deepseek',baseUrl,textModel,visionModel,visionEnabled,apiKeyMasked}` |
+| POST | /ai/settings | 管理员：保存 DeepSeek 配置；`apiKey` 只写不读，模型名可配置 |
+| POST | /ai/settings/test | 管理员：分别测试文本 JSON 输出与视觉图片输入能力，不返回模型原始敏感信息 |
 
-### 3.9 天气（内置数据源）【已确认】
+DeepSeek 默认值：`baseUrl=https://api.deepseek.com`、`textModel=deepseek-v4-flash`、`visionModel=deepseek-v4-flash-vision-exp`。文本方案使用 Chat Completions JSON Output；空内容自动重试一次，第二次仍为空或契约不合法时返回 4302，不改变画布。
+
+`scope=selected` 时 `componentIds` 至少 1 项；`scope=page` 时目标由 `pageId` 和上下文决定；`scope=screen` 只有功能开关开启且组件总数不超过 200 时可用。当前页最多 50 个组件。服务端必须验证用户可访问 `screenId`，并重新校验所有动态定义和目标 ID；不得信任客户端传入的 `styleSchema`。
+
+### 3.9 个人组件预设
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | /component-presets | `?scope=personal|public&category=chart|decoration`；personal 仅返回本人 |
+| GET | /component-presets/:id | 个人预设仅本人或管理员可读，公共预设登录用户可读 |
+| POST | /component-presets | 从已通过校验的临时/现有组件创建个人预设；`ownerId/scope/specVersion` 由后端写入 |
+| POST | /component-presets/:id/update | 本人更新名称、描述和定义；`specVersion + 1`，不影响已有实例 |
+| POST | /component-presets/:id/copy | 本人复制为新的个人预设 |
+| POST | /component-presets/:id/delete | 本人删除组件库入口；不扫描或修改已有大屏实例 |
+| POST | /component-presets/:id/promote | 仅管理员：复制当前定义为公共预设；M9 首期不提供前端 UI |
+
+个人预设实例化时必须把完整 `definition` 复制到 `ComponentDoc.definitionSnapshot`；运行时不得依赖预设仍然存在。更新不保留可回滚历史版本库，仅递增 `specVersion`；已有实例继续使用自己的旧快照。
+
+### 3.10 废弃 AI 客服接口
+
+以下接口自 v0.4 起停止前端新调用，兼容期内可保留后端实现；知识库数据不得随升级自动删除：`POST /ai/chat`、`GET/POST /ai/kb-docs`、`POST /ai/kb-docs/:id/update`、`POST /ai/kb-docs/:id/delete`。
+
+### 3.11 天气（内置数据源）【已确认】
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
@@ -250,3 +462,9 @@ type TencentWeatherData = {
 | 4101 | SQL 执行失败（语法/非只读） |
 | 4102 | 外部 API 代理失败 |
 | 4201 | 数据不符合组件协议（试运行提示） |
+| 4301 | AI 模型未配置、能力不支持或服务不可用 |
+| 4302 | AI 输出为空、格式错误或未通过安全契约校验 |
+| 4303 | AI 方案已过期（editorRevision 不一致） |
+| 4304 | AI 请求范围超限或仍有请求正在处理 |
+| 4305 | 参考图格式、文件头、大小或归属不合法 |
+| 4401 | 个人组件定义或安全渲染描述不合法 |

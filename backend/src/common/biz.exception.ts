@@ -44,4 +44,19 @@ export class BizException extends HttpException {
   static protocol(message: string): BizException {
     return new BizException(ErrorCode.PROTOCOL, message, HttpStatus.BAD_REQUEST);
   }
+
+  /** AI 未配置、能力不支持或上游服务不可用 */
+  static aiUnavailable(message: string): BizException {
+    return new BizException(ErrorCode.AI_UNAVAILABLE, message, HttpStatus.BAD_GATEWAY);
+  }
+
+  /** AI 输出为空、格式错误或安全契约校验失败 */
+  static aiOutputInvalid(message: string): BizException {
+    return new BizException(ErrorCode.AI_OUTPUT_INVALID, message, HttpStatus.UNPROCESSABLE_ENTITY);
+  }
+
+  /** 个人组件定义或安全渲染描述不合法 */
+  static componentDefinitionInvalid(message: string): BizException {
+    return new BizException(ErrorCode.COMPONENT_DEFINITION_INVALID, message, HttpStatus.BAD_REQUEST);
+  }
 }

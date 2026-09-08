@@ -1,10 +1,11 @@
 # ScreenCraft UI 设计交付文档（UI-SPEC）
 
+> 版本：v0.4（AI 智能样式编辑同步版）
 > 交付对象：Cursor（前端开发）
 > 配套物：本目录下可交互高保真原型（纯静态 HTML/CSS/JS，直接打开 `index.html` 即可预览全部页面）
 > 上游文档：`docs/PRD.md`（需求）· `docs/design.md`（设计规范）· `docs/api.md`（接口契约）· `docs/architecture.md`（架构）· `docs/milestones.md`（里程碑）· `docs/golden-sample.md`（组件模子）
-> 设计契约：`.work/design-contract.md`（原型实现的唯一真理源，页面与本文档冲突时以契约 + 原型代码为准）
-> v0.3 修订：§5.5 工具栏以 PRD 4.4.1 全集为准（原型为子集）；§5.6 接口路径对齐 api.md；§7.1 EP 边界按 design.md §2.4 定稿；§5.3 模板数口径修正为 63。
+> 设计契约：v0.3 页面继续以 `.work/design-contract.md` + 原型代码为准；AI 智能样式编辑属于 v0.4 新增范围，在 M9.1 更新静态原型前，以本文档 + `docs/design.md` 为准。
+> v0.4 修订：AI 智能设计助手替代知识库客服且仅在编辑器显示；新增“我的组件”、AI 方案预览、锁定样式和 DeepSeek 设置；同步修正边框数量与 SQL 占位符口径。
 
 ---
 
@@ -114,7 +115,7 @@ Lucide 线性图标，stroke=2，统一 `currentColor`。常用名清单见契�
 | `.form-row .form-label .form-tip .form-err` | 表单 | label 96px 右对齐 |
 | `.page-head .crumb .empty .skeleton` | 页头/面包屑/空态/骨架 | 空态图标 + 13px 灰字 |
 
-编辑器专用：`.ed-*`（工具栏/三栏）、`.tree-node`（页面树）、`.lib-*`（组件库）、`.cv-comp/.cv-handle/.cv-label`（画布选中态）、`.p-sec/.f-row/.f-label/.f-ctrl`（右侧设置表单）、`.mini-table`（静态数据表）、`.ai-fab/.ai-drawer/.ai-msg`（AI 客服）。
+编辑器专用：`.ed-*`（工具栏/三栏）、`.tree-node`（页面树）、`.lib-*`（组件库）、`.cv-comp/.cv-handle/.cv-label`（画布选中态）、`.p-sec/.f-row/.f-label/.f-ctrl`（右侧设置表单）、`.mini-table`（静态数据表）、`.ai-fab/.ai-drawer/.ai-plan/.ai-diff`（AI 智能设计助手）。
 展示页专用：`.stage/.stage-inner`（缩放舞台）、`.d-panel/.d-title`（面板）、`.ctrl-bar/.ctrl-btn`（控制条）。
 
 ---
@@ -144,13 +145,13 @@ Lucide 线性图标，stroke=2，统一 `currentColor`。常用名清单见契�
   - 删除保护：已投放大屏删除时强警示文案。
   - 新建大屏弹窗：名称 + 模板单选网格（默认选中第一个）→ 创建后进编辑器。
 - 页签二 模板库：范围 seg（全部/公共/个人）+ 分类 chips；模板卡片 hover「使用模板」。
-- 真实开发映射：`GET /projects/:pid/screens`、`GET /templates?scope=`、模板共 63 个（7 类图表×5 变体 + 指标卡×12 + 表格×2 + 装饰 7〔天气×2 + 边框×5〕 + 媒体 2 + 控件 5，与 PRD §5.1 一致）。
+- 真实开发映射：`GET /projects/:pid/screens`、`GET /templates?scope=`、`GET /component-presets?scope=personal`；内置模板目标共 54 个（基础图表 32〔六族×5 + 组合图×2〕+ 指标卡×8 + 表格×2 + 装饰 5〔天气×2 + 边框×3〕+ 媒体 2 + 控件 5），个人组件不计入固定数量。
 
 ### 5.4 api-config.html API 配置
 
 - 表格列：名称 / 类型（SQL 生成 | 外部接口）/ 请求方式 / 接口路径 / 更新时间 / 引用数 / 状态 / 操作。
 - **删除保护（硬性需求）**：`refCount>0` 时禁止删除，toast 提示「被 N 个组件引用」；`refCount=0` 才允许二次确认后删除。
-- 编辑/新建弹窗（modal-lg）：类型 seg 切换字段——SQL 类显示 SQL 编辑器（等宽字体；真实开发用 **CodeMirror 6**），外部类显示接口地址；参数表（参数名/类型/默认值，可增删行）；占位符 `{{参数名}}` 约定；仅支持 SELECT 只读。
+- 编辑/新建弹窗（modal-lg）：类型 seg 切换字段——SQL 类显示 SQL 编辑器（等宽字体；真实开发用 **CodeMirror 6**），外部类显示接口地址；参数表（参数名/类型/默认值，可增删行）；占位符 `:paramName` 约定；仅支持 SELECT 只读。
 - 试运行弹窗：参数表单 → 运行（loading）→ 结果表格 + 行数/耗时。
 - 真实开发映射：`GET /api-configs`、`POST /api-configs`（新建）、`POST /api-configs/:id/update`、`POST /api-configs/:id/delete`、`POST /api-configs/:id/test`。SQL 走内置只读业务库（默认 MySQL）。
 
@@ -161,31 +162,32 @@ Lucide 线性图标，stroke=2，统一 `currentColor`。常用名清单见契�
 - 工具栏：返回 / 大屏名 + 保存状态标签（未保存 warn ↔ 已保存 ok）/ 撤销重做 / 缩放（20%~400%）/ 网格开关 / 快捷键弹窗 / 保存 / 保存为模板 / 预览（→ display.html?preview=1）/ more（进入展示页、导出 JSON、清空画布）。
   **真实开发工具栏以 PRD 4.4.1 全集为准**（原型只做了子集）：另需实现——页面层级开关、图表/装饰/媒体/控件四分类入口（点击展开左侧组件库并定位）、适配方式下拉（画面居中/宽度铺满/高度铺满/全屏拉伸）、适应画布、画面居中；快捷键含 Ctrl+S 保存。
 - 左侧「页面」：页面树（含子页面），hover 显示重命名/删除，支持新建页面。
-- 左侧「组件」：搜索 + 四分类（图表/装饰/媒体/控件）+ 组件网格（缩略图 + 名称 + ×变体数）；点击添加到画布中央。
+- 左侧「组件」：来源 seg（内置组件/我的组件）+ 搜索 + 四分类（图表/装饰/媒体/控件）+ 组件网格；“我的组件”只显示图表/装饰，卡片更多菜单支持重命名、复制、删除；点击添加到画布中央。
 - 画布：组件可选中（主色描边 + 名称角标 + 四角手柄）、可拖动、右下角手柄可缩放；Delete 删除；Esc 取消选中；Ctrl+S 保存。
 - 右侧面板：
-  - **未选中组件 → 页面设置**：大屏名称 / 分辨率 / 背景（填充方式 cover|contain|stretch|repeat|center、背景色、背景图上传）/ 边框套色（5 套：默认深蓝/工业蓝/科幻紫/青绿/橙金）/ 全局轮询。
+  - **未选中组件 → 页面设置**：大屏名称 / 分辨率 / 背景（填充方式 cover|contain|stretch|repeat|center、背景色、背景图上传）/ 边框套色（3 套：默认深蓝/工业蓝/科幻紫）/ 全局轮询。
   - **选中组件 → 样式 / 数据 / 事件三页签**：
-    - 样式：X/Y/宽/高（数字双向同步画布）、名称、主题色、显示标题开关、图层上移/下移、锁定、删除。
+    - 样式：X/Y/宽/高（数字双向同步画布）、名称、主题色、显示标题开关、图层上移/下移、锁定、删除；锁定样式 AI 图表不显示样式表单，改为说明 + “根据新描述重新生成”。
     - 数据：图表类 = seg 静态数据（可编辑 mini-table，支持添加行/列；真实开发用 **vxe-table**）/ API 接入（选择 API + 轮询间隔 + defaultValue）；视频 = 文件上传 / URL；其他控件提示无数据配置。
     - 事件：按钮/下拉框显示事件卡（触发方式 → 触发条件 → 执行动作），支持添加/编辑/删除；其余组件空态提示。
-- AI 客服悬浮（右下 fab → 抽屉）：消息流 + 快捷问题 chips + 输入发送；真实开发接自研轻量 RAG。
+- AI 智能设计助手（右下 fab → 440px 抽屉）：作用范围、上下文摘要、指令、参考图、生成方案、差异列表、警告/不支持项、预览/应用/重新生成/取消。无“使用帮助/知识库”Tab。
+- 预览 AI 方案时画布顶部显示临时提示条；预览不改变保存状态。画布正式变化后方案显示过期并禁用应用；应用成功提示“已应用，可撤销”。
 - 真实开发映射：画布用 `vue-draggable-resizable-gorkys`；布局 JSON 结构与 `docs/api.md` 的 `ScreenDoc.pages[].components` 对齐（模板注册记录见 `docs/golden-sample.md`）。
 
 ### 5.6 admin.html 管理后台
 
 - 页签一 用户管理：表格（用户名/角色标签/状态 switch/创建时间/操作）；新建用户弹窗（用户名正则、角色、初始密码 + 首次登录强制修改提示）；重置密码二次确认；启用/禁用 switch（admin 行禁用操作）。
 - 页签二 AI 设置：
-  - 模型配置卡：Base URL / API Key（密文 + 可见切换）/ 对话模型 / Embedding 模型（含「不使用 → 降级 BM25」选项）/ 测试连接 / 保存。
-  - 知识库卡：上传文档（**v1 仅 .md / .txt**，非法后缀 toast 拦截）+ 文档表（名称/大小/更新时间/已索引状态/删除）。
-- 真实开发映射（与 api.md §3.1 / §3.8 一致）：`GET /users`、`POST /users`（新建）、`POST /users/:id/reset-password`、`POST /users/:id/status`（启用/禁用）；AI 设置 `GET/POST /ai/settings`、知识库 `GET/POST /ai/kb-docs` 等。
+  - DeepSeek 模型配置卡：Base URL / API Key（只写、密文掩码）/ 文本模型 / 视觉模型 / 启用图片理解 / 分别测试文本和图片能力 / 保存。
+  - 默认占位：`https://api.deepseek.com`、`deepseek-v4-flash`、`deepseek-v4-flash-vision-exp`。不显示知识库、Embedding 或 BM25。
+- 真实开发映射（与 api.md §3.1 / §3.8 一致）：`GET /users`、`POST /users`、`POST /users/:id/reset-password`、`POST /users/:id/status`；AI 设置 `GET/POST /ai/settings`、`POST /ai/settings/test`。
 
 ### 5.7 display.html 展示页 / 预览页（深色运行时）
 
 - 舞台：1920×1080 设计稿按窗口等比缩放（`--scale = min(w/1920, h/1080)`），居中显示。
 - 内容：大标题（渐变字 + 装饰线）+ 本地时钟（前端本地时间，每秒刷新）+ 天气（`fetchWeather(adcode)`，后端代理腾讯云 LBS）+ 14 个数据面板（KPI×4、折线、环形饼、仪表、柱状、告警表、双轴组合、漏斗、视频占位、雷达、公告）。
-- 展示模式（默认）：右上控制条（截图 / 大屏配置 → editor / 全屏），鼠标静止 3s 自动淡出；右下 AI 客服。
-- 预览模式（`?preview=1`）：**无控制条、无 AI 悬浮**，纯净全屏，进入时 toast 提示「展示最近保存版本」。
+- 展示模式（默认）：右上控制条（截图 / 大屏配置 → editor / 全屏），鼠标静止 3s 自动淡出；无 AI 入口。
+- 预览模式（`?preview=1`）：**无控制条、无 AI 入口**，纯净全屏，进入时 toast 提示「展示最近保存版本」。
 - 截图真实实现：html2canvas（视频组件以图标占位图代替，已知限制）。
 
 ---
@@ -201,9 +203,12 @@ Lucide 线性图标，stroke=2，统一 `currentColor`。常用名清单见契�
 | `fetchApiConfigs()` | GET /api-configs | api-config |
 | `testRunApi(id, params)` | POST /api-configs/:id/test | api-config |
 | `fetchUsers()` | GET /users | admin |
-| `fetchKbDocs()` | GET /ai/kb-docs | admin |
 | `saveAiSettings(s)` | POST /ai/settings | admin |
-| `aiChat(question)` | POST /ai/chat | editor / display |
+| `testAiSettings(s)` | POST /ai/settings/test | admin |
+| `createAiPlan(input)` | POST /ai/editor/plan | editor |
+| `generateAiComponent(input)` | POST /ai/editor/generate-component | editor |
+| `uploadAiReference(file)` | POST /ai/editor/reference-assets | editor |
+| `fetchComponentPresets(scope)` | GET /component-presets?scope= | editor |
 | `fetchWeather(adcode)` | GET /weather?adcode= | display |
 
 统一响应 `{code:0, message:'ok', data}`；v1 REST 只用 GET/POST（更新删除走 `POST /xxx/update|delete`）。真实开发先做 Axios 统一封装（拦截器、token 注入、解包、401 跳转），业务代码不得裸用 Axios。
@@ -229,4 +234,7 @@ Lucide 线性图标，stroke=2，统一 `currentColor`。常用名清单见契�
 - [ ] 每个可点元素均有反馈（跳转 / 弹窗 / toast / 状态变化）
 - [ ] 删除类操作均有二次确认；API 删除有引用保护
 - [ ] 预览模式无控制条；展示模式控制条三按钮可用
+- [ ] 预览/展示均无 AI 入口；AI 智能设计助手只在编辑器出现
+- [ ] AI 预览态、过期态、部分不支持态、模型不可用态均有明确反馈
+- [ ] “我的组件”删除提示不影响已有大屏；锁定样式图表仍可配置数据
 - [ ] 无 emoji 图标、无 CDN 依赖、离线可开

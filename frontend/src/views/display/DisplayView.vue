@@ -4,7 +4,6 @@ import { useRoute, useRouter } from 'vue-router';
 import type { ScreenDoc } from '@screencraft/shared';
 import { fetchDisplayScreen } from '../../api/runtime';
 import RuntimeStage from '../../components/runtime/RuntimeStage.vue';
-import AiChat from '../../components/ui/AiChat.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -23,6 +22,5 @@ onMounted(async () => {
 
 <template>
   <RuntimeStage v-if="screen" :screen="screen" chrome="display" @configure="router.push(`/editor/${screen!._id}`)" />
-  <AiChat v-if="screen" />
   <div v-else class="stage">{{ error || '加载中…' }}</div>
 </template>

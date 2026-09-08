@@ -54,7 +54,7 @@ function forgot(): void {
         <ul class="login-feats">
           <li><span class="fi"><Layers :size="16" /></span>63 个组件模板 · 图表 / 装饰 / 媒体 / 控件四大类</li>
           <li><span class="fi"><Plug :size="16" /></span>SQL 生成与外部接口双通道数据接入</li>
-          <li><span class="fi"><Bot :size="16" /></span>内置 AI 客服，配置问题随问随答</li>
+          <li><span class="fi"><Bot :size="16" /></span>AI 智能设计，样式方案先预览再应用</li>
         </ul>
       </div>
       <div class="login-illu">

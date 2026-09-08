@@ -96,7 +96,7 @@ function formatTime(iso: string): string {
       <div class="page-head">
         <div>
           <h1>管理后台</h1>
-          <div class="desc">仅管理员可见：用户管理与 AI 客服配置</div>
+          <div class="desc">仅管理员可见：用户管理与 DeepSeek 能力配置</div>
         </div>
       </div>
       <div class="tabs">

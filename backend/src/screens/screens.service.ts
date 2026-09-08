@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { ScreenDoc } from '@screencraft/shared';
+import { ScreenDoc, validatePageComponentDefinitions } from '@screencraft/shared';
 import { Model } from 'mongoose';
 import { BizException } from '../common/biz.exception';
 import { Project } from '../projects/project.schema';
@@ -60,6 +60,11 @@ export class ScreensService {
       doc.fitMode = payload.fitMode;
     }
     if (payload.pages) {
+      const definitionIssues = validatePageComponentDefinitions(payload.pages);
+      if (definitionIssues.length) {
+        const first = definitionIssues[0];
+        throw BizException.componentDefinitionInvalid(`${first.path}: ${first.message}`);
+      }
       doc.pages = payload.pages;
     }
     if (payload.thumbnail !== undefined) {

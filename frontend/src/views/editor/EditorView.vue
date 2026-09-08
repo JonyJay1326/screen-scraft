@@ -13,7 +13,6 @@ import CanvasItem from '../../components/editor/CanvasItem.vue';
 import StyleForm from '../../components/editor/StyleForm.vue';
 import DataPanel from '../../components/editor/DataPanel.vue';
 import EventPanel from '../../components/editor/EventPanel.vue';
-import AiChat from '../../components/ui/AiChat.vue';
 import { saveAsTemplateApi } from '../../api/template';
 import { CATEGORIES } from '../../utils/format';
 import { cloneJson } from '../../utils/clone';
@@ -743,7 +742,6 @@ async function renamePage(pageId: string, name: string): Promise<void> {
       <tr><td>拖动画布</td><td>空格 + 拖拽</td></tr>
     </table>
   </el-dialog>
-  <AiChat v-if="!loading && !loadError" />
 </template>
 
 <style scoped>

@@ -1,4 +1,10 @@
+import { getBuiltinComponentMetadata } from '@screencraft/shared';
 import type { ComponentTemplate } from '../../types';
+
+const sharedMetadata = getBuiltinComponentMetadata('chart-line-1');
+if (!sharedMetadata) {
+  throw new Error('内置组件缺少 shared 元数据：chart-line-1');
+}
 
 export const chartLine1Template: Omit<ComponentTemplate, 'renderer'> = {
   id: 'chart-line-1',
@@ -10,33 +16,7 @@ export const chartLine1Template: Omit<ComponentTemplate, 'renderer'> = {
   dataProtocol: 'axis',
   hasDataTab: true,
   hasEventTab: true,
-  styleSchema: [
-    { key: 'boardEnabled', label: '底板框', type: 'switch', group: '底板框' },
-    { key: 'boardTitle', label: '标题文字', type: 'text', group: '底板框' },
-    { key: 'boardPadding', label: '内边距', type: 'number', min: 0, max: 40, step: 2, unit: 'px', group: '底板框' },
-    { key: 'seriesColors', label: '系列颜色', type: 'colorList', group: '系列' },
-    { key: 'lineSmooth', label: '平滑曲线', type: 'switch', group: '系列' },
-    { key: 'lineWidth', label: '线宽', type: 'number', min: 1, max: 6, step: 0.5, unit: 'px', group: '系列' },
-    { key: 'areaOpacity', label: '面积透明度', type: 'number', min: 0, max: 100, step: 5, unit: '%', group: '系列' },
-    { key: 'showSymbol', label: '数据点标记', type: 'switch', group: '系列' },
-    { key: 'showLabel', label: '数值标签', type: 'switch', group: '系列' },
-    { key: 'showLegend', label: '显示图例', type: 'switch', group: '图例' },
-    {
-      key: 'legendPosition',
-      label: '图例位置',
-      type: 'select',
-      options: [
-        { label: '顶部居中', value: 'top' },
-        { label: '右上', value: 'topRight' },
-        { label: '底部居中', value: 'bottom' },
-      ],
-      group: '图例',
-    },
-    { key: 'showXAxis', label: '显示 X 轴', type: 'switch', group: '坐标轴' },
-    { key: 'showYAxis', label: '显示 Y 轴', type: 'switch', group: '坐标轴' },
-    { key: 'axisLabelColor', label: '轴标签颜色', type: 'color', group: '坐标轴' },
-    { key: 'gridColor', label: '网格线颜色', type: 'color', group: '坐标轴' },
-  ],
+  styleSchema: sharedMetadata.styleSchema,
   defaultStyle: {
     dark: {
       boardEnabled: true,

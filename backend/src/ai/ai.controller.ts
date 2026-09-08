@@ -1,48 +1,48 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { AdminGuard } from '../auth/admin.guard';
 import { AiService } from './ai.service';
-import { AiSettingsDto, ChatDto, UpsertKbDto } from './ai.dto';
+import { AiSettingsDto, AiSettingsTestDto, ChatDto, UpsertKbDto } from './ai.dto';
 
-/** AI 客服与知识库 */
+/** AI 智能设计配置；v0.3 客服接口仅作兼容保留 */
 @Controller('ai')
 export class AiController {
   constructor(private readonly ai: AiService) {}
 
-  /** 对话（登录即可） */
+  /** @deprecated v0.4 前端停止新调用 */
   @Post('chat')
   chat(@Body() dto: ChatDto) {
     return this.ai.chat(dto);
   }
 
-  /** 知识库列表 */
+  /** @deprecated v0.4 前端停止新调用 */
   @Get('kb-docs')
   @UseGuards(AdminGuard)
   listDocs() {
     return this.ai.listDocs();
   }
 
-  /** 文档详情 */
+  /** @deprecated v0.4 前端停止新调用 */
   @Get('kb-docs/:id')
   @UseGuards(AdminGuard)
   getDoc(@Param('id') id: string) {
     return this.ai.getDoc(id);
   }
 
-  /** 新建文档 */
+  /** @deprecated v0.4 前端停止新调用 */
   @Post('kb-docs')
   @UseGuards(AdminGuard)
   createDoc(@Body() dto: UpsertKbDto) {
     return this.ai.createDoc(dto);
   }
 
-  /** 更新文档 */
+  /** @deprecated v0.4 前端停止新调用 */
   @Post('kb-docs/:id/update')
   @UseGuards(AdminGuard)
   updateDoc(@Param('id') id: string, @Body() dto: UpsertKbDto) {
     return this.ai.updateDoc(id, dto);
   }
 
-  /** 删除文档 */
+  /** @deprecated v0.4 前端停止新调用 */
   @Post('kb-docs/:id/delete')
   @UseGuards(AdminGuard)
   removeDoc(@Param('id') id: string) {
@@ -61,5 +61,12 @@ export class AiController {
   @UseGuards(AdminGuard)
   saveSettings(@Body() dto: AiSettingsDto) {
     return this.ai.saveSettings(dto);
+  }
+
+  /** 分别测试文本 JSON 与视觉输入能力 */
+  @Post('settings/test')
+  @UseGuards(AdminGuard)
+  testSettings(@Body() dto: AiSettingsTestDto) {
+    return this.ai.testSettings(dto);
   }
 }

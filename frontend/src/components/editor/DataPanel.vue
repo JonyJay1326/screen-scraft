@@ -248,7 +248,7 @@ const axisMode = computed(() => protocol.value === 'axis' || protocol.value === 
           <button class="btn btn-sm" type="button" @click="addRow">加行</button>
           <button class="btn btn-sm" type="button" @click="addCol">加列</button>
         </div>
-        <div class="ed-static-table" data-vxe-ui-theme="dark">
+        <div class="ed-static-table" v-bind="{ ['data-vxe-ui-theme']: 'dark' }">
           <vxe-table
             :data="rows"
             border

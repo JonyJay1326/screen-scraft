@@ -1,16 +1,20 @@
-import type { ProtocolKind } from '@screencraft/shared';
-import type { ComponentTemplate, StyleField } from './types';
+import { getBuiltinComponentMetadata } from '@screencraft/shared';
+import type { ProtocolKind, StyleField } from '@screencraft/shared';
+import type { ComponentTemplate } from './types';
+
+/** 仅用于迁移现有注册表字面量；运行时 schema 一律取 shared 元数据。 */
+export type StyleFieldDraft = Omit<StyleField, 'aiWritable'> & { aiWritable?: boolean };
 
 export const DARK_PALETTE = ['#2F7FF7', '#35E0FF', '#22C55E', '#F59E0B', '#EF4444', '#A78BFA', '#F472B6', '#34D399'];
 export const LIGHT_PALETTE = ['#2F7FF7', '#0EA5E9', '#16A34A', '#D97706', '#DC2626', '#7C3AED', '#DB2777', '#059669'];
 
-export const boardFields: StyleField[] = [
+export const boardFields: StyleFieldDraft[] = [
   { key: 'boardEnabled', label: '底板框', type: 'switch', group: '底板框' },
   { key: 'boardTitle', label: '标题文字', type: 'text', group: '底板框' },
   { key: 'boardPadding', label: '内边距', type: 'number', min: 0, max: 40, step: 2, unit: 'px', group: '底板框' },
 ];
 
-export const legendFields: StyleField[] = [
+export const legendFields: StyleFieldDraft[] = [
   { key: 'showLegend', label: '显示图例', type: 'switch', group: '图例' },
   {
     key: 'legendPosition',
@@ -25,7 +29,7 @@ export const legendFields: StyleField[] = [
   },
 ];
 
-export const axisFields: StyleField[] = [
+export const axisFields: StyleFieldDraft[] = [
   { key: 'showXAxis', label: '显示 X 轴', type: 'switch', group: '坐标轴' },
   { key: 'showYAxis', label: '显示 Y 轴', type: 'switch', group: '坐标轴' },
   { key: 'axisLabelColor', label: '轴标签颜色', type: 'color', group: '坐标轴' },
@@ -203,11 +207,15 @@ export function makeMeta(
   label: string,
   size: { w: number; h: number },
   protocol: ProtocolKind | undefined,
-  styleSchema: StyleField[],
+  _styleSchema: StyleFieldDraft[],
   defaultStyle: ComponentTemplate['defaultStyle'],
   defaultData: unknown,
   tabs: { data: boolean; event: boolean },
 ): Omit<ComponentTemplate, 'renderer'> {
+  const sharedMetadata = getBuiltinComponentMetadata(id);
+  if (!sharedMetadata) {
+    throw new Error(`内置组件缺少 shared 元数据：${id}`);
+  }
   return {
     id,
     category,
@@ -216,7 +224,7 @@ export function makeMeta(
     previews: { dark: `previews/${id}.dark.svg`, light: `previews/${id}.light.svg` },
     defaultSize: size,
     dataProtocol: protocol,
-    styleSchema,
+    styleSchema: sharedMetadata.styleSchema,
     defaultStyle,
     defaultData,
     hasDataTab: tabs.data,

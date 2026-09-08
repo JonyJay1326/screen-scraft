@@ -1,4 +1,4 @@
-import type { ComponentTemplate, StyleField } from './types';
+import type { ComponentTemplate } from './types';
 import {
   ALARM_DEMO,
   AXIS_DEMO,
@@ -15,11 +15,12 @@ import {
   boardPair,
   legendFields,
   makeMeta,
+  type StyleFieldDraft,
 } from './schema';
 
 type Meta = Omit<ComponentTemplate, 'renderer'>;
 
-const lineSeries: StyleField[] = [
+const lineSeries: StyleFieldDraft[] = [
   { key: 'seriesColors', label: '系列颜色', type: 'colorList', group: '系列' },
   { key: 'lineSmooth', label: '平滑曲线', type: 'switch', group: '系列' },
   { key: 'lineWidth', label: '线宽', type: 'number', min: 1, max: 6, step: 0.5, unit: 'px', group: '系列' },
@@ -28,7 +29,7 @@ const lineSeries: StyleField[] = [
   { key: 'showLabel', label: '数值标签', type: 'switch', group: '系列' },
 ];
 
-const barSeries: StyleField[] = [
+const barSeries: StyleFieldDraft[] = [
   { key: 'seriesColors', label: '系列颜色', type: 'colorList', group: '系列' },
   { key: 'barWidth', label: '柱宽', type: 'number', min: 8, max: 48, step: 2, unit: '%', group: '系列' },
   { key: 'barGap', label: '柱间距', type: 'number', min: 0, max: 80, step: 5, unit: '%', group: '系列' },
@@ -37,7 +38,7 @@ const barSeries: StyleField[] = [
   { key: 'showLabel', label: '数值标签', type: 'switch', group: '系列' },
 ];
 
-const pieSeries: StyleField[] = [
+const pieSeries: StyleFieldDraft[] = [
   { key: 'seriesColors', label: '系列颜色', type: 'colorList', group: '系列' },
   { key: 'innerRadius', label: '内径', type: 'number', min: 0, max: 80, step: 5, unit: '%', group: '系列' },
   { key: 'roseType', label: '南丁格尔', type: 'switch', group: '系列' },
@@ -46,7 +47,7 @@ const pieSeries: StyleField[] = [
   { key: 'showLabel', label: '数值标签', type: 'switch', group: '系列' },
 ];
 
-const funnelSeries: StyleField[] = [
+const funnelSeries: StyleFieldDraft[] = [
   { key: 'seriesColors', label: '系列颜色', type: 'colorList', group: '系列' },
   { key: 'showLabel', label: '数值标签', type: 'switch', group: '系列' },
   {
@@ -85,7 +86,7 @@ const funnelSeries: StyleField[] = [
   { key: 'minSize', label: '最小宽度', type: 'number', min: 0, max: 60, step: 5, unit: '%', group: '系列' },
 ];
 
-const gaugeSeries: StyleField[] = [
+const gaugeSeries: StyleFieldDraft[] = [
   { key: 'seriesColors', label: '系列颜色', type: 'colorList', group: '系列' },
   { key: 'gaugeMin', label: '最小值', type: 'number', min: 0, max: 100, step: 1, group: '系列' },
   { key: 'gaugeMax', label: '最大值', type: 'number', min: 1, max: 200, step: 1, group: '系列' },
@@ -100,7 +101,7 @@ const gaugeSeries: StyleField[] = [
   { key: 'showLabel', label: '数值标签', type: 'switch', group: '系列' },
 ];
 
-const radarSeries: StyleField[] = [
+const radarSeries: StyleFieldDraft[] = [
   { key: 'seriesColors', label: '系列颜色', type: 'colorList', group: '系列' },
   { key: 'areaOpacity', label: '面积透明度', type: 'number', min: 0, max: 80, step: 5, unit: '%', group: '系列' },
   { key: 'lineWidth', label: '线宽', type: 'number', min: 1, max: 6, step: 0.5, unit: 'px', group: '系列' },
@@ -118,7 +119,7 @@ const radarSeries: StyleField[] = [
   { key: 'splitNumber', label: '分割段数', type: 'number', min: 3, max: 8, step: 1, group: '系列' },
 ];
 
-const kpiFields: StyleField[] = [
+const kpiFields: StyleFieldDraft[] = [
   ...boardFields,
   { key: 'valueSize', label: '数值字号', type: 'number', min: 18, max: 48, step: 2, unit: 'px', group: '数值' },
   { key: 'upColor', label: '上升色', type: 'color', group: '数值' },
@@ -126,7 +127,7 @@ const kpiFields: StyleField[] = [
 ];
 
 /** 天气组件样式字段（时间格式为常用选项下拉） */
-const weatherFields: StyleField[] = [
+const weatherFields: StyleFieldDraft[] = [
   ...boardFields,
   { key: 'adcode', label: 'adcode', type: 'text', group: '天气' },
   {

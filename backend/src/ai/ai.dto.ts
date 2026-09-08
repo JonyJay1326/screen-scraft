@@ -1,4 +1,4 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsIn, IsOptional, IsString, IsUrl, MaxLength, MinLength } from 'class-validator';
 
 export class ChatDto {
   @IsString()
@@ -22,17 +22,31 @@ export class UpsertKbDto {
 }
 
 export class AiSettingsDto {
+  @IsUrl({ protocols: ['http', 'https'], require_protocol: true })
+  @MaxLength(500)
   @IsString()
   baseUrl!: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(1000)
   apiKey?: string;
 
   @IsString()
-  chatModel!: string;
+  @MinLength(1)
+  @MaxLength(200)
+  textModel!: string;
 
-  @IsOptional()
   @IsString()
-  embeddingModel?: string;
+  @MinLength(1)
+  @MaxLength(200)
+  visionModel!: string;
+
+  @IsBoolean()
+  visionEnabled!: boolean;
+}
+
+export class AiSettingsTestDto {
+  @IsIn(['text', 'vision'])
+  capability!: 'text' | 'vision';
 }

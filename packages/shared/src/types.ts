@@ -20,6 +20,95 @@ export type ProtocolKind =
   | 'kpi-8'
   | 'kpi-list';
 
+/** 声明式样式字段；前后端与 AI 校验共用 */
+export type StyleFieldType = 'text' | 'number' | 'switch' | 'color' | 'select' | 'colorList';
+export type StyleValue = string | number | boolean | string[];
+
+export interface StyleField {
+  key: string;
+  label: string;
+  type: StyleFieldType;
+  options?: { label: string; value: string }[];
+  min?: number;
+  max?: number;
+  step?: number;
+  unit?: string;
+  group: string;
+  aiWritable: boolean;
+  readOnly?: boolean;
+}
+
+export type CustomComponentGroup = 'line' | 'bar' | 'pie' | 'combo' | 'funnel' | 'radar' | 'gauge' | 'border';
+
+export type SafeRendererKey =
+  | 'echarts-safe-v1'
+  | 'border-parametric-v1'
+  | 'border-nine-slice-v1';
+
+export type ChartFamily = Exclude<CustomComponentGroup, 'border'>;
+
+export interface SafeChartSpec {
+  kind: 'chart';
+  schemaVersion: 1;
+  family: ChartFamily;
+  option: SafeChartOption;
+}
+
+export interface SafeChartOption {
+  grid?: { left: number; right: number; top: number; bottom: number };
+  palette?: string[];
+  legend?: { show: boolean; position: 'top' | 'topRight' | 'bottom' };
+  axis?: { showX: boolean; showY: boolean; labelColor: string; gridColor: string };
+  line?: { smooth: boolean; width: number; areaOpacity: number; symbol: 'none' | 'circle' | 'rect' };
+  bar?: { width: number; radius: number; stack: boolean; horizontal: boolean };
+  pie?: { innerRadius: number; outerRadius: number; roseType: 'none' | 'radius' | 'area' };
+  funnel?: { sort: 'ascending' | 'descending'; align: 'left' | 'center' | 'right'; gap: number };
+  radar?: { shape: 'polygon' | 'circle'; splitNumber: number; areaOpacity: number };
+  gauge?: { min: number; max: number; startAngle: number; endAngle: number; showPointer: boolean; showProgress: boolean };
+}
+
+export interface SafeBorderSpec {
+  kind: 'border';
+  schemaVersion: 1;
+  cornerType: 'cut' | 'bracket' | 'notch' | 'line';
+  cornerSize: number;
+  primaryColor: string;
+  accentColor: string;
+  backgroundColor: string;
+  lineWidth: number;
+  lineOpacity: number;
+  innerGlow: number;
+  outerGlow: number;
+  glowOpacity: number;
+  titlePosition: 'none' | 'topLeft' | 'topCenter';
+  contentPadding: number;
+}
+
+export interface SafeNineSliceSpec {
+  kind: 'nineSlice';
+  schemaVersion: 1;
+  assetId: string;
+  slice: { top: number; right: number; bottom: number; left: number };
+}
+
+export interface ComponentDefinitionSnapshot {
+  source: 'generated' | 'personal' | 'public';
+  presetId?: string;
+  rendererKey: SafeRendererKey;
+  specVersion: number;
+  category: 'chart' | 'decoration';
+  group: CustomComponentGroup;
+  dataProtocol?: ProtocolKind;
+  defaultSize: { w: number; h: number };
+  styleSchema: StyleField[];
+  styleMode: 'editable' | 'locked';
+  defaultStyle: {
+    dark: Record<string, unknown>;
+    light: Record<string, unknown>;
+  };
+  safeSpec: SafeChartSpec | SafeBorderSpec | SafeNineSliceSpec;
+}
+
 export interface ScreenDoc {
   _id: string;
   projectId: string;
@@ -64,6 +153,7 @@ export interface ComponentDoc {
   style: Record<string, unknown>;
   data?: DataBinding;
   events: EventDoc[];
+  definitionSnapshot?: ComponentDefinitionSnapshot;
 }
 
 export interface DataBinding {
@@ -150,6 +240,108 @@ export type TencentWeatherData = {
     }[];
   };
 };
+
+export type AiStyleOperation =
+  | {
+      targetType: 'component';
+      targetId: string;
+      stylePatch: Record<string, StyleValue>;
+    }
+  | {
+      targetType: 'page';
+      targetId: string;
+      backgroundPatch: Partial<Pick<PageDoc['background'], 'color' | 'opacity'>>;
+    };
+
+export interface AiEditorContext {
+  pageBackground?: Pick<PageDoc['background'], 'color' | 'opacity'>;
+  components: Array<
+    Pick<ComponentDoc, 'id' | 'templateId' | 'name' | 'theme' | 'locked' | 'hidden' | 'style' | 'definitionSnapshot'>
+  >;
+}
+
+export interface AiEditorPlanRequest {
+  screenId: string;
+  pageId: string;
+  scope: 'selected' | 'page' | 'screen';
+  componentIds: string[];
+  instruction: string;
+  referenceAssetId?: string;
+  editorRevision: number;
+  context: AiEditorContext;
+}
+
+export interface AiEditorPlanResponse {
+  planId: string;
+  summary: string;
+  operations: AiStyleOperation[];
+  skipped: { targetId: string; reason: string }[];
+  unsupportedFeatures: Array<{
+    description: string;
+    reason: string;
+    handling: 'approximate' | 'customComponent' | 'lockedStyleChart' | 'unsupported';
+    suggestion?: string;
+  }>;
+  warnings: string[];
+  editorRevision: number;
+}
+
+export interface AiGenerateComponentRequest {
+  screenId: string;
+  pageId: string;
+  instruction: string;
+  kind: 'chart' | 'border';
+  referenceAssetId?: string;
+  editorRevision: number;
+}
+
+export interface AiGeneratedComponent {
+  name: string;
+  theme: 'dark' | 'light';
+  definitionSnapshot: ComponentDefinitionSnapshot;
+  style: Record<string, unknown>;
+  defaultData?: unknown;
+  warnings: string[];
+  editorRevision: number;
+}
+
+export interface AiReferenceAsset {
+  _id: string;
+  mimeType: 'image/png' | 'image/jpeg' | 'image/webp';
+  size: number;
+  width: number;
+  height: number;
+  expiresAt: string;
+}
+
+export interface CustomComponentPreset {
+  _id: string;
+  ownerId: string;
+  name: string;
+  description?: string;
+  scope: 'personal' | 'public';
+  definition: ComponentDefinitionSnapshot;
+  thumbnail?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AiSettingsView {
+  provider: 'deepseek';
+  baseUrl: string;
+  textModel: string;
+  visionModel: string;
+  visionEnabled: boolean;
+  apiKeyMasked: string;
+}
+
+export const DEFAULT_DEEPSEEK_SETTINGS = {
+  provider: 'deepseek',
+  baseUrl: 'https://api.deepseek.com',
+  textModel: 'deepseek-v4-flash',
+  visionModel: 'deepseek-v4-flash-vision-exp',
+  visionEnabled: true,
+} as const;
 
 /** 统一响应信封 */
 export interface ApiEnvelope<T> {

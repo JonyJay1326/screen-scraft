@@ -1,5 +1,5 @@
 import { get, post } from './http';
-import type { ScreenDoc, TencentWeatherData } from '@screencraft/shared';
+import type { AiSettingsView, ScreenDoc, TencentWeatherData } from '@screencraft/shared';
 
 /** 运行时取数 */
 export function fetchDataApi(apiId: string, params: Record<string, unknown> = {}): Promise<unknown> {
@@ -18,38 +18,38 @@ export function uploadAsset(file: File): Promise<{ url: string }> {
   return post<{ url: string }>('/assets/upload', form, { timeout: 120000 });
 }
 
-/** AI 问答 */
+/** @deprecated v0.4 前端停止新调用 */
 export function chatAi(question: string, sessionId?: string): Promise<{ answer: string }> {
   return post<{ answer: string }>('/ai/chat', { question, sessionId });
 }
 
-/** 知识库列表 */
+/** @deprecated v0.4 前端停止新调用 */
 export function fetchKbDocs(): Promise<{ _id: string; title: string; format: string; updatedAt: string }[]> {
   return get('/ai/kb-docs');
 }
 
-/** 知识库详情 */
+/** @deprecated v0.4 前端停止新调用 */
 export function fetchKbDoc(id: string): Promise<{ _id: string; title: string; content: string; format: string }> {
   return get(`/ai/kb-docs/${id}`);
 }
 
-/** 新建手册 */
+/** @deprecated v0.4 前端停止新调用 */
 export function createKbDoc(payload: { title: string; content: string; format?: string }): Promise<{ _id: string }> {
   return post('/ai/kb-docs', payload);
 }
 
-/** 更新手册 */
+/** @deprecated v0.4 前端停止新调用 */
 export function updateKbDoc(id: string, payload: { title: string; content: string; format?: string }): Promise<{ ok: true }> {
   return post(`/ai/kb-docs/${id}/update`, payload);
 }
 
-/** 删除手册 */
+/** @deprecated v0.4 前端停止新调用 */
 export function deleteKbDoc(id: string): Promise<{ ok: true }> {
   return post(`/ai/kb-docs/${id}/delete`);
 }
 
 /** AI 设置 */
-export function fetchAiSettings(): Promise<{ baseUrl: string; chatModel: string; embeddingModel: string; apiKeyMasked: string }> {
+export function fetchAiSettings(): Promise<AiSettingsView> {
   return get('/ai/settings');
 }
 
@@ -57,10 +57,16 @@ export function fetchAiSettings(): Promise<{ baseUrl: string; chatModel: string;
 export function saveAiSettings(payload: {
   baseUrl: string;
   apiKey?: string;
-  chatModel: string;
-  embeddingModel?: string;
-}): Promise<{ baseUrl: string; chatModel: string; embeddingModel: string; apiKeyMasked: string }> {
+  textModel: string;
+  visionModel: string;
+  visionEnabled: boolean;
+}): Promise<AiSettingsView> {
   return post('/ai/settings', payload);
+}
+
+/** 分别测试 DeepSeek 文本或视觉能力 */
+export function testAiSettings(capability: 'text' | 'vision'): Promise<{ capability: 'text' | 'vision'; ok: true; model: string }> {
+  return post('/ai/settings/test', { capability });
 }
 
 /** 展示页取已保存大屏 */

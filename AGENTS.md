@@ -1,12 +1,13 @@
 # ScreenCraft 大屏配置系统 — 开发约束（Codex Rules）
 
-> 本文件是 Codex 开发本项目的最高行为约束。需求与契约细节以 docs/ 下六份文档为准。
+> 本文件是 Codex 开发本项目的最高行为约束。需求与契约细节以 docs/ 下正式文档为准。
 > 使用时将本文件复制到代码仓库根目录（或迁移为 .cursor/rules/*.mdc）。
-> 版本：v0.3（与 docs v0.3 配套：分类值域统一、依赖白名单补全、EP 边界定稿、里程碑纪律）。
+> 版本：v0.4（与 docs v0.4 配套：AI 智能设计助手、安全动态组件、DeepSeek 接入与 M9 里程碑）。
 
 ## 0. 文档权威（最重要）
 
 - 需求基准：`docs/PRD.md`；接口契约：`docs/api.md`（**第 2 章 TypeScript 接口是唯一数据契约**）；技术架构：`docs/architecture.md`；视觉规范：`docs/design.md`；开发节奏与验收：`docs/milestones.md`；组件模板标准样例：`docs/golden-sample.md`；高保真原型：`designs/ui/screencraft-ui/`（含 `UI-SPEC.md`）。
+- AI 智能样式编辑的评审结论与边界见 `docs/ai-style-editor-requirements.md`；与其他文档冲突时，以 `api.md` 数据契约和该评审结论为准。
 - 开发任何模块前，必须先阅读对应文档章节；文档与你的推断冲突时，**以文档为准**；原型与文档冲突时，**功能以 PRD/api.md 为准，视觉以原型为准**。
 - 文档未覆盖的需求，**停下来向用户确认，禁止猜测实现**；确认后将结论回写对应文档。
 - PRD 待审清单已全部关闭（v0.3），按文档结论实现即可，不再有「待确认」项。
@@ -48,7 +49,7 @@
 | axios | 外部 API 代理 / 腾讯天气代理 / LLM API 调用 |
 | vitest（dev） | 单测（shared 与 backend 必测项见 architecture.md §6） |
 
-> **引入上表之外的任何依赖前必须先征得用户同意。** AI 检索（BM25 关键词匹配、分块、余弦相似度）一律自研轻量实现，不引第三方库；LLM 调用走 axios 直连 OpenAI 兼容接口（BaseURL/Key 可配），不装 openai SDK。
+> **引入上表之外的任何依赖前必须先征得用户同意。** AI 结构校验、字段白名单和安全 renderer 一律基于 `packages/shared` 自研，不引第三方 AI 平台或校验 SDK；LLM 调用走 axios 直连 DeepSeek 的 OpenAI 兼容接口（BaseURL/Key/模型可配），不装模型 SDK。
 
 ## 2. 接口约定（硬性）
 
@@ -94,7 +95,7 @@
 - 密钥管理：腾讯天气 key（env `WEATHER_KEY`）、LLM apiKey、外部 API 密钥只存后端配置/加密存储，**任何接口不得返回明文，禁止提交进仓库**。
 - 大屏保存为整屏覆盖 + updatedAt 旧版本检测；API 配置被组件引用时禁止删除。
 - 密码 bcrypt 哈希；JWT 有效期 7 天；种子脚本初始化首个管理员（admin/ScreenCraft@2026，首次登录强制改密）。
-- 管理端接口（/users、/templates/:id/promote、/api-configs、/ai/settings、/ai/kb-docs）一律 admin 角色守卫。
+- 管理端接口（/users、/templates/:id/promote、/api-configs、/ai/settings、/component-presets/:id/promote）一律 admin 角色守卫；旧 `/ai/kb-docs*` 兼容期内仍保持 admin 守卫。
 
 ## 6. 安全底线
 
@@ -104,8 +105,8 @@
 
 ## 7. 禁止事项（v1 范围外）
 
-- 不实现：发布流程、字段映射、APP 组件、页面链接组件、GIS 底图、跳转返回栈、多数据库连接管理界面、协同编辑、知识库 docx/pdf 解析、自助注册、displayToken 匿名投放、jessibuca 直播流。
-- 不引入 Dify 或任何第三方 AI 平台（RAG 自研：分块→embedding→检索→生成；无 embedding 时降级 BM25）。
+- 不实现：发布流程、字段映射、APP 组件、页面链接组件、GIS 底图、跳转返回栈、多数据库连接管理界面、协同编辑、操作手册知识库问答、自助注册、displayToken 匿名投放、jessibuca 直播流。
+- 不引入 Dify 或任何第三方 AI 平台；AI 不生成或执行 Vue、JavaScript、CSS、HTML、原始 SVG、ECharts 函数或第三方插件，只能输出经双端校验的声明式配置。
 - 不做国际化（仅中文）。
 
 ## 8. 交付与自检

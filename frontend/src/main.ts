@@ -25,8 +25,8 @@ function patchMessageBoxNoModalClose(): void {
       } else {
         args.push({ closeOnClickModal: false });
       }
-      return (fn as (...a: unknown[]) => unknown)(...args);
-    }) as T;
+      return (fn as unknown as (...a: unknown[]) => unknown)(...args);
+    }) as unknown as T;
   ElMessageBox.alert = wrap(ElMessageBox.alert.bind(ElMessageBox));
   ElMessageBox.confirm = wrap(ElMessageBox.confirm.bind(ElMessageBox));
   ElMessageBox.prompt = wrap(ElMessageBox.prompt.bind(ElMessageBox));
