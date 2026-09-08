@@ -1,6 +1,15 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
-import type { ComponentDoc, PageDoc, ScreenDoc } from '@screencraft/shared';
+import {
+  getBuiltinComponentMetadata,
+  validateAiEditorPlanResponse,
+  validateAiStylePatch,
+  type AiEditorPlanResponse,
+  type ComponentDoc,
+  type FitMode,
+  type PageDoc,
+  type ScreenDoc,
+} from '@screencraft/shared';
 import { fetchScreen, saveScreenApi } from '../api/screen';
 import { cloneJson } from '../utils/clone';
 
@@ -26,6 +35,8 @@ export const useScreenStore = defineStore('screen', () => {
   const past = ref<ScreenDoc[]>([]);
   const future = ref<ScreenDoc[]>([]);
   const dirty = ref(false);
+  const editorRevision = ref(0);
+  const previewDraft = ref<ScreenDoc | null>(null);
   const zoom = ref(50);
   const showGrid = ref(true);
   /** 拖拽吸附辅助线（仅编辑态临时显示） */
@@ -33,12 +44,13 @@ export const useScreenStore = defineStore('screen', () => {
   const saving = ref(false);
 
   const currentPage = computed(() => screen.value?.pages.find((page) => page.id === currentPageId.value) ?? null);
+  const previewPage = computed(() => previewDraft.value?.pages.find((page) => page.id === currentPageId.value) ?? null);
   const canUndo = computed(() => past.value.length > 0);
   const canRedo = computed(() => future.value.length > 0);
 
   /** 当前页可见组件（组内模式仅组内） */
   const visibleComponents = computed(() => {
-    const page = currentPage.value;
+    const page = previewPage.value ?? currentPage.value;
     if (!page) {
       return [];
     }
@@ -56,6 +68,8 @@ export const useScreenStore = defineStore('screen', () => {
     past.value = [...past.value, cloneScreen(screen.value)].slice(-MAX_HISTORY);
     future.value = [];
     dirty.value = true;
+    editorRevision.value += 1;
+    previewDraft.value = null;
   }
 
   /** 加载大屏 */
@@ -67,6 +81,8 @@ export const useScreenStore = defineStore('screen', () => {
     past.value = [];
     future.value = [];
     dirty.value = false;
+    editorRevision.value = 0;
+    previewDraft.value = null;
   }
 
   /** 保存（可附带缩略图 data URL） */
@@ -101,6 +117,8 @@ export const useScreenStore = defineStore('screen', () => {
     past.value = past.value.slice(0, -1);
     screen.value = prev;
     dirty.value = true;
+    editorRevision.value += 1;
+    previewDraft.value = null;
   }
 
   /** 重做 */
@@ -113,6 +131,8 @@ export const useScreenStore = defineStore('screen', () => {
     future.value = future.value.slice(1);
     screen.value = next;
     dirty.value = true;
+    editorRevision.value += 1;
+    previewDraft.value = null;
   }
 
   /** 当前页组件列表引用更新 */
@@ -405,6 +425,98 @@ export const useScreenStore = defineStore('screen', () => {
     });
   }
 
+  /** 修改展示适配并纳入统一历史与 AI 版本。 */
+  function setFitMode(fitMode: FitMode): void {
+    if (!screen.value || screen.value.fitMode === fitMode) {
+      return;
+    }
+    pushHistory();
+    screen.value = { ...screen.value, fitMode };
+    dirty.value = true;
+  }
+
+  /** 生成只读 AI 预览草稿，不触碰正式状态与历史。 */
+  function previewAiPlan(plan: AiEditorPlanResponse): string | null {
+    const result = buildAiDraft(plan);
+    if (typeof result === 'string') {
+      previewDraft.value = null;
+      return result;
+    }
+    previewDraft.value = result;
+    return null;
+  }
+
+  /** 原子应用整份 AI 方案，一次应用只写入一条撤销历史。 */
+  function applyAiPlan(plan: AiEditorPlanResponse): string | null {
+    const result = buildAiDraft(plan);
+    if (typeof result === 'string') {
+      previewDraft.value = null;
+      return result;
+    }
+    if (!screen.value) {
+      return '大屏尚未加载';
+    }
+    past.value = [...past.value, cloneScreen(screen.value)].slice(-MAX_HISTORY);
+    future.value = [];
+    screen.value = result;
+    dirty.value = true;
+    editorRevision.value += 1;
+    previewDraft.value = null;
+    return null;
+  }
+
+  /** 清理 AI 临时预览。 */
+  function cancelAiPreview(): void {
+    previewDraft.value = null;
+  }
+
+  /** 基于正式 screen 构造经过共享校验的内存副本。 */
+  function buildAiDraft(plan: AiEditorPlanResponse): ScreenDoc | string {
+    if (!screen.value || !currentPage.value) {
+      return '大屏尚未加载';
+    }
+    if (plan.editorRevision !== editorRevision.value) {
+      return '画布已变化，请重新生成';
+    }
+    const planIssues = validateAiEditorPlanResponse(plan);
+    if (planIssues.length) {
+      return `AI 方案结构不合法：${planIssues[0].message}`;
+    }
+    if (!plan.operations.length) {
+      return '方案中没有可应用的修改';
+    }
+    const draft = cloneScreen(screen.value);
+    const page = draft.pages.find((item) => item.id === currentPageId.value);
+    if (!page) {
+      return '方案目标页面已不存在';
+    }
+    for (const operation of plan.operations) {
+      if (operation.targetType !== 'component') {
+        return '当前里程碑不支持页面样式操作';
+      }
+      const component = page.components.find((item) => item.id === operation.targetId);
+      if (!component) {
+        return `方案目标组件 ${operation.targetId} 已不存在`;
+      }
+      if (component.locked || component.hidden) {
+        return `组件“${component.name}”当前不可修改`;
+      }
+      if (component.definitionSnapshot || !isM91SupportedTemplate(component.templateId)) {
+        return `组件“${component.name}”当前不支持 AI 样式编辑`;
+      }
+      const metadata = getBuiltinComponentMetadata(component.templateId);
+      if (!metadata) {
+        return `组件“${component.name}”缺少共享样式目录`;
+      }
+      const patchIssues = validateAiStylePatch(metadata.styleSchema, operation.stylePatch);
+      if (patchIssues.length) {
+        return `组件“${component.name}”的方案未通过校验：${patchIssues[0].message}`;
+      }
+      component.style = { ...component.style, ...operation.stylePatch };
+    }
+    return draft;
+  }
+
   return {
     screen,
     currentPageId,
@@ -412,6 +524,8 @@ export const useScreenStore = defineStore('screen', () => {
     inGroupId,
     clipboard,
     dirty,
+    editorRevision,
+    previewDraft,
     zoom,
     showGrid,
     alignGuides,
@@ -440,7 +554,15 @@ export const useScreenStore = defineStore('screen', () => {
     removePage,
     renamePage,
     nudge,
+    setFitMode,
+    previewAiPlan,
+    applyAiPlan,
+    cancelAiPreview,
     mutatePage,
     pushHistory,
   };
 });
+
+function isM91SupportedTemplate(templateId: string): boolean {
+  return templateId.startsWith('chart-') || templateId.startsWith('kpi-');
+}

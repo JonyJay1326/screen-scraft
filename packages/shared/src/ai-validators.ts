@@ -51,6 +51,25 @@ export function validateAiStylePatch(
   return issues;
 }
 
+/** 校验 AI 修改方案的外层结构；具体样式字段仍需按目标 styleSchema 复检。 */
+export function validateAiEditorPlanResponse(input: unknown): AiValidationIssue[] {
+  const issues = validateStructure(input);
+  if (!isPlainRecord(input)) {
+    return append(issues, '$', 'AI 修改方案必须是普通对象');
+  }
+  strictKeys(input, [
+    'planId', 'summary', 'operations', 'skipped', 'unsupportedFeatures', 'warnings', 'editorRevision',
+  ], '$', issues);
+  nonEmptyString(input.planId, '$.planId', issues, 128);
+  nonEmptyString(input.summary, '$.summary', issues, AI_STRUCTURE_LIMITS.maxStringLength);
+  integerValue(input.editorRevision, 0, Number.MAX_SAFE_INTEGER, '$.editorRevision', issues);
+  validatePlanOperations(input.operations, issues);
+  validateSkippedTargets(input.skipped, issues);
+  validateUnsupportedFeatures(input.unsupportedFeatures, issues);
+  validateStringArray(input.warnings, '$.warnings', issues);
+  return issues;
+}
+
 /** 校验安全图表描述；只接受批准的纯声明式字段。 */
 export function validateSafeChartSpec(input: unknown): AiValidationIssue[] {
   const issues = validateStructure(input);
@@ -172,6 +191,95 @@ export function validatePageComponentDefinitions(pages: PageDoc[]): AiValidation
     });
   });
   return issues;
+}
+
+function validatePlanOperations(input: unknown, issues: AiValidationIssue[]): void {
+  if (!Array.isArray(input) || input.length > AI_STRUCTURE_LIMITS.maxArrayLength) {
+    issues.push({ path: '$.operations', message: `operations 必须是长度不超过 ${AI_STRUCTURE_LIMITS.maxArrayLength} 的数组` });
+    return;
+  }
+  input.forEach((operation, index) => {
+    const path = `$.operations[${index}]`;
+    if (!isPlainRecord(operation)) {
+      issues.push({ path, message: '操作必须是普通对象' });
+      return;
+    }
+    if (operation.targetType === 'component') {
+      strictKeys(operation, ['targetType', 'targetId', 'stylePatch'], path, issues);
+      nonEmptyString(operation.targetId, `${path}.targetId`, issues, 128);
+      if (!isPlainRecord(operation.stylePatch)) {
+        issues.push({ path: `${path}.stylePatch`, message: 'stylePatch 必须是普通对象' });
+      }
+      return;
+    }
+    if (operation.targetType === 'page') {
+      strictKeys(operation, ['targetType', 'targetId', 'backgroundPatch'], path, issues);
+      nonEmptyString(operation.targetId, `${path}.targetId`, issues, 128);
+      validatePageBackgroundPatch(operation.backgroundPatch, `${path}.backgroundPatch`, issues);
+      return;
+    }
+    issues.push({ path: `${path}.targetType`, message: 'targetType 必须为 component 或 page' });
+  });
+}
+
+function validatePageBackgroundPatch(input: unknown, path: string, issues: AiValidationIssue[]): void {
+  if (!isPlainRecord(input)) {
+    issues.push({ path, message: 'backgroundPatch 必须是普通对象' });
+    return;
+  }
+  strictKeys(input, ['color', 'opacity'], path, issues);
+  if (input.color !== undefined) {
+    colorValue(input.color, `${path}.color`, issues);
+  }
+  if (input.opacity !== undefined) {
+    numberValue(input.opacity, 0, 100, `${path}.opacity`, issues);
+  }
+}
+
+function validateSkippedTargets(input: unknown, issues: AiValidationIssue[]): void {
+  if (!Array.isArray(input) || input.length > AI_STRUCTURE_LIMITS.maxArrayLength) {
+    issues.push({ path: '$.skipped', message: `skipped 必须是长度不超过 ${AI_STRUCTURE_LIMITS.maxArrayLength} 的数组` });
+    return;
+  }
+  input.forEach((item, index) => {
+    const path = `$.skipped[${index}]`;
+    if (!isPlainRecord(item)) {
+      issues.push({ path, message: '跳过项必须是普通对象' });
+      return;
+    }
+    strictKeys(item, ['targetId', 'reason'], path, issues);
+    nonEmptyString(item.targetId, `${path}.targetId`, issues, 128);
+    nonEmptyString(item.reason, `${path}.reason`, issues, 512);
+  });
+}
+
+function validateUnsupportedFeatures(input: unknown, issues: AiValidationIssue[]): void {
+  if (!Array.isArray(input) || input.length > AI_STRUCTURE_LIMITS.maxArrayLength) {
+    issues.push({ path: '$.unsupportedFeatures', message: `unsupportedFeatures 必须是长度不超过 ${AI_STRUCTURE_LIMITS.maxArrayLength} 的数组` });
+    return;
+  }
+  input.forEach((item, index) => {
+    const path = `$.unsupportedFeatures[${index}]`;
+    if (!isPlainRecord(item)) {
+      issues.push({ path, message: '不支持项必须是普通对象' });
+      return;
+    }
+    strictKeys(item, ['description', 'reason', 'handling', 'suggestion'], path, issues);
+    nonEmptyString(item.description, `${path}.description`, issues, 512);
+    nonEmptyString(item.reason, `${path}.reason`, issues, 512);
+    enumValue(item.handling, ['approximate', 'customComponent', 'lockedStyleChart', 'unsupported'], `${path}.handling`, issues);
+    if (item.suggestion !== undefined) {
+      nonEmptyString(item.suggestion, `${path}.suggestion`, issues, 512);
+    }
+  });
+}
+
+function validateStringArray(input: unknown, path: string, issues: AiValidationIssue[]): void {
+  if (!Array.isArray(input) || input.length > AI_STRUCTURE_LIMITS.maxArrayLength) {
+    issues.push({ path, message: `必须是长度不超过 ${AI_STRUCTURE_LIMITS.maxArrayLength} 的数组` });
+    return;
+  }
+  input.forEach((item, index) => nonEmptyString(item, `${path}[${index}]`, issues, 512));
 }
 
 function validateRendererSpecPair(

@@ -55,6 +55,16 @@ export class BizException extends HttpException {
     return new BizException(ErrorCode.AI_OUTPUT_INVALID, message, HttpStatus.UNPROCESSABLE_ENTITY);
   }
 
+  /** AI 方案版本与当前编辑状态不一致 */
+  static aiPlanStale(message = '画布已变化，请重新生成'): BizException {
+    return new BizException(ErrorCode.AI_PLAN_STALE, message, HttpStatus.CONFLICT);
+  }
+
+  /** AI 请求范围超限或同一用户仍有请求进行中 */
+  static aiScopeLimit(message: string): BizException {
+    return new BizException(ErrorCode.AI_SCOPE_LIMIT, message, HttpStatus.TOO_MANY_REQUESTS);
+  }
+
   /** 个人组件定义或安全渲染描述不合法 */
   static componentDefinitionInvalid(message: string): BizException {
     return new BizException(ErrorCode.COMPONENT_DEFINITION_INVALID, message, HttpStatus.BAD_REQUEST);

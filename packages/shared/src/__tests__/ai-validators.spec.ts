@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   getBuiltinComponentMetadata,
+  validateAiEditorPlanResponse,
   validateAiStylePatch,
   validateComponentDefinitionSnapshot,
   validatePageComponentDefinitions,
@@ -82,6 +83,36 @@ describe('AI 样式补丁', () => {
   it('拒绝未声明、只读和越界字段', () => {
     const issues = validateAiStylePatch(schema, { boardTitle: '篡改标题', lineWidth: 99, formatter: 'x' });
     expect(issues.map((item) => item.path)).toEqual(expect.arrayContaining(['$.boardTitle', '$.lineWidth', '$.formatter']));
+  });
+});
+
+describe('AI 修改方案结构', () => {
+  const plan = {
+    planId: 'plan-1',
+    summary: '隐藏图例并调整线宽',
+    operations: [{ targetType: 'component', targetId: 'c1', stylePatch: { showLegend: false, lineWidth: 4 } }],
+    skipped: [],
+    unsupportedFeatures: [],
+    warnings: [],
+    editorRevision: 3,
+  };
+
+  it('接受合法的组件样式方案', () => {
+    expect(validateAiEditorPlanResponse(plan)).toEqual([]);
+  });
+
+  it('拒绝危险字段、未知操作和越界页面透明度', () => {
+    const dangerous = JSON.parse(JSON.stringify(plan).replace(
+      '"lineWidth":4',
+      '"__proto__":{"polluted":true}',
+    )) as unknown;
+    expect(validateAiEditorPlanResponse(dangerous).some((item) => item.message.includes('危险字段'))).toBe(true);
+    expect(validateAiEditorPlanResponse({ ...plan, operations: [{ targetType: 'delete', targetId: 'c1' }] }).length)
+      .toBeGreaterThan(0);
+    expect(validateAiEditorPlanResponse({
+      ...plan,
+      operations: [{ targetType: 'page', targetId: 'p1', backgroundPatch: { opacity: 101 } }],
+    }).some((item) => item.path.endsWith('.opacity'))).toBe(true);
   });
 });
 

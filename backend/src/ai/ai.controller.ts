@@ -1,12 +1,19 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { AdminGuard } from '../auth/admin.guard';
+import { CurrentUser, type RequestUser } from '../common/current-user.decorator';
 import { AiService } from './ai.service';
-import { AiSettingsDto, AiSettingsTestDto, ChatDto, UpsertKbDto } from './ai.dto';
+import { AiEditorPlanDto, AiSettingsDto, AiSettingsTestDto, ChatDto, UpsertKbDto } from './ai.dto';
 
 /** AI 智能设计配置；v0.3 客服接口仅作兼容保留 */
 @Controller('ai')
 export class AiController {
   constructor(private readonly ai: AiService) {}
+
+  /** 为编辑器选中组件生成安全样式修改方案，不写大屏。 */
+  @Post('editor/plan')
+  createEditorPlan(@Body() dto: AiEditorPlanDto, @CurrentUser() user: RequestUser) {
+    return this.ai.createEditorPlan(dto, user.id);
+  }
 
   /** @deprecated v0.4 前端停止新调用 */
   @Post('chat')

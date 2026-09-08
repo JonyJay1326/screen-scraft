@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import type { FitMode } from '@screencraft/shared';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import {
@@ -13,6 +14,7 @@ import CanvasItem from '../../components/editor/CanvasItem.vue';
 import StyleForm from '../../components/editor/StyleForm.vue';
 import DataPanel from '../../components/editor/DataPanel.vue';
 import EventPanel from '../../components/editor/EventPanel.vue';
+import AiStyleAssistant from '../../components/editor/AiStyleAssistant.vue';
 import { saveAsTemplateApi } from '../../api/template';
 import { CATEGORIES } from '../../utils/format';
 import { cloneJson } from '../../utils/clone';
@@ -277,6 +279,10 @@ async function captureThumbnail(): Promise<string | undefined> {
 
 /** 保存，成功返回 true */
 async function doSave(): Promise<boolean> {
+  if (store.previewDraft) {
+    ElMessage.warning('请先应用或取消 AI 预览');
+    return false;
+  }
   const thumbnail = await captureThumbnail();
   try {
     await store.save(thumbnail);
@@ -506,6 +512,19 @@ function onPageBgColor(color: string | null): void {
   });
 }
 
+/** 修改展示适配并纳入撤销与 AI 方案过期检测。 */
+function onFitModeChange(value: FitMode): void {
+  store.setFitMode(value);
+}
+
+/** 修改组件名称，避免输入控件直接写正式状态绕过历史。 */
+function onComponentNameChange(value: string): void {
+  if (!selected.value || selected.value.name === value) {
+    return;
+  }
+  store.patchComponent(selected.value.id, { name: value });
+}
+
 /** 重命名页面 */
 async function renamePage(pageId: string, name: string): Promise<void> {
   try {
@@ -549,11 +568,11 @@ async function renamePage(pageId: string, name: string): Promise<void> {
       <button class="ed-tool" :class="{ on: store.showGrid }" type="button" title="网格" @click="store.showGrid = !store.showGrid"><Grid3x3 :size="16" /></button>
       <span class="ed-fit" title="展示适配">
         <el-select
-          v-model="store.screen.fitMode"
+          :model-value="store.screen.fitMode"
           class="ed-fit-select ed-select"
           size="small"
           popper-class="ed-select-popper"
-          @change="store.dirty = true"
+          @change="onFitModeChange"
         >
           <el-option label="画面居中" value="center" />
           <el-option label="宽度铺满" value="width" />
@@ -652,7 +671,7 @@ async function renamePage(pageId: string, name: string): Promise<void> {
           <div
             ref="canvasEl"
             class="ed-canvas"
-            :class="{ nogrid: !store.showGrid }"
+            :class="{ nogrid: !store.showGrid, 'ai-previewing': Boolean(store.previewDraft) }"
             :style="canvasStyle"
             @mousedown.self="store.selectedIds = []; store.inGroupId = null"
           >
@@ -674,7 +693,7 @@ async function renamePage(pageId: string, name: string): Promise<void> {
       </div>
       <aside class="ed-right">
         <div v-if="selected" class="p-sec" style="display:flex;gap:8px;align-items:center">
-          <el-input v-model="selected.name" size="small" @change="store.patchComponent(selected.id, { name: selected.name })" />
+          <el-input :model-value="selected.name" size="small" @change="onComponentNameChange" />
           <button class="ed-tool" type="button" :title="selected.hidden ? '显示' : '隐藏'" @click="store.patchComponent(selected.id, { hidden: !selected.hidden })">
             <EyeOff v-if="selected.hidden" :size="14" /><Eye v-else :size="14" />
           </button>
@@ -713,6 +732,7 @@ async function renamePage(pageId: string, name: string): Promise<void> {
         </div>
       </aside>
     </div>
+    <AiStyleAssistant />
   </div>
 
   <el-dialog v-model="tplVisible" class="ed-dialog" title="保存为模板" width="400px" append-to-body>
@@ -746,6 +766,7 @@ async function renamePage(pageId: string, name: string): Promise<void> {
 
 <style scoped>
 .ed-canvas.nogrid::before { display: none; }
+.ed-canvas.ai-previewing { outline: 2px solid var(--pri); outline-offset: 3px; }
 .ed-state { align-items: center; justify-content: center; gap: 16px; color: var(--t2); }
 .seg { width: 100%; }
 .seg .seg-item { flex: 1; text-align: center; }

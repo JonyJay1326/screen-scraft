@@ -1,4 +1,19 @@
-import { IsBoolean, IsIn, IsOptional, IsString, IsUrl, MaxLength, MinLength } from 'class-validator';
+import type { AiEditorContext, AiEditorPlanRequest } from '@screencraft/shared';
+import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsObject,
+  IsOptional,
+  IsString,
+  IsUrl,
+  MaxLength,
+  Min,
+  MinLength,
+} from 'class-validator';
 
 export class ChatDto {
   @IsString()
@@ -49,4 +64,42 @@ export class AiSettingsDto {
 export class AiSettingsTestDto {
   @IsIn(['text', 'vision'])
   capability!: 'text' | 'vision';
+}
+
+export class AiEditorPlanDto implements AiEditorPlanRequest {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(128)
+  screenId!: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(128)
+  pageId!: string;
+
+  @IsIn(['selected', 'page', 'screen'])
+  scope!: AiEditorPlanRequest['scope'];
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  componentIds!: string[];
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(2000)
+  instruction!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  referenceAssetId?: string;
+
+  @IsInt()
+  @Min(0)
+  editorRevision!: number;
+
+  @IsObject()
+  context!: AiEditorContext;
 }

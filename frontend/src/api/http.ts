@@ -57,6 +57,9 @@ function createHttp(): AxiosInstance {
       return body.data as never;
     },
     (error: unknown) => {
+      if (axios.isCancel(error) || (error as { code?: string }).code === 'ERR_CANCELED') {
+        return Promise.reject(error);
+      }
       const status = (error as { response?: { status?: number; data?: { message?: string } } }).response
         ?.status;
       const serverMessage = (error as { response?: { data?: { message?: string } } }).response?.data
