@@ -435,7 +435,15 @@ function presetPalette(preset: CustomComponentPreset): string[] {
     return dark.filter((item): item is string => typeof item === 'string').slice(0, 5);
   }
   const safeSpec = preset.definition.safeSpec;
-  return safeSpec.kind === 'chart' ? (safeSpec.option.palette ?? []).slice(0, 5) : [];
+  if (safeSpec.kind === 'chart') {
+    return (safeSpec.option.palette ?? []).slice(0, 5);
+  }
+  if (safeSpec.kind === 'border') {
+    const style = preset.definition.defaultStyle.dark;
+    return [style.primaryColor, style.accentColor, style.backgroundColor]
+      .filter((item): item is string => typeof item === 'string');
+  }
+  return [];
 }
 
 async function handlePresetCommand(command: string, preset: CustomComponentPreset): Promise<void> {
@@ -486,7 +494,11 @@ async function handlePresetCommand(command: string, preset: CustomComponentPrese
 async function saveSelectedAsPersonal(): Promise<void> {
   const component = selected.value;
   const snapshot = component?.definitionSnapshot;
-  if (!component || !snapshot || snapshot.rendererKey !== 'echarts-safe-v1') {
+  if (
+    !component
+    || !snapshot
+    || !['echarts-safe-v1', 'border-parametric-v1'].includes(snapshot.rendererKey)
+  ) {
     return;
   }
   const updating = snapshot.source === 'personal' && Boolean(snapshot.presetId);

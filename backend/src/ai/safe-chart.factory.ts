@@ -1,6 +1,7 @@
 import type {
   ComponentDefinitionSnapshot,
   ProtocolKind,
+  SafeBorderSpec,
   SafeChartSpec,
   StyleField,
 } from '@screencraft/shared';
@@ -35,6 +36,26 @@ export function buildGeneratedChartDefinition(
           light: defaultStyle(spec, 'light'),
         }
       : { dark: {}, light: {} },
+    safeSpec: spec,
+  };
+}
+
+export function buildGeneratedBorderDefinition(spec: SafeBorderSpec): ComponentDefinitionSnapshot {
+  const styleSchema = approvedBorderStyleSchema();
+  const defaultStyle = borderDefaultStyle(spec);
+  return {
+    source: 'generated',
+    rendererKey: 'border-parametric-v1',
+    specVersion: 1,
+    category: 'decoration',
+    group: 'border',
+    defaultSize: { w: 720, h: 420 },
+    styleSchema,
+    styleMode: 'editable',
+    defaultStyle: {
+      dark: { ...defaultStyle },
+      light: { ...defaultStyle },
+    },
     safeSpec: spec,
   };
 }
@@ -176,6 +197,55 @@ function approvedStyleSchema(family: SafeChartSpec['family']): StyleField[] {
     );
   }
   return fields;
+}
+
+function approvedBorderStyleSchema(): StyleField[] {
+  return [
+    {
+      key: 'cornerType', label: '角标类型', type: 'select', group: '角标', aiWritable: true,
+      options: [
+        { label: '切角', value: 'cut' },
+        { label: '括角', value: 'bracket' },
+        { label: '缺口', value: 'notch' },
+        { label: '线角', value: 'line' },
+      ],
+    },
+    { key: 'cornerSize', label: '角标尺寸', type: 'number', min: 0, max: 160, step: 1, unit: 'px', group: '角标', aiWritable: true },
+    { key: 'primaryColor', label: '主色', type: 'color', group: '颜色', aiWritable: true },
+    { key: 'accentColor', label: '强调色', type: 'color', group: '颜色', aiWritable: true },
+    { key: 'backgroundColor', label: '背景色与透明度', type: 'color', group: '颜色', aiWritable: true },
+    { key: 'lineWidth', label: '线宽', type: 'number', min: 0, max: 24, step: 0.5, unit: 'px', group: '边线', aiWritable: true },
+    { key: 'lineOpacity', label: '边线透明度', type: 'number', min: 0, max: 1, step: 0.05, group: '边线', aiWritable: true },
+    { key: 'innerGlow', label: '内发光', type: 'number', min: 0, max: 64, step: 1, unit: 'px', group: '发光', aiWritable: true },
+    { key: 'outerGlow', label: '外发光', type: 'number', min: 0, max: 64, step: 1, unit: 'px', group: '发光', aiWritable: true },
+    { key: 'glowOpacity', label: '发光透明度', type: 'number', min: 0, max: 1, step: 0.05, group: '发光', aiWritable: true },
+    {
+      key: 'titlePosition', label: '标题位置', type: 'select', group: '布局', aiWritable: true,
+      options: [
+        { label: '不显示', value: 'none' },
+        { label: '左上', value: 'topLeft' },
+        { label: '顶部居中', value: 'topCenter' },
+      ],
+    },
+    { key: 'contentPadding', label: '内容内边距', type: 'number', min: 0, max: 160, step: 1, unit: 'px', group: '布局', aiWritable: true },
+  ];
+}
+
+function borderDefaultStyle(spec: SafeBorderSpec): Record<string, unknown> {
+  return {
+    cornerType: spec.cornerType,
+    cornerSize: spec.cornerSize,
+    primaryColor: spec.primaryColor,
+    accentColor: spec.accentColor,
+    backgroundColor: spec.backgroundColor,
+    lineWidth: spec.lineWidth,
+    lineOpacity: spec.lineOpacity,
+    innerGlow: spec.innerGlow,
+    outerGlow: spec.outerGlow,
+    glowOpacity: spec.glowOpacity,
+    titlePosition: spec.titlePosition,
+    contentPadding: spec.contentPadding,
+  };
 }
 
 function defaultStyle(spec: SafeChartSpec, theme: 'dark' | 'light'): Record<string, unknown> {

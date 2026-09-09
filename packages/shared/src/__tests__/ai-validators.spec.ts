@@ -49,6 +49,21 @@ const borderSpec: SafeBorderSpec = {
   contentPadding: 16,
 };
 
+const borderStyle = {
+  cornerType: borderSpec.cornerType,
+  cornerSize: borderSpec.cornerSize,
+  primaryColor: borderSpec.primaryColor,
+  accentColor: borderSpec.accentColor,
+  backgroundColor: borderSpec.backgroundColor,
+  lineWidth: borderSpec.lineWidth,
+  lineOpacity: borderSpec.lineOpacity,
+  innerGlow: borderSpec.innerGlow,
+  outerGlow: borderSpec.outerGlow,
+  glowOpacity: borderSpec.glowOpacity,
+  titlePosition: borderSpec.titlePosition,
+  contentPadding: borderSpec.contentPadding,
+};
+
 const snapshot: ComponentDefinitionSnapshot = {
   source: 'generated',
   rendererKey: 'echarts-safe-v1',
@@ -67,6 +82,48 @@ const snapshot: ComponentDefinitionSnapshot = {
     light: { seriesColors: ['#0EA5E9'], lineWidth: 3 },
   },
   safeSpec: chartSpec,
+};
+
+const borderSnapshot: ComponentDefinitionSnapshot = {
+  source: 'generated',
+  rendererKey: 'border-parametric-v1',
+  specVersion: 1,
+  category: 'decoration',
+  group: 'border',
+  defaultSize: { w: 720, h: 420 },
+  styleSchema: [
+    {
+      key: 'cornerType', label: '角标类型', type: 'select', group: '角标', aiWritable: true,
+      options: [
+        { label: '切角', value: 'cut' }, { label: '括角', value: 'bracket' },
+        { label: '缺口', value: 'notch' }, { label: '线角', value: 'line' },
+      ],
+    },
+    { key: 'cornerSize', label: '角标尺寸', type: 'number', min: 0, max: 160, group: '角标', aiWritable: true },
+    { key: 'primaryColor', label: '主色', type: 'color', group: '颜色', aiWritable: true },
+    { key: 'accentColor', label: '强调色', type: 'color', group: '颜色', aiWritable: true },
+    { key: 'backgroundColor', label: '背景色与透明度', type: 'color', group: '颜色', aiWritable: true },
+    { key: 'lineWidth', label: '线宽', type: 'number', min: 0, max: 24, group: '边线', aiWritable: true },
+    { key: 'lineOpacity', label: '边线透明度', type: 'number', min: 0, max: 1, group: '边线', aiWritable: true },
+    { key: 'innerGlow', label: '内发光', type: 'number', min: 0, max: 64, group: '发光', aiWritable: true },
+    { key: 'outerGlow', label: '外发光', type: 'number', min: 0, max: 64, group: '发光', aiWritable: true },
+    { key: 'glowOpacity', label: '发光透明度', type: 'number', min: 0, max: 1, group: '发光', aiWritable: true },
+    {
+      key: 'titlePosition', label: '标题位置', type: 'select', group: '布局', aiWritable: true,
+      options: [
+        { label: '不显示', value: 'none' },
+        { label: '左上', value: 'topLeft' },
+        { label: '顶部居中', value: 'topCenter' },
+      ],
+    },
+    { key: 'contentPadding', label: '内容内边距', type: 'number', min: 0, max: 160, group: '布局', aiWritable: true },
+  ],
+  styleMode: 'editable',
+  defaultStyle: {
+    dark: { ...borderStyle },
+    light: { ...borderStyle },
+  },
+  safeSpec: borderSpec,
 };
 
 describe('内置组件共享元数据', () => {
@@ -281,6 +338,20 @@ describe('安全 renderer 描述', () => {
 describe('组件定义快照', () => {
   it('接受自包含的安全图表快照', () => {
     expect(validateComponentDefinitionSnapshot(snapshot)).toEqual([]);
+  });
+
+  it('接受参数化边框快照并拒绝伪造字段与越界实例样式', () => {
+    expect(validateComponentDefinitionSnapshot(borderSnapshot)).toEqual([]);
+
+    const forged = clone(borderSnapshot);
+    forged.styleSchema.push({
+      key: 'rawSvg', label: '原始 SVG', type: 'text', group: '边框', aiWritable: true,
+    });
+    expect(validateComponentDefinitionSnapshot(forged)
+      .some((item) => item.message.includes('参数化边框批准目录'))).toBe(true);
+
+    expect(validateAiStylePatch(borderSnapshot.styleSchema, { cornerSize: 161, rawSvg: '<svg />' })
+      .map((item) => item.path)).toEqual(expect.arrayContaining(['$.cornerSize', '$.rawSvg']));
   });
 
   it('拒绝 renderer 与描述不匹配、锁定模式可写和未启用九宫格', () => {

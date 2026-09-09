@@ -174,6 +174,9 @@ export function validateComponentDefinitionSnapshot(
   if (input.rendererKey === 'echarts-safe-v1' && typeof input.group === 'string') {
     validateApprovedChartStyleSchema(input.group, input.styleMode, styleSchema, issues);
   }
+  if (input.rendererKey === 'border-parametric-v1') {
+    validateApprovedBorderStyleSchema(input.styleMode, styleSchema, issues);
+  }
   validateDefaultStyle(input.defaultStyle, styleSchema, issues);
   validateRendererSpecPair(input, options, issues);
   return issues;
@@ -445,6 +448,56 @@ function approvedChartStyleRules(family: string): Map<string, ApprovedStyleRule>
     ]);
   }
   return rules;
+}
+
+function validateApprovedBorderStyleSchema(
+  styleMode: unknown,
+  schema: StyleField[],
+  issues: AiValidationIssue[],
+): void {
+  const rules = styleMode === 'locked'
+    ? new Map<string, ApprovedStyleRule>()
+    : new Map<string, ApprovedStyleRule>([
+        ['cornerType', { type: 'select', options: ['cut', 'bracket', 'notch', 'line'] }],
+        ['cornerSize', { type: 'number', min: 0, max: 160 }],
+        ['primaryColor', { type: 'color' }],
+        ['accentColor', { type: 'color' }],
+        ['backgroundColor', { type: 'color' }],
+        ['lineWidth', { type: 'number', min: 0, max: 24 }],
+        ['lineOpacity', { type: 'number', min: 0, max: 1 }],
+        ['innerGlow', { type: 'number', min: 0, max: 64 }],
+        ['outerGlow', { type: 'number', min: 0, max: 64 }],
+        ['glowOpacity', { type: 'number', min: 0, max: 1 }],
+        ['titlePosition', { type: 'select', options: ['none', 'topLeft', 'topCenter'] }],
+        ['contentPadding', { type: 'number', min: 0, max: 160 }],
+      ]);
+  schema.forEach((field, index) => {
+    const rule = rules.get(field.key);
+    const path = `$.styleSchema[${index}]`;
+    if (!rule) {
+      issues.push({ path: `${path}.key`, message: '字段未在参数化边框批准目录中' });
+      return;
+    }
+    if (field.type !== rule.type || !field.aiWritable || field.readOnly === true) {
+      issues.push({ path, message: '边框样式字段类型或写入权限与安全目录不一致' });
+    }
+    if (rule.type === 'number' && (
+      field.min === undefined
+      || field.max === undefined
+      || rule.min === undefined
+      || rule.max === undefined
+      || field.min < rule.min
+      || field.max > rule.max
+    )) {
+      issues.push({ path, message: '边框数值范围与安全目录不一致' });
+    }
+    if (rule.type === 'select') {
+      const actual = field.options?.map((item) => item.value) ?? [];
+      if (JSON.stringify(actual) !== JSON.stringify(rule.options)) {
+        issues.push({ path, message: '边框下拉选项与安全目录不一致' });
+      }
+    }
+  });
 }
 
 function chartProtocol(family: unknown): 'axis' | 'combo' | 'radar' | 'nameValue' | undefined {

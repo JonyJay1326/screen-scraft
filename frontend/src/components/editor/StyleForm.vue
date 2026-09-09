@@ -84,7 +84,12 @@ function removeColor(index: number): void {
             controls-position="right"
             @change="(v: number | undefined) => setStyle(field.key, v ?? 0)"
           />
-          <el-color-picker v-else-if="field.type === 'color'" :model-value="String(merged[field.key] ?? '#ffffff')" @change="(v: string | null) => v && setStyle(field.key, v)" />
+          <el-color-picker
+            v-else-if="field.type === 'color'"
+            :model-value="String(merged[field.key] ?? '#ffffff')"
+            :show-alpha="field.key === 'backgroundColor'"
+            @change="(v: string | null) => v && setStyle(field.key, v)"
+          />
           <el-select
             v-else-if="field.type === 'select'"
             class="ed-select"
@@ -107,7 +112,7 @@ function removeColor(index: number): void {
   </div>
   <div v-else-if="selected && tpl && styleLocked" class="p-sec locked-style">
     <b>样式已锁定</b>
-    <p>该图表使用安全声明式快照渲染。需要改变视觉结构时，请根据新描述重新生成。</p>
+    <p>该组件使用安全声明式快照渲染。需要改变视觉结构时，请根据新描述重新生成。</p>
   </div>
   <div v-else class="p-sec muted">选中组件后配置样式</div>
 </template>

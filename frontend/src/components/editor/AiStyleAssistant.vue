@@ -14,7 +14,7 @@ import {
   type ComponentDoc,
   type StyleValue,
 } from '@screencraft/shared';
-import { AlertTriangle, Check, Eye, ImagePlus, RotateCcw, Send, Sparkles, Trash2, WandSparkles, X } from 'lucide-vue-next';
+import { AlertTriangle, Check, Eye, Frame, ImagePlus, RotateCcw, Send, Sparkles, Trash2, WandSparkles, X } from 'lucide-vue-next';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import {
   createAiEditorPlan,
@@ -46,6 +46,7 @@ const instruction = ref('');
 const loading = ref(false);
 const stage = ref('');
 const errorMessage = ref('');
+const lastAction = ref<'plan' | 'chart' | 'border'>('plan');
 const plan = ref<AiEditorPlanResponse | null>(null);
 const planRequest = ref<AiEditorPlanRequest | null>(null);
 const capabilitiesLoading = ref(false);
@@ -324,6 +325,7 @@ async function generatePlan(): Promise<void> {
   plan.value = null;
   planRequest.value = null;
   errorMessage.value = '';
+  lastAction.value = 'plan';
   const controller = new AbortController();
   const serial = ++requestSerial;
   requestController = controller;
@@ -404,33 +406,36 @@ function cancelPreview(): void {
   store.cancelAiPreview();
 }
 
-async function generateCustomChart(): Promise<void> {
+async function generateCustomComponent(kind: 'chart' | 'border'): Promise<void> {
   if (!store.screen || !store.currentPage || !instruction.value.trim()) {
     return;
   }
   cancelRequest();
   store.cancelAiPreview();
   errorMessage.value = '';
+  lastAction.value = kind;
   const controller = new AbortController();
   const serial = ++requestSerial;
   requestController = controller;
   loading.value = true;
-  stage.value = 'DeepSeek 正在生成安全图表…';
+  stage.value = kind === 'chart'
+    ? 'DeepSeek 正在生成安全图表…'
+    : 'DeepSeek 正在生成参数化边框…';
   const revision = store.editorRevision;
   try {
     const result = await generateAiComponent({
       screenId: store.screen._id,
       pageId: store.currentPageId,
       instruction: instruction.value.trim(),
-      kind: 'chart',
+      kind,
       ...(referenceAsset.value ? { referenceAssetId: referenceAsset.value._id } : {}),
       editorRevision: revision,
     }, controller.signal);
     if (serial !== requestSerial) {
       return;
     }
-    assertGeneratedComponent(result, revision);
-    if (result.definitionSnapshot.styleMode === 'locked') {
+    assertGeneratedComponent(result, revision, kind);
+    if (kind === 'chart' && result.definitionSnapshot.styleMode === 'locked') {
       await ElMessageBox.confirm(
         '现有可编辑字段无法完整表达该视觉结构。是否添加为锁定样式图表？数据绑定和交互事件仍可编辑。',
         '确认生成锁定样式图表',
@@ -461,7 +466,7 @@ async function generateCustomChart(): Promise<void> {
     });
     plan.value = null;
     planRequest.value = null;
-    ElMessage.success(`已添加 AI 图表「${created.name}」`);
+    ElMessage.success(`已添加 AI ${kind === 'chart' ? '图表' : '边框'}「${created.name}」`);
     result.warnings.forEach((warning) => ElMessage.warning(warning));
   } catch (error) {
     if (serial === requestSerial && !isCanceled(error) && error !== 'cancel') {
@@ -479,13 +484,29 @@ async function generateCustomChart(): Promise<void> {
   }
 }
 
-function assertGeneratedComponent(result: AiGeneratedComponent, revision: number): void {
+function retryLastAction(): void {
+  if (lastAction.value === 'plan') {
+    void generatePlan();
+    return;
+  }
+  void generateCustomComponent(lastAction.value);
+}
+
+function assertGeneratedComponent(
+  result: AiGeneratedComponent,
+  revision: number,
+  kind: 'chart' | 'border',
+): void {
   const issues = validateComponentDefinitionSnapshot(result.definitionSnapshot);
   if (issues.length) {
     throw new Error(`组件定义未通过前端校验：${issues[0].message}`);
   }
   if (result.editorRevision !== revision) {
     throw new Error('画布已变化，请重新生成组件');
+  }
+  const expectedRenderer = kind === 'chart' ? 'echarts-safe-v1' : 'border-parametric-v1';
+  if (result.definitionSnapshot.rendererKey !== expectedRenderer) {
+    throw new Error('组件类型与本次生成请求不一致');
   }
   if (!isProtocolValid(result.definitionSnapshot.dataProtocol, result.defaultData)) {
     throw new Error('组件模拟数据不符合声明协议');
@@ -678,8 +699,11 @@ watch(() => store.editorRevision, () => {
         <button class="btn btn-pri ai-generate" type="button" :disabled="!canGenerate" @click="generatePlan">
           <Send :size="14" />{{ loading ? stage : '生成修改方案' }}
         </button>
-        <button class="btn btn-ghost ai-generate ai-custom-generate" type="button" :disabled="!instruction.trim() || loading" @click="generateCustomChart">
+        <button class="btn btn-ghost ai-generate ai-custom-generate" type="button" :disabled="!instruction.trim() || loading" @click="generateCustomComponent('chart')">
           <Sparkles :size="14" />生成自定义图表
+        </button>
+        <button class="btn btn-ghost ai-generate ai-custom-generate" type="button" :disabled="!instruction.trim() || loading" @click="generateCustomComponent('border')">
+          <Frame :size="14" />生成参数化边框
         </button>
         <button v-if="loading" class="btn btn-ghost ai-cancel-request" type="button" @click="cancelRequest">取消请求</button>
       </section>
@@ -687,7 +711,7 @@ watch(() => store.editorRevision, () => {
       <section v-if="errorMessage" class="ai-error">
         <AlertTriangle :size="16" />
         <span>{{ errorMessage }}</span>
-        <button v-if="!loading && instruction.trim()" type="button" @click="generatePlan">重试</button>
+        <button v-if="!loading && instruction.trim()" type="button" @click="retryLastAction">重试</button>
       </section>
 
       <section v-if="plan" class="ai-plan" :class="{ stale }">

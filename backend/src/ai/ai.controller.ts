@@ -1,7 +1,6 @@
 import { Body, Controller, Get, Param, Post, Req, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Request } from 'express';
-import { memoryStorage } from 'multer';
 import { AdminGuard } from '../auth/admin.guard';
 import { BizException } from '../common/biz.exception';
 import { CurrentUser, type RequestUser } from '../common/current-user.decorator';
@@ -34,7 +33,6 @@ export class AiController {
   @Post('editor/reference-assets')
   @UseInterceptors(
     FileInterceptor('file', {
-      storage: memoryStorage(),
       limits: { fileSize: 10 * 1024 * 1024 },
     }),
   )

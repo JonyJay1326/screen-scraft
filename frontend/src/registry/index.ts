@@ -10,6 +10,7 @@ import WeatherFamily from './renderers/WeatherFamily.vue';
 import BorderFamily from './renderers/BorderFamily.vue';
 import Widgets from './renderers/Widgets.vue';
 import SafeChartRenderer from './renderers/SafeChartRenderer.vue';
+import SafeBorderRenderer from './renderers/SafeBorderRenderer.vue';
 
 /** 按模板 id 选择渲染器 */
 function pickRenderer(id: string): Component {
@@ -60,7 +61,7 @@ export function resolveComponentTemplate(doc: ComponentDoc): ComponentTemplate |
   const definition = doc.definitionSnapshot;
   if (
     !definition
-    || definition.rendererKey !== 'echarts-safe-v1'
+    || !['echarts-safe-v1', 'border-parametric-v1'].includes(definition.rendererKey)
     || validateComponentDefinitionSnapshot(definition).length
   ) {
     return undefined;
@@ -76,8 +77,10 @@ export function resolveComponentTemplate(doc: ComponentDoc): ComponentTemplate |
     defaultStyle: definition.defaultStyle,
     styleSchema: definition.styleSchema,
     hasDataTab: Boolean(definition.dataProtocol),
-    hasEventTab: true,
-    renderer: markRaw(SafeChartRenderer),
+    hasEventTab: definition.rendererKey === 'echarts-safe-v1',
+    renderer: markRaw(
+      definition.rendererKey === 'border-parametric-v1' ? SafeBorderRenderer : SafeChartRenderer,
+    ),
   };
 }
 
