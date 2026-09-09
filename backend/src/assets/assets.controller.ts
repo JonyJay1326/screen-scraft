@@ -1,6 +1,5 @@
 import { Controller, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { memoryStorage } from 'multer';
 import { AssetsService } from './assets.service';
 
 /** 资源上传 */
@@ -12,7 +11,6 @@ export class AssetsController {
   @Post('upload')
   @UseInterceptors(
     FileInterceptor('file', {
-      storage: memoryStorage(),
       limits: { fileSize: 200 * 1024 * 1024 },
     }),
   )

@@ -3,11 +3,11 @@ import { computed, reactive, ref } from 'vue';
 import type { EventDoc } from '@screencraft/shared';
 import { useScreenStore } from '../../stores/screen';
 import { cloneJson } from '../../utils/clone';
-import { getTemplate } from '../../registry';
+import { resolveComponentTemplate } from '../../registry';
 
 const store = useScreenStore();
 const selected = computed(() => store.currentPage?.components.find((item) => item.id === store.selectedIds[0]));
-const tpl = computed(() => (selected.value ? getTemplate(selected.value.templateId) : undefined));
+const tpl = computed(() => (selected.value ? resolveComponentTemplate(selected.value) : undefined));
 const showEv = ref(false);
 const form = reactive<EventDoc>({
   id: '',

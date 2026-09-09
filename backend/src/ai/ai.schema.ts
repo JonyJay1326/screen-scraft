@@ -56,3 +56,32 @@ export class AiSettings {
 }
 
 export const AiSettingsSchema = SchemaFactory.createForClass(AiSettings);
+
+export type AiReferenceAssetRecordDocument = HydratedDocument<AiReferenceAssetRecord>;
+
+/** AI 参考图临时元数据；文件存放在非公开目录，由应用层 TTL 清理。 */
+@Schema({ timestamps: true, collection: 'ai_reference_assets' })
+export class AiReferenceAssetRecord {
+  @Prop({ type: String, required: true, index: true })
+  ownerId!: string;
+
+  @Prop({ type: String, required: true })
+  storageName!: string;
+
+  @Prop({ type: String, required: true, enum: ['image/png', 'image/jpeg', 'image/webp'] })
+  mimeType!: 'image/png' | 'image/jpeg' | 'image/webp';
+
+  @Prop({ type: Number, required: true })
+  size!: number;
+
+  @Prop({ type: Number, required: true })
+  width!: number;
+
+  @Prop({ type: Number, required: true })
+  height!: number;
+
+  @Prop({ type: Date, required: true, index: true })
+  expiresAt!: Date;
+}
+
+export const AiReferenceAssetRecordSchema = SchemaFactory.createForClass(AiReferenceAssetRecord);

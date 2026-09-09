@@ -11,13 +11,26 @@ export interface AiValidationIssue {
 export const AI_STRUCTURE_LIMITS = {
   maxDepth: 8,
   maxArrayLength: 64,
+  maxPlanOperations: 201,
+  maxPlanTargets: 200,
   maxObjectKeys: 64,
   maxStringLength: 1024,
   maxStyleFields: 64,
   maxPaletteColors: 16,
 } as const;
 
+export const AI_PAGE_COMPONENT_LIMIT = 50;
+export const AI_SCREEN_COMPONENT_LIMIT = 200;
+
 const dangerousKeys = new Set(['__proto__', 'prototype', 'constructor']);
+const safeVisualBlockedKeys = new Set([
+  ...dangerousKeys,
+  'data', 'dataset', 'series', 'indicator', 'graphic', 'media', 'toolbox', 'visualMap', 'geo', 'calendar',
+  'renderItem', 'script', 'html', 'css', 'svg', 'path', 'url', 'href', 'src', 'image', 'link', 'sublink',
+  'coordinateSystem', 'encode', 'dimensions', 'datasetIndex', 'datasetId',
+]);
+const unsafeVisualKeyPart = /(?:renderitem|callback|function|script|html|css|svg|url|href|src)/i;
+const unsafeVisualString = /(?:javascript\s*:|data\s*:|image\s*:\/\/|(?:https?|ftp|file|blob):\/\/|<\s*\/?\s*[a-z]|url\s*\(|expression\s*\(|=>|\bfunction\s*\()/i;
 const rendererKeys = new Set(['echarts-safe-v1', 'border-parametric-v1', 'border-nine-slice-v1']);
 const chartFamilies = new Set(['line', 'bar', 'pie', 'combo', 'funnel', 'radar', 'gauge']);
 const protocolKinds = new Set([
@@ -76,9 +89,7 @@ export function validateSafeChartSpec(input: unknown): AiValidationIssue[] {
   if (!isPlainRecord(input)) {
     return append(issues, '$', 'SafeChartSpec 必须是普通对象');
   }
-  strictKeys(input, ['kind', 'schemaVersion', 'family', 'option'], '$', issues);
   literal(input.kind, 'chart', '$.kind', issues);
-  literal(input.schemaVersion, 1, '$.schemaVersion', issues);
   if (typeof input.family !== 'string' || !chartFamilies.has(input.family)) {
     issues.push({ path: '$.family', message: '不支持的图表族' });
   }
@@ -90,13 +101,26 @@ export function validateSafeChartSpec(input: unknown): AiValidationIssue[] {
 
   const family = typeof input.family === 'string' ? input.family : '';
   const familyKeys = family === 'combo' ? ['line', 'bar'] : chartFamilies.has(family) ? [family] : [];
-  strictKeys(option, ['grid', 'palette', 'legend', 'axis', ...familyKeys], '$.option', issues);
+  if (input.schemaVersion === 1) {
+    strictKeys(input, ['kind', 'schemaVersion', 'family', 'option'], '$', issues);
+    strictKeys(option, ['grid', 'palette', 'legend', 'axis', ...familyKeys], '$.option', issues);
+  } else if (input.schemaVersion === 2) {
+    strictKeys(input, ['kind', 'schemaVersion', 'family', 'fidelity', 'option'], '$', issues);
+    enumValue(input.fidelity, ['exact', 'approximate'], '$.fidelity', issues);
+    strictKeys(option, ['grid', 'palette', 'backgroundColor', 'legend', 'axis', 'visual', ...familyKeys], '$.option', issues);
+  } else {
+    issues.push({ path: '$.schemaVersion', message: '仅支持 SafeChartSpec 版本 1 或 2' });
+  }
   familyKeys.forEach((key) => {
     if (option[key] === undefined) {
       issues.push({ path: `$.option.${key}`, message: '缺少图表族配置' });
     }
   });
-  validateChartOption(option, family, issues);
+  if (input.schemaVersion === 1) {
+    validateChartOptionV1(option, family, issues);
+  } else if (input.schemaVersion === 2) {
+    validateChartOptionV2(option, family, issues);
+  }
   return issues;
 }
 
@@ -166,6 +190,12 @@ export function validateComponentDefinitionSnapshot(
   if (input.styleMode === 'locked' && styleSchema.some((item) => item.aiWritable && !item.readOnly)) {
     issues.push({ path: '$.styleSchema', message: '锁定样式组件不能包含可写字段' });
   }
+  if (input.rendererKey === 'echarts-safe-v1' && typeof input.group === 'string') {
+    validateApprovedChartStyleSchema(input.group, input.styleMode, styleSchema, issues);
+  }
+  if (input.rendererKey === 'border-parametric-v1') {
+    validateApprovedBorderStyleSchema(input.styleMode, styleSchema, issues);
+  }
   validateDefaultStyle(input.defaultStyle, styleSchema, issues);
   validateRendererSpecPair(input, options, issues);
   return issues;
@@ -186,7 +216,14 @@ export function validatePageComponentDefinitions(pages: PageDoc[]): AiValidation
         return;
       }
       if (component.definitionSnapshot) {
-        issues.push(...prefixIssues(validateComponentDefinitionSnapshot(component.definitionSnapshot), `${path}.definitionSnapshot`));
+        const definitionIssues = validateComponentDefinitionSnapshot(component.definitionSnapshot);
+        issues.push(...prefixIssues(definitionIssues, `${path}.definitionSnapshot`));
+        if (!definitionIssues.length) {
+          issues.push(...prefixIssues(
+            validateAiStylePatch(component.definitionSnapshot.styleSchema, component.style),
+            `${path}.style`,
+          ));
+        }
       }
     });
   });
@@ -194,8 +231,8 @@ export function validatePageComponentDefinitions(pages: PageDoc[]): AiValidation
 }
 
 function validatePlanOperations(input: unknown, issues: AiValidationIssue[]): void {
-  if (!Array.isArray(input) || input.length > AI_STRUCTURE_LIMITS.maxArrayLength) {
-    issues.push({ path: '$.operations', message: `operations 必须是长度不超过 ${AI_STRUCTURE_LIMITS.maxArrayLength} 的数组` });
+  if (!Array.isArray(input) || input.length > AI_STRUCTURE_LIMITS.maxPlanOperations) {
+    issues.push({ path: '$.operations', message: `operations 必须是长度不超过 ${AI_STRUCTURE_LIMITS.maxPlanOperations} 的数组` });
     return;
   }
   input.forEach((operation, index) => {
@@ -237,8 +274,8 @@ function validatePageBackgroundPatch(input: unknown, path: string, issues: AiVal
 }
 
 function validateSkippedTargets(input: unknown, issues: AiValidationIssue[]): void {
-  if (!Array.isArray(input) || input.length > AI_STRUCTURE_LIMITS.maxArrayLength) {
-    issues.push({ path: '$.skipped', message: `skipped 必须是长度不超过 ${AI_STRUCTURE_LIMITS.maxArrayLength} 的数组` });
+  if (!Array.isArray(input) || input.length > AI_STRUCTURE_LIMITS.maxPlanTargets) {
+    issues.push({ path: '$.skipped', message: `skipped 必须是长度不超过 ${AI_STRUCTURE_LIMITS.maxPlanTargets} 的数组` });
     return;
   }
   input.forEach((item, index) => {
@@ -298,6 +335,10 @@ function validateRendererSpecPair(
     if (input.dataProtocol === undefined) {
       issues.push({ path: '$.dataProtocol', message: '安全图表必须声明数据协议' });
     }
+    const expectedProtocol = chartProtocol(input.group);
+    if (expectedProtocol && input.dataProtocol !== expectedProtocol) {
+      issues.push({ path: '$.dataProtocol', message: `图表族 ${String(input.group)} 必须使用 ${expectedProtocol} 协议` });
+    }
     issues.push(...prefixIssues(validateSafeChartSpec(input.safeSpec), '$.safeSpec'));
     if (isPlainRecord(input.safeSpec) && input.safeSpec.family !== input.group) {
       issues.push({ path: '$.safeSpec.family', message: '图表族必须与组件分组一致' });
@@ -314,6 +355,184 @@ function validateRendererSpecPair(
   if (input.rendererKey === 'border-nine-slice-v1' && options.allowNineSlice) {
     validateNineSliceSpec(input.safeSpec, issues);
   }
+}
+
+interface ApprovedStyleRule {
+  type: StyleField['type'];
+  min?: number;
+  max?: number;
+  options?: string[];
+}
+
+function validateApprovedChartStyleSchema(
+  family: string,
+  styleMode: unknown,
+  schema: StyleField[],
+  issues: AiValidationIssue[],
+): void {
+  if (!chartFamilies.has(family)) {
+    return;
+  }
+  const rules = styleMode === 'locked' ? new Map<string, ApprovedStyleRule>() : approvedChartStyleRules(family);
+  schema.forEach((field, index) => {
+    const rule = rules.get(field.key);
+    const path = `$.styleSchema[${index}]`;
+    if (!rule) {
+      issues.push({ path: `${path}.key`, message: '字段未在安全 renderer 批准目录中' });
+      return;
+    }
+    if (field.type !== rule.type || !field.aiWritable || field.readOnly === true) {
+      issues.push({ path, message: '样式字段类型或写入权限与安全目录不一致' });
+    }
+    if (rule.type === 'number' && (
+      field.min === undefined
+      || field.max === undefined
+      || rule.min === undefined
+      || rule.max === undefined
+      || field.min < rule.min
+      || field.max > rule.max
+    )) {
+      issues.push({ path, message: '数值范围与安全目录不一致' });
+    }
+    if (rule.type === 'select') {
+      const actual = field.options?.map((item) => item.value) ?? [];
+      if (JSON.stringify(actual) !== JSON.stringify(rule.options)) {
+        issues.push({ path, message: '下拉选项与安全目录不一致' });
+      }
+    }
+  });
+}
+
+function approvedChartStyleRules(family: string): Map<string, ApprovedStyleRule> {
+  const rules = new Map<string, ApprovedStyleRule>([
+    ['seriesColors', { type: 'colorList' }],
+    ['showLegend', { type: 'switch' }],
+    ['legendPosition', { type: 'select', options: ['top', 'topRight', 'bottom', 'left', 'right'] }],
+  ]);
+  const add = (entries: Array<[string, ApprovedStyleRule]>) => entries.forEach(([key, rule]) => rules.set(key, rule));
+  if (family === 'line' || family === 'bar' || family === 'combo') {
+    add([
+      ['showXAxis', { type: 'switch' }],
+      ['showYAxis', { type: 'switch' }],
+      ['axisLabelColor', { type: 'color' }],
+      ['gridColor', { type: 'color' }],
+    ]);
+  }
+  if (family === 'line' || family === 'combo' || family === 'radar') {
+    add([
+      ['lineWidth', { type: 'number', min: 1, max: 20 }],
+      ['areaOpacity', { type: 'number', min: 0, max: 100 }],
+      ['showSymbol', { type: 'switch' }],
+    ]);
+  }
+  if (family === 'line' || family === 'combo') {
+    add([['lineSmooth', { type: 'switch' }]]);
+  }
+  if (family === 'bar' || family === 'combo') {
+    add([
+      ['barWidth', { type: 'number', min: 1, max: 100 }],
+      ['barRadius', { type: 'number', min: 0, max: 50 }],
+      ['stack', { type: 'switch' }],
+      ['horizontal', { type: 'switch' }],
+    ]);
+  }
+  if (family === 'pie') {
+    add([
+      ['innerRadius', { type: 'number', min: 0, max: 99 }],
+      ['outerRadius', { type: 'number', min: 1, max: 100 }],
+      ['roseType', { type: 'select', options: ['none', 'radius', 'area'] }],
+    ]);
+  }
+  if (family === 'funnel') {
+    add([
+      ['funnelSort', { type: 'select', options: ['ascending', 'descending', 'none'] }],
+      ['funnelAlign', { type: 'select', options: ['left', 'center', 'right'] }],
+      ['funnelGap', { type: 'number', min: 0, max: 64 }],
+    ]);
+  }
+  if (family === 'radar') {
+    add([
+      ['radarShape', { type: 'select', options: ['polygon', 'circle'] }],
+      ['splitNumber', { type: 'number', min: 2, max: 12 }],
+    ]);
+  }
+  if (family === 'gauge') {
+    add([
+      ['gaugeMin', { type: 'number', min: -1_000_000, max: 1_000_000 }],
+      ['gaugeMax', { type: 'number', min: -1_000_000, max: 1_000_000 }],
+      ['gaugeStartAngle', { type: 'number', min: -360, max: 360 }],
+      ['gaugeEndAngle', { type: 'number', min: -360, max: 360 }],
+      ['showPointer', { type: 'switch' }],
+      ['showProgress', { type: 'switch' }],
+    ]);
+  }
+  return rules;
+}
+
+function validateApprovedBorderStyleSchema(
+  styleMode: unknown,
+  schema: StyleField[],
+  issues: AiValidationIssue[],
+): void {
+  const rules = styleMode === 'locked'
+    ? new Map<string, ApprovedStyleRule>()
+    : new Map<string, ApprovedStyleRule>([
+        ['cornerType', { type: 'select', options: ['cut', 'bracket', 'notch', 'line'] }],
+        ['cornerSize', { type: 'number', min: 0, max: 160 }],
+        ['primaryColor', { type: 'color' }],
+        ['accentColor', { type: 'color' }],
+        ['backgroundColor', { type: 'color' }],
+        ['lineWidth', { type: 'number', min: 0, max: 24 }],
+        ['lineOpacity', { type: 'number', min: 0, max: 1 }],
+        ['innerGlow', { type: 'number', min: 0, max: 64 }],
+        ['outerGlow', { type: 'number', min: 0, max: 64 }],
+        ['glowOpacity', { type: 'number', min: 0, max: 1 }],
+        ['titlePosition', { type: 'select', options: ['none', 'topLeft', 'topCenter'] }],
+        ['contentPadding', { type: 'number', min: 0, max: 160 }],
+      ]);
+  schema.forEach((field, index) => {
+    const rule = rules.get(field.key);
+    const path = `$.styleSchema[${index}]`;
+    if (!rule) {
+      issues.push({ path: `${path}.key`, message: '字段未在参数化边框批准目录中' });
+      return;
+    }
+    if (field.type !== rule.type || !field.aiWritable || field.readOnly === true) {
+      issues.push({ path, message: '边框样式字段类型或写入权限与安全目录不一致' });
+    }
+    if (rule.type === 'number' && (
+      field.min === undefined
+      || field.max === undefined
+      || rule.min === undefined
+      || rule.max === undefined
+      || field.min < rule.min
+      || field.max > rule.max
+    )) {
+      issues.push({ path, message: '边框数值范围与安全目录不一致' });
+    }
+    if (rule.type === 'select') {
+      const actual = field.options?.map((item) => item.value) ?? [];
+      if (JSON.stringify(actual) !== JSON.stringify(rule.options)) {
+        issues.push({ path, message: '边框下拉选项与安全目录不一致' });
+      }
+    }
+  });
+}
+
+function chartProtocol(family: unknown): 'axis' | 'combo' | 'radar' | 'nameValue' | undefined {
+  if (family === 'line' || family === 'bar') {
+    return 'axis';
+  }
+  if (family === 'combo') {
+    return 'combo';
+  }
+  if (family === 'radar') {
+    return 'radar';
+  }
+  if (family === 'pie' || family === 'funnel' || family === 'gauge') {
+    return 'nameValue';
+  }
+  return undefined;
 }
 
 function validateStyleSchema(input: unknown, issues: AiValidationIssue[]): StyleField[] {
@@ -426,7 +645,7 @@ function validateStyleValue(field: StyleField, value: unknown, path: string): Ai
   return issues;
 }
 
-function validateChartOption(option: Record<string, unknown>, family: string, issues: AiValidationIssue[]): void {
+function validateChartOptionV1(option: Record<string, unknown>, family: string, issues: AiValidationIssue[]): void {
   if (option.grid !== undefined) {
     validateNumberBlock(option.grid, ['left', 'right', 'top', 'bottom'], 0, 2048, '$.option.grid', issues);
   }
@@ -506,6 +725,357 @@ function validateChartOption(option: Record<string, unknown>, family: string, is
   }
 }
 
+function validateChartOptionV2(option: Record<string, unknown>, family: string, issues: AiValidationIssue[]): void {
+  if (option.grid !== undefined) {
+    validateMixedBlock(option.grid, '$.option.grid', issues, {
+      left: (value, path) => numberValue(value, 0, 2048, path, issues),
+      right: (value, path) => numberValue(value, 0, 2048, path, issues),
+      top: (value, path) => numberValue(value, 0, 2048, path, issues),
+      bottom: (value, path) => numberValue(value, 0, 2048, path, issues),
+      containLabel: (value, path) => booleanValue(value, path, issues),
+    });
+  }
+  if (option.palette !== undefined) {
+    validateColorArray(option.palette, '$.option.palette', issues, 1, AI_STRUCTURE_LIMITS.maxPaletteColors);
+  }
+  if (option.backgroundColor !== undefined) {
+    colorValue(option.backgroundColor, '$.option.backgroundColor', issues);
+  }
+  if (option.visual !== undefined) {
+    validateSafeVisualOverrides(option.visual, '$.option.visual', issues);
+  }
+  if (option.legend !== undefined) {
+    validateMixedBlock(option.legend, '$.option.legend', issues, {
+      show: (value, path) => booleanValue(value, path, issues),
+      position: (value, path) => enumValue(value, ['top', 'topRight', 'bottom', 'left', 'right'], path, issues),
+      orientation: (value, path) => enumValue(value, ['horizontal', 'vertical'], path, issues),
+      icon: (value, path) => enumValue(value, ['circle', 'rect', 'roundRect', 'triangle', 'diamond', 'line'], path, issues),
+      itemWidth: (value, path) => numberValue(value, 4, 80, path, issues),
+      itemHeight: (value, path) => numberValue(value, 4, 80, path, issues),
+      gap: (value, path) => numberValue(value, 0, 80, path, issues),
+      textColor: (value, path) => colorValue(value, path, issues),
+      textSize: (value, path) => numberValue(value, 8, 48, path, issues),
+    });
+  }
+  if (option.axis !== undefined) {
+    validateMixedBlock(option.axis, '$.option.axis', issues, {
+      showX: (value, path) => booleanValue(value, path, issues),
+      showY: (value, path) => booleanValue(value, path, issues),
+      labelColor: (value, path) => colorValue(value, path, issues),
+      labelSize: (value, path) => numberValue(value, 8, 48, path, issues),
+      labelRotate: (value, path) => numberValue(value, -90, 90, path, issues),
+      showTicks: (value, path) => booleanValue(value, path, issues),
+      axisLineColor: (value, path) => colorValue(value, path, issues),
+      axisLineWidth: (value, path) => numberValue(value, 0, 12, path, issues),
+      gridColor: (value, path) => colorValue(value, path, issues),
+      gridWidth: (value, path) => numberValue(value, 0, 12, path, issues),
+      gridType: (value, path) => enumValue(value, ['solid', 'dashed', 'dotted'], path, issues),
+    });
+  }
+  if ((family === 'line' || family === 'combo') && option.line !== undefined) {
+    validateMixedBlock(option.line, '$.option.line', issues, {
+      smooth: (value, path) => booleanValue(value, path, issues),
+      width: (value, path) => numberValue(value, 1, 20, path, issues),
+      lineType: (value, path) => enumValue(value, ['solid', 'dashed', 'dotted'], path, issues),
+      areaOpacity: (value, path) => numberValue(value, 0, 1, path, issues),
+      areaColor: (value, path) => validateChartColor(value, path, issues),
+      symbol: (value, path) => enumValue(value, ['none', 'circle', 'rect', 'triangle', 'diamond'], path, issues),
+      symbolSize: (value, path) => numberValue(value, 0, 64, path, issues),
+      label: (value, path) => validateChartLabel(value, path, issues),
+    });
+  }
+  if ((family === 'bar' || family === 'combo') && option.bar !== undefined) {
+    validateMixedBlock(option.bar, '$.option.bar', issues, {
+      width: (value, path) => numberValue(value, 1, 100, path, issues),
+      maxWidth: (value, path) => numberValue(value, 1, 200, path, issues),
+      radius: (value, path) => numberValue(value, 0, 100, path, issues),
+      stack: (value, path) => booleanValue(value, path, issues),
+      horizontal: (value, path) => booleanValue(value, path, issues),
+      color: (value, path) => validateChartColor(value, path, issues),
+      borderColor: (value, path) => colorValue(value, path, issues),
+      borderWidth: (value, path) => numberValue(value, 0, 12, path, issues),
+      showBackground: (value, path) => booleanValue(value, path, issues),
+      backgroundColor: (value, path) => colorValue(value, path, issues),
+      label: (value, path) => validateChartLabel(value, path, issues),
+    });
+  }
+  if (family === 'pie' && option.pie !== undefined) {
+    validateMixedBlock(option.pie, '$.option.pie', issues, {
+      innerRadius: (value, path) => numberValue(value, 0, 99, path, issues),
+      outerRadius: (value, path) => numberValue(value, 1, 100, path, issues),
+      centerX: (value, path) => numberValue(value, 0, 100, path, issues),
+      centerY: (value, path) => numberValue(value, 0, 100, path, issues),
+      startAngle: (value, path) => numberValue(value, -360, 360, path, issues),
+      clockwise: (value, path) => booleanValue(value, path, issues),
+      padAngle: (value, path) => numberValue(value, 0, 30, path, issues),
+      borderRadius: (value, path) => numberValue(value, 0, 100, path, issues),
+      borderColor: (value, path) => colorValue(value, path, issues),
+      borderWidth: (value, path) => numberValue(value, 0, 12, path, issues),
+      roseType: (value, path) => enumValue(value, ['none', 'radius', 'area'], path, issues),
+      label: (value, path) => validateChartLabel(value, path, issues),
+    });
+    validateInnerOuterRadius(option.pie, '$.option.pie', issues);
+  }
+  if (family === 'funnel' && option.funnel !== undefined) {
+    validateMixedBlock(option.funnel, '$.option.funnel', issues, {
+      sort: (value, path) => enumValue(value, ['ascending', 'descending', 'none'], path, issues),
+      align: (value, path) => enumValue(value, ['left', 'center', 'right'], path, issues),
+      gap: (value, path) => numberValue(value, 0, 64, path, issues),
+      left: (value, path) => numberValue(value, 0, 100, path, issues),
+      top: (value, path) => numberValue(value, 0, 100, path, issues),
+      width: (value, path) => numberValue(value, 1, 100, path, issues),
+      height: (value, path) => numberValue(value, 1, 100, path, issues),
+      minSize: (value, path) => numberValue(value, 0, 100, path, issues),
+      maxSize: (value, path) => numberValue(value, 1, 100, path, issues),
+      label: (value, path) => validateChartLabel(value, path, issues),
+    });
+    if (isPlainRecord(option.funnel)
+      && typeof option.funnel.minSize === 'number'
+      && typeof option.funnel.maxSize === 'number'
+      && option.funnel.minSize > option.funnel.maxSize) {
+      issues.push({ path: '$.option.funnel', message: '最小尺寸不能大于最大尺寸' });
+    }
+  }
+  if (family === 'radar' && option.radar !== undefined) {
+    validateMixedBlock(option.radar, '$.option.radar', issues, {
+      shape: (value, path) => enumValue(value, ['polygon', 'circle'], path, issues),
+      splitNumber: (value, path) => integerValue(value, 2, 12, path, issues),
+      centerX: (value, path) => numberValue(value, 0, 100, path, issues),
+      centerY: (value, path) => numberValue(value, 0, 100, path, issues),
+      radius: (value, path) => numberValue(value, 1, 100, path, issues),
+      areaOpacity: (value, path) => numberValue(value, 0, 1, path, issues),
+      axisNameColor: (value, path) => colorValue(value, path, issues),
+      axisNameSize: (value, path) => numberValue(value, 8, 48, path, issues),
+      axisLineColor: (value, path) => colorValue(value, path, issues),
+      splitLineColor: (value, path) => colorValue(value, path, issues),
+      splitAreaColors: (value, path) => validateColorArray(value, path, issues, 1, 12),
+      symbol: (value, path) => enumValue(value, ['none', 'circle', 'rect', 'triangle', 'diamond'], path, issues),
+      symbolSize: (value, path) => numberValue(value, 0, 64, path, issues),
+      lineWidth: (value, path) => numberValue(value, 1, 20, path, issues),
+      label: (value, path) => validateChartLabel(value, path, issues),
+    });
+  }
+  if (family === 'gauge' && option.gauge !== undefined) {
+    validateMixedBlock(option.gauge, '$.option.gauge', issues, {
+      min: (value, path) => numberValue(value, -1_000_000, 1_000_000, path, issues),
+      max: (value, path) => numberValue(value, -1_000_000, 1_000_000, path, issues),
+      startAngle: (value, path) => numberValue(value, -360, 360, path, issues),
+      endAngle: (value, path) => numberValue(value, -360, 360, path, issues),
+      centerX: (value, path) => numberValue(value, 0, 100, path, issues),
+      centerY: (value, path) => numberValue(value, 0, 100, path, issues),
+      radius: (value, path) => numberValue(value, 1, 100, path, issues),
+      showPointer: (value, path) => booleanValue(value, path, issues),
+      pointerWidth: (value, path) => numberValue(value, 1, 40, path, issues),
+      showProgress: (value, path) => booleanValue(value, path, issues),
+      progressWidth: (value, path) => numberValue(value, 1, 64, path, issues),
+      axisLineWidth: (value, path) => numberValue(value, 1, 64, path, issues),
+      splitNumber: (value, path) => integerValue(value, 2, 20, path, issues),
+      titleColor: (value, path) => colorValue(value, path, issues),
+      titleSize: (value, path) => numberValue(value, 8, 64, path, issues),
+      detailColor: (value, path) => colorValue(value, path, issues),
+      detailSize: (value, path) => numberValue(value, 8, 120, path, issues),
+    });
+    if (isPlainRecord(option.gauge) && typeof option.gauge.min === 'number' && typeof option.gauge.max === 'number' && option.gauge.min >= option.gauge.max) {
+      issues.push({ path: '$.option.gauge', message: '最小值必须小于最大值' });
+    }
+  }
+}
+
+function validateChartLabel(input: unknown, path: string, issues: AiValidationIssue[]): void {
+  validateMixedBlock(input, path, issues, {
+    show: (value, itemPath) => booleanValue(value, itemPath, issues),
+    position: (value, itemPath) => enumValue(value, ['top', 'inside', 'center', 'outside', 'right'], itemPath, issues),
+    color: (value, itemPath) => colorValue(value, itemPath, issues),
+    fontSize: (value, itemPath) => numberValue(value, 8, 64, itemPath, issues),
+    fontWeight: (value, itemPath) => enumValue(value, ['normal', 'bold'], itemPath, issues),
+    distance: (value, itemPath) => numberValue(value, 0, 80, itemPath, issues),
+  });
+}
+
+function validateChartColor(input: unknown, path: string, issues: AiValidationIssue[]): void {
+  if (typeof input === 'string') {
+    colorValue(input, path, issues);
+    return;
+  }
+  if (!isPlainRecord(input)) {
+    issues.push({ path, message: '颜色必须是安全颜色或线性渐变对象' });
+    return;
+  }
+  strictKeys(input, ['type', 'direction', 'stops'], path, issues);
+  literal(input.type, 'linear', `${path}.type`, issues);
+  enumValue(input.direction, ['vertical', 'horizontal', 'diagonal'], `${path}.direction`, issues);
+  if (!Array.isArray(input.stops) || input.stops.length < 2 || input.stops.length > 8) {
+    issues.push({ path: `${path}.stops`, message: '渐变色标必须包含 2~8 项' });
+    return;
+  }
+  input.stops.forEach((stop, index) => {
+    const stopPath = `${path}.stops[${index}]`;
+    if (!isPlainRecord(stop)) {
+      issues.push({ path: stopPath, message: '渐变色标必须是普通对象' });
+      return;
+    }
+    strictKeys(stop, ['offset', 'color'], stopPath, issues);
+    numberValue(stop.offset, 0, 1, `${stopPath}.offset`, issues);
+    colorValue(stop.color, `${stopPath}.color`, issues);
+  });
+  const offsets = input.stops.map((stop) => isPlainRecord(stop) && typeof stop.offset === 'number' ? stop.offset : undefined);
+  if (offsets.every((offset): offset is number => offset !== undefined)
+    && offsets.some((offset, index) => index > 0 && offset < offsets[index - 1])) {
+    issues.push({ path: `${path}.stops`, message: '渐变色标必须按 offset 升序排列' });
+  }
+}
+
+function validateSafeVisualOverrides(input: unknown, path: string, issues: AiValidationIssue[]): void {
+  if (!isPlainRecord(input)) {
+    issues.push({ path, message: '安全视觉扩展必须是普通对象' });
+    return;
+  }
+  const targets = ['root', 'grid', 'legend', 'axis', 'xAxis', 'yAxis', 'coordinate', 'series', 'lineSeries', 'barSeries'];
+  strictKeys(input, targets, path, issues);
+  for (const target of targets) {
+    if (input[target] === undefined) continue;
+    if (!isPlainRecord(input[target])) {
+      issues.push({ path: `${path}.${target}`, message: '视觉扩展目标必须是普通对象' });
+      continue;
+    }
+    validateSafeVisualNode(input[target], `${path}.${target}`, issues, 0);
+  }
+}
+
+function validateSafeVisualNode(input: unknown, path: string, issues: AiValidationIssue[], depth: number): void {
+  if (depth > 8) {
+    issues.push({ path, message: '安全视觉扩展深度不能超过 8' });
+    return;
+  }
+  if (input === null || typeof input === 'boolean') return;
+  if (typeof input === 'number') {
+    if (!Number.isFinite(input)) issues.push({ path, message: '视觉数值必须是有限数字' });
+    return;
+  }
+  if (typeof input === 'function') {
+    issues.push({ path, message: '视觉扩展禁止函数' });
+    return;
+  }
+  if (typeof input === 'string') {
+    const key = path.slice(path.lastIndexOf('.') + 1);
+    if (key === 'formatter') {
+      if (!isSafeFormatterTemplate(input)) issues.push({ path, message: 'formatter 仅允许纯文本固定占位符模板' });
+      return;
+    }
+    if (input.startsWith('path://')) {
+      if (!isSafePathSymbol(input)) issues.push({ path, message: 'path:// 路径超出安全复杂度或包含非法命令' });
+      return;
+    }
+    if (unsafeVisualString.test(input)) issues.push({ path, message: '视觉字符串包含标签、代码或外部资源' });
+    return;
+  }
+  if (Array.isArray(input)) {
+    if (input.length > 64) issues.push({ path, message: '安全视觉扩展数组不能超过 64 项' });
+    input.slice(0, 64).forEach((item, index) => validateSafeVisualNode(item, `${path}[${index}]`, issues, depth + 1));
+    return;
+  }
+  if (!isPlainRecord(input)) {
+    issues.push({ path, message: '安全视觉扩展只允许 JSON 值' });
+    return;
+  }
+  const keys = Object.keys(input);
+  if (keys.length > 64) issues.push({ path, message: '安全视觉扩展对象不能超过 64 个字段' });
+  for (const key of keys.slice(0, 64)) {
+    const itemPath = `${path}.${key}`;
+    const value = input[key];
+    if (key === 'formatter' && typeof value !== 'string') {
+      issues.push({ path: itemPath, message: 'formatter 必须是纯文本模板' });
+      continue;
+    }
+    if (key === 'type' && /^\$\.option\.visual\.(?:series|lineSeries|barSeries)$/.test(path)) {
+      issues.push({ path: itemPath, message: '视觉扩展不能改变图表类型' });
+      continue;
+    }
+    if (safeVisualBlockedKeys.has(key) || unsafeVisualKeyPart.test(key) || /^on[A-Z_]/i.test(key)) {
+      issues.push({ path: itemPath, message: '安全视觉扩展包含禁止字段' });
+      continue;
+    }
+    if (key === 'renderMode' && value !== 'richText') {
+      issues.push({ path: itemPath, message: 'tooltip 只允许 richText 渲染模式' });
+      continue;
+    }
+    if (typeof value === 'number' && !isSafeVisualNumber(key, value)) {
+      issues.push({ path: itemPath, message: '视觉数值超出安全性能范围' });
+      continue;
+    }
+    validateSafeVisualNode(value, itemPath, issues, depth + 1);
+  }
+}
+
+function isSafeFormatterTemplate(value: string): boolean {
+  if (!value || value.length > 128 || unsafeVisualString.test(value)) return false;
+  const plain = value.replace(/\{(?:a|b|c|d|value|name|seriesName)\d*\}/g, '');
+  return !/[{}<>`\\]/.test(plain);
+}
+
+function isSafePathSymbol(value: string): boolean {
+  const source = value.slice('path://'.length).trim();
+  if (!source || source.length > 4096 || !/^[MmLlHhVvCcSsQqTtAaZz0-9eE+.,\s-]+$/.test(source)) return false;
+  const tokenPattern = /[MmLlHhVvCcSsQqTtAaZz]|[-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?/gi;
+  const tokens = source.match(tokenPattern) ?? [];
+  if (source.replace(tokenPattern, '').replace(/[\s,]/g, '') || !/^[Mm]$/.test(tokens[0] ?? '')) return false;
+  const arity: Record<string, number> = { m: 2, l: 2, h: 1, v: 1, c: 6, s: 4, q: 4, t: 2, a: 7, z: 0 };
+  let index = 0;
+  let segments = 0;
+  while (index < tokens.length) {
+    const command = tokens[index++].toLowerCase();
+    const count = arity[command];
+    if (count === undefined) return false;
+    if (count === 0) {
+      if (++segments > 256) return false;
+      continue;
+    }
+    let groups = 0;
+    while (index < tokens.length && !/^[a-z]$/i.test(tokens[index])) {
+      if (index + count > tokens.length || ++segments > 256) return false;
+      const values = tokens.slice(index, index + count).map(Number);
+      if (values.some((number) => !Number.isFinite(number) || Math.abs(number) > 100_000)) return false;
+      if (command === 'a' && (values[0] < 0 || values[1] < 0 || ![0, 1].includes(values[3]) || ![0, 1].includes(values[4]))) return false;
+      index += count;
+      groups += 1;
+    }
+    if (!groups) return false;
+  }
+  return segments > 0;
+}
+
+function isSafeVisualNumber(key: string, value: number): boolean {
+  if (!Number.isFinite(value) || Math.abs(value) > 1_000_000) return false;
+  if (/^(?:animationDuration|animationDelay|animationDurationUpdate|animationDelayUpdate)$/.test(key)) {
+    return value >= 0 && value <= 5000;
+  }
+  if (key === 'animationThreshold') return Number.isInteger(value) && value >= 0 && value <= 2000;
+  if (key === 'zlevel') return Number.isInteger(value) && value >= 0 && value <= 4;
+  if (/^(?:shadowBlur|symbolSize)$/.test(key)) return value >= 0 && value <= 256;
+  if (/^(?:lineWidth|borderWidth|width)$/.test(key)) return value >= 0 && value <= 4096;
+  return true;
+}
+
+function validateColorArray(
+  input: unknown,
+  path: string,
+  issues: AiValidationIssue[],
+  minLength: number,
+  maxLength: number,
+): void {
+  if (!Array.isArray(input) || input.length < minLength || input.length > maxLength) {
+    issues.push({ path, message: `颜色列表长度必须为 ${minLength}~${maxLength}` });
+    return;
+  }
+  input.forEach((value, index) => colorValue(value, `${path}[${index}]`, issues));
+}
+
+function validateInnerOuterRadius(input: unknown, path: string, issues: AiValidationIssue[]): void {
+  if (isPlainRecord(input) && typeof input.innerRadius === 'number' && typeof input.outerRadius === 'number' && input.innerRadius >= input.outerRadius) {
+    issues.push({ path, message: '内径必须小于外径' });
+  }
+}
+
 function validateNineSliceSpec(input: unknown, issues: AiValidationIssue[]): void {
   if (!isPlainRecord(input)) {
     issues.push({ path: '$.safeSpec', message: 'SafeNineSliceSpec 必须是普通对象' });
@@ -530,16 +1100,22 @@ function validateStructure(input: unknown, path = '$', depth = 0): AiValidationI
     return [{ path, message: `对象深度不能超过 ${AI_STRUCTURE_LIMITS.maxDepth}` }];
   }
   if (typeof input === 'string') {
-    return input.length > AI_STRUCTURE_LIMITS.maxStringLength
-      ? [{ path, message: `字符串长度不能超过 ${AI_STRUCTURE_LIMITS.maxStringLength}` }]
+    const maxStringLength = input.startsWith('path://') ? 4103 : AI_STRUCTURE_LIMITS.maxStringLength;
+    return input.length > maxStringLength
+      ? [{ path, message: `字符串长度不能超过 ${maxStringLength}` }]
       : [];
   }
   if (Array.isArray(input)) {
     const issues: AiValidationIssue[] = [];
-    if (input.length > AI_STRUCTURE_LIMITS.maxArrayLength) {
-      issues.push({ path, message: `数组长度不能超过 ${AI_STRUCTURE_LIMITS.maxArrayLength}` });
+    const maxLength = path === '$.operations'
+      ? AI_STRUCTURE_LIMITS.maxPlanOperations
+      : path === '$.skipped'
+        ? AI_STRUCTURE_LIMITS.maxPlanTargets
+        : AI_STRUCTURE_LIMITS.maxArrayLength;
+    if (input.length > maxLength) {
+      issues.push({ path, message: `数组长度不能超过 ${maxLength}` });
     }
-    input.slice(0, AI_STRUCTURE_LIMITS.maxArrayLength).forEach((item, index) => {
+    input.slice(0, maxLength).forEach((item, index) => {
       issues.push(...validateStructure(item, `${path}[${index}]`, depth + 1));
     });
     return issues;

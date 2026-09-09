@@ -6,6 +6,7 @@ export {};
 declare global {
   interface ImportMetaEnv {
     readonly VITE_API_BASE: string;
+    readonly VITE_AI_SCREEN_SCOPE_ENABLED?: string;
   }
 }
 

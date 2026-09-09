@@ -2,11 +2,12 @@
 import { computed } from 'vue';
 import type { StyleField } from '../../registry/types';
 import { useScreenStore } from '../../stores/screen';
-import { getTemplate } from '../../registry';
+import { resolveComponentTemplate } from '../../registry';
 
 const store = useScreenStore();
 const selected = computed(() => store.currentPage?.components.find((item) => item.id === store.selectedIds[0]));
-const tpl = computed(() => (selected.value ? getTemplate(selected.value.templateId) : undefined));
+const tpl = computed(() => (selected.value ? resolveComponentTemplate(selected.value) : undefined));
+const styleLocked = computed(() => selected.value?.definitionSnapshot?.styleMode === 'locked');
 const groups = computed(() => {
   const map = new Map<string, StyleField[]>();
   tpl.value?.styleSchema.forEach((field) => {
@@ -59,7 +60,7 @@ function removeColor(index: number): void {
 </script>
 
 <template>
-  <div v-if="selected && tpl" class="style-form">
+  <div v-if="selected && tpl && !styleLocked" class="style-form">
     <section v-for="[group, fields] in groups" :key="group" class="p-sec">
       <h4>{{ group }}</h4>
       <div v-for="field in fields" :key="field.key" class="f-row">
@@ -83,7 +84,12 @@ function removeColor(index: number): void {
             controls-position="right"
             @change="(v: number | undefined) => setStyle(field.key, v ?? 0)"
           />
-          <el-color-picker v-else-if="field.type === 'color'" :model-value="String(merged[field.key] ?? '#ffffff')" @change="(v: string | null) => v && setStyle(field.key, v)" />
+          <el-color-picker
+            v-else-if="field.type === 'color'"
+            :model-value="String(merged[field.key] ?? '#ffffff')"
+            :show-alpha="field.key === 'backgroundColor'"
+            @change="(v: string | null) => v && setStyle(field.key, v)"
+          />
           <el-select
             v-else-if="field.type === 'select'"
             class="ed-select"
@@ -103,6 +109,10 @@ function removeColor(index: number): void {
         </div>
       </div>
     </section>
+  </div>
+  <div v-else-if="selected && tpl && styleLocked" class="p-sec locked-style">
+    <b>样式已锁定</b>
+    <p>该组件使用安全声明式快照渲染。需要改变视觉结构时，请根据新描述重新生成。</p>
   </div>
   <div v-else class="p-sec muted">选中组件后配置样式</div>
 </template>
@@ -140,4 +150,7 @@ function removeColor(index: number): void {
   font-size: 10px;
   line-height: 12px;
 }
+.locked-style { color: var(--t2); }
+.locked-style b { color: var(--warn); font-size: 13px; }
+.locked-style p { margin: 8px 0 0; line-height: 1.6; font-size: 12px; }
 </style>

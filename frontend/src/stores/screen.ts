@@ -1,9 +1,8 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import {
-  getBuiltinComponentMetadata,
-  validateAiEditorPlanResponse,
-  validateAiStylePatch,
+  buildAiEditorDraft,
+  type AiEditorPlanRequest,
   type AiEditorPlanResponse,
   type ComponentDoc,
   type FitMode,
@@ -436,29 +435,29 @@ export const useScreenStore = defineStore('screen', () => {
   }
 
   /** 生成只读 AI 预览草稿，不触碰正式状态与历史。 */
-  function previewAiPlan(plan: AiEditorPlanResponse): string | null {
-    const result = buildAiDraft(plan);
-    if (typeof result === 'string') {
+  function previewAiPlan(plan: AiEditorPlanResponse, request: AiEditorPlanRequest): string | null {
+    const result = buildAiDraft(plan, request);
+    if (!result.ok) {
       previewDraft.value = null;
-      return result;
+      return result.error;
     }
-    previewDraft.value = result;
+    previewDraft.value = result.screen;
     return null;
   }
 
   /** 原子应用整份 AI 方案，一次应用只写入一条撤销历史。 */
-  function applyAiPlan(plan: AiEditorPlanResponse): string | null {
-    const result = buildAiDraft(plan);
-    if (typeof result === 'string') {
+  function applyAiPlan(plan: AiEditorPlanResponse, request: AiEditorPlanRequest): string | null {
+    const result = buildAiDraft(plan, request);
+    if (!result.ok) {
       previewDraft.value = null;
-      return result;
+      return result.error;
     }
     if (!screen.value) {
       return '大屏尚未加载';
     }
     past.value = [...past.value, cloneScreen(screen.value)].slice(-MAX_HISTORY);
     future.value = [];
-    screen.value = result;
+    screen.value = result.screen;
     dirty.value = true;
     editorRevision.value += 1;
     previewDraft.value = null;
@@ -471,50 +470,11 @@ export const useScreenStore = defineStore('screen', () => {
   }
 
   /** 基于正式 screen 构造经过共享校验的内存副本。 */
-  function buildAiDraft(plan: AiEditorPlanResponse): ScreenDoc | string {
+  function buildAiDraft(plan: AiEditorPlanResponse, request: AiEditorPlanRequest) {
     if (!screen.value || !currentPage.value) {
-      return '大屏尚未加载';
+      return { ok: false as const, error: '大屏尚未加载' };
     }
-    if (plan.editorRevision !== editorRevision.value) {
-      return '画布已变化，请重新生成';
-    }
-    const planIssues = validateAiEditorPlanResponse(plan);
-    if (planIssues.length) {
-      return `AI 方案结构不合法：${planIssues[0].message}`;
-    }
-    if (!plan.operations.length) {
-      return '方案中没有可应用的修改';
-    }
-    const draft = cloneScreen(screen.value);
-    const page = draft.pages.find((item) => item.id === currentPageId.value);
-    if (!page) {
-      return '方案目标页面已不存在';
-    }
-    for (const operation of plan.operations) {
-      if (operation.targetType !== 'component') {
-        return '当前里程碑不支持页面样式操作';
-      }
-      const component = page.components.find((item) => item.id === operation.targetId);
-      if (!component) {
-        return `方案目标组件 ${operation.targetId} 已不存在`;
-      }
-      if (component.locked || component.hidden) {
-        return `组件“${component.name}”当前不可修改`;
-      }
-      if (component.definitionSnapshot || !isM91SupportedTemplate(component.templateId)) {
-        return `组件“${component.name}”当前不支持 AI 样式编辑`;
-      }
-      const metadata = getBuiltinComponentMetadata(component.templateId);
-      if (!metadata) {
-        return `组件“${component.name}”缺少共享样式目录`;
-      }
-      const patchIssues = validateAiStylePatch(metadata.styleSchema, operation.stylePatch);
-      if (patchIssues.length) {
-        return `组件“${component.name}”的方案未通过校验：${patchIssues[0].message}`;
-      }
-      component.style = { ...component.style, ...operation.stylePatch };
-    }
-    return draft;
+    return buildAiEditorDraft(screen.value, plan, request, editorRevision.value);
   }
 
   return {
@@ -562,7 +522,3 @@ export const useScreenStore = defineStore('screen', () => {
     pushHistory,
   };
 });
-
-function isM91SupportedTemplate(templateId: string): boolean {
-  return templateId.startsWith('chart-') || templateId.startsWith('kpi-');
-}

@@ -166,6 +166,7 @@ interface ComponentTemplate {
 - 统一走 Axios 直连 OpenAI 兼容 Chat Completions，不新增 SDK。文本方案启用 JSON Output，并在 prompt 中明确 JSON 结构；能力探测与结构化调用关闭默认 `thinking`（V4 默认开启，否则 `max_tokens` 易被 CoT 占满导致 `content` 为空）；模型返回空内容时自动重试一次。
 - 视觉请求将经过文件头校验的图片以内联 Base64 放入 user message，并使用 `detail='original'`；不生成公网 URL，不把图片放入 system/assistant message。
 - 模型响应始终按不可信字符串解析：限制响应体大小 → JSON 解析 → shared 结构校验 → 目标 styleSchema 语义校验 → 危险键递归扫描。任何一步失败均不返回可应用操作。
+- 自定义图表采用版本化安全投影：历史 SafeChartSpec v1 直接严格校验；新模型结果投影为 v2，正式字段递归归一化/补默认值，其他纯 JSON 视觉字段投影到 `root/grid/legend/axis/coordinate/series` 等固定 renderer 目标。归一化和补默认值不降级，视觉信息真实丢失才进入 warnings；投影后再由 shared 终检。
 - 图片中文字只作为待分析内容，系统提示明确禁止执行图片指令。模型不能访问工具、网络、数据库或业务 API。
 - API Key 加密存储，只写不读；测试连接与调用日志不得记录密钥、Authorization、Base64 图片或完整用户大屏数据。
 
@@ -206,7 +207,8 @@ interface ComponentTemplate {
 - 第三方密钥：腾讯云天气 key 仅存后端配置、代理时注入，不暴露给浏览器【已确认】。
 - 上传：类型/大小限制（v1 单文件 ≤ 200MB，超限提示），分片/直传预留。
 - AI 参考图使用独立上传入口和 10MB 上限、8192px 单边上限、默认 24 小时 TTL，同时校验扩展名、MIME、PNG/JPEG/WebP 文件头、图片尺寸与 ownerId；不得复用通用资源接口的宽松规则。
-- AI 对象递归拒绝 `__proto__`、`prototype`、`constructor`；安全图表拒绝函数、formatter、renderItem、HTML、CSS、SVG 原文和外部 URL，并限制深度、数组长度、series 数量和数据量。
+- AI 对象递归拒绝 `__proto__`、`prototype`、`constructor`；安全图表拒绝函数 formatter、renderItem、HTML、CSS、完整 SVG/XML、外部 URL 和数据注入。纯文本 formatter 使用固定占位符语法；`path://` 限制长度、命令数和坐标范围；视觉树限制深度、字段数、数组长度和高成本数值。
+- ECharts renderer 只由本地适配器把 SafeChartSpec v1/v2 与既有数据协议组装为 option；模型不能提供 series data、dataset、事件、动画回调或不受控根节点。v2 `visual` 只能合并到既有 renderer 节点，页面级目标仍为最多 200 个组件，异常 spec 显示“组件配置不可用”。
 - 个人预设的 ownerId/scope/specVersion 由后端写入；普通用户不能读取、更新、复制或删除他人的个人预设。
 
 ## 4. 部署形态（v1）

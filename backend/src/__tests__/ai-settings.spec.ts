@@ -84,6 +84,20 @@ describe('DeepSeek 设置与能力测试', () => {
     await expect(createService({ apiKey: 'test-key', visionEnabled: false }).testSettings({ capability: 'vision' }))
       .rejects.toMatchObject({ bizCode: 4301 });
   });
+
+  it('编辑器能力接口不泄露模型配置，并返回明确的禁用原因', async () => {
+    await expect(createService({ apiKey: 'test-key' }).getEditorCapabilities()).resolves.toEqual({
+      visionEnabled: true,
+    });
+    await expect(createService({ apiKey: 'test-key', visionEnabled: false }).getEditorCapabilities()).resolves.toEqual({
+      visionEnabled: false,
+      visionUnavailableReason: '管理员未启用 DeepSeek 视觉能力',
+    });
+    await expect(createService().getEditorCapabilities()).resolves.toEqual({
+      visionEnabled: false,
+      visionUnavailableReason: '管理员尚未配置 DeepSeek API Key',
+    });
+  });
 });
 
 function createService(options: { apiKey?: string; visionEnabled?: boolean } = {}): AiService {

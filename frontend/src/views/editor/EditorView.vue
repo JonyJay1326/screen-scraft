@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
-import type { FitMode } from '@screencraft/shared';
+import type { ComponentDefinitionSnapshot, CustomComponentPreset, FitMode } from '@screencraft/shared';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import {
@@ -18,10 +18,19 @@ import AiStyleAssistant from '../../components/editor/AiStyleAssistant.vue';
 import { saveAsTemplateApi } from '../../api/template';
 import { CATEGORIES } from '../../utils/format';
 import { cloneJson } from '../../utils/clone';
+import {
+  copyComponentPreset,
+  createComponentPreset,
+  deleteComponentPreset,
+  fetchComponentPresets,
+  updateComponentPreset,
+} from '../../api/componentPreset';
+import { createCustomMockData } from '../../registry/custom-component';
 
 const CANVAS_W = 1920;
 const CANVAS_H = 1080;
 const TPL_MIME = 'application/x-screencraft-tpl';
+const PRESET_MIME = 'application/x-screencraft-component-preset';
 
 const route = useRoute();
 const router = useRouter();
@@ -29,6 +38,7 @@ const store = useScreenStore();
 const leftTab = ref<'page' | 'lib'>('lib');
 const rightTab = ref<'data' | 'style' | 'event'>('style');
 const libTheme = ref<'dark' | 'light'>('dark');
+const libSource = ref<'builtin' | 'personal'>('builtin');
 const libCat = ref<'chart' | 'decoration' | 'media' | 'control'>('chart');
 const libKw = ref('');
 const leftCollapsed = ref(false);
@@ -41,6 +51,7 @@ const tplVisible = ref(false);
 const shortcutVisible = ref(false);
 const loadError = ref('');
 const loading = ref(true);
+const personalPresets = ref<CustomComponentPreset[]>([]);
 
 const templates = computed(() =>
   listTemplates().filter((item) => {
@@ -51,6 +62,13 @@ const templates = computed(() =>
     return !kw || item.label.includes(kw) || item.group.includes(kw);
   }),
 );
+const visiblePresets = computed(() => personalPresets.value.filter((item) => {
+  if (item.definition.category !== libCat.value) {
+    return false;
+  }
+  const kw = libKw.value.trim();
+  return !kw || item.name.includes(kw) || item.definition.group.includes(kw);
+}));
 const selected = computed(() => store.currentPage?.components.find((item) => item.id === store.selectedIds[0]));
 const canvasList = computed(() =>
   [...store.visibleComponents].sort((a, b) => a.zIndex - b.zIndex),
@@ -86,6 +104,7 @@ onMounted(async () => {
   document.documentElement.setAttribute('data-vxe-ui-theme', 'dark');
   try {
     await store.load(String(route.params.id));
+    await refreshPersonalPresets();
     await nextTick();
     fitCanvas();
   } catch {
@@ -97,6 +116,14 @@ onMounted(async () => {
   window.addEventListener('keyup', onKeyUp);
   window.addEventListener('beforeunload', onBeforeUnload);
 });
+
+async function refreshPersonalPresets(): Promise<void> {
+  try {
+    personalPresets.value = await fetchComponentPresets('personal');
+  } catch {
+    personalPresets.value = [];
+  }
+}
 
 onUnmounted(() => {
   document.documentElement.classList.remove('dark');
@@ -371,6 +398,179 @@ function addTpl(id: string, x?: number, y?: number): void {
   void nextTick(() => scrollToPoint(at.x + tpl.defaultSize.w / 2, at.y + tpl.defaultSize.h / 2));
 }
 
+function addPersonalPreset(preset: CustomComponentPreset, x?: number, y?: number): void {
+  const definition = cloneJson(preset.definition);
+  const size = definition.defaultSize;
+  const theme = libTheme.value;
+  const at = x === undefined || y === undefined ? placeAtCenter(size.w, size.h) : { x, y };
+  store.addComponent({
+    templateId: `custom:${crypto.randomUUID()}`,
+    name: preset.name,
+    x: Math.round(Math.max(0, at.x)),
+    y: Math.round(Math.max(0, at.y)),
+    w: size.w,
+    h: size.h,
+    locked: false,
+    hidden: false,
+    groupId: store.inGroupId,
+    theme,
+    style: cloneJson(definition.defaultStyle[theme]),
+    data: definition.dataProtocol
+      ? { source: 'static', staticData: createCustomMockData(definition) }
+      : undefined,
+    events: [],
+    definitionSnapshot: {
+      ...definition,
+      source: preset.scope,
+      presetId: preset._id,
+    },
+  });
+  ElMessage.success(`已添加「${preset.name}」到画布`);
+  void nextTick(() => scrollToPoint(at.x + size.w / 2, at.y + size.h / 2));
+}
+
+function presetPalette(preset: CustomComponentPreset): string[] {
+  const dark = preset.definition.defaultStyle.dark.seriesColors;
+  if (Array.isArray(dark)) {
+    return dark.filter((item): item is string => typeof item === 'string').slice(0, 5);
+  }
+  const safeSpec = preset.definition.safeSpec;
+  if (safeSpec.kind === 'chart') {
+    return (safeSpec.option.palette ?? []).slice(0, 5);
+  }
+  if (safeSpec.kind === 'border') {
+    const style = preset.definition.defaultStyle.dark;
+    return [style.primaryColor, style.accentColor, style.backgroundColor]
+      .filter((item): item is string => typeof item === 'string');
+  }
+  return [];
+}
+
+async function handlePresetCommand(command: string, preset: CustomComponentPreset): Promise<void> {
+  if (command === 'rename') {
+    let value: string;
+    try {
+      ({ value } = await ElMessageBox.prompt('个人组件名称', '重命名', {
+        inputValue: preset.name,
+        inputPattern: /\S+/,
+        inputErrorMessage: '名称不能为空',
+      }));
+    } catch (action) {
+      if (isMessageBoxCancel(action)) {
+        return;
+      }
+      throw action;
+    }
+    await updateComponentPreset(preset._id, { name: value.trim() });
+    await refreshPersonalPresets();
+    ElMessage.success('已重命名');
+    return;
+  }
+  if (command === 'copy') {
+    await copyComponentPreset(preset._id);
+    await refreshPersonalPresets();
+    ElMessage.success('已复制个人组件');
+    return;
+  }
+  if (command === 'delete') {
+    try {
+      await ElMessageBox.confirm(
+        '仅删除组件库入口，不会影响已经添加到大屏的组件。确定删除吗？',
+        '删除个人组件',
+        { type: 'warning' },
+      );
+    } catch (action) {
+      if (isMessageBoxCancel(action)) {
+        return;
+      }
+      throw action;
+    }
+    await deleteComponentPreset(preset._id);
+    personalPresets.value = personalPresets.value.filter((item) => item._id !== preset._id);
+    ElMessage.success('已删除个人组件');
+  }
+}
+
+async function saveSelectedAsPersonal(): Promise<void> {
+  const component = selected.value;
+  const snapshot = component?.definitionSnapshot;
+  if (
+    !component
+    || !snapshot
+    || !['echarts-safe-v1', 'border-parametric-v1'].includes(snapshot.rendererKey)
+  ) {
+    return;
+  }
+  const updating = snapshot.source === 'personal' && Boolean(snapshot.presetId);
+  let value: string;
+  try {
+    ({ value } = await ElMessageBox.prompt('个人组件名称', updating ? '更新个人组件' : '保存为个人组件', {
+      inputValue: component.name,
+      inputPattern: /\S+/,
+      inputErrorMessage: '名称不能为空',
+    }));
+  } catch (action) {
+    if (isMessageBoxCancel(action)) {
+      return;
+    }
+    throw action;
+  }
+  const definition = snapshotWithCurrentStyle(snapshot, component.theme, component.style);
+  const thumbnail = await captureComponentThumbnail(component.id);
+  if (updating) {
+    await updateComponentPreset(snapshot.presetId!, { name: value.trim(), definition, thumbnail });
+    ElMessage.success('个人组件已更新，已有大屏实例保持不变');
+  } else {
+    await createComponentPreset({ name: value.trim(), definition, thumbnail });
+    ElMessage.success('已保存为个人组件');
+  }
+  await refreshPersonalPresets();
+}
+
+function isMessageBoxCancel(action: unknown): boolean {
+  return action === 'cancel' || action === 'close';
+}
+
+function snapshotWithCurrentStyle(
+  snapshot: ComponentDefinitionSnapshot,
+  theme: 'dark' | 'light',
+  style: Record<string, unknown>,
+): ComponentDefinitionSnapshot {
+  const cloned = cloneJson(snapshot);
+  if (cloned.styleMode === 'editable') {
+    cloned.defaultStyle[theme] = cloneJson(style);
+  }
+  return cloned;
+}
+
+async function captureComponentThumbnail(componentId: string): Promise<string | undefined> {
+  const target = [...(canvasEl.value?.querySelectorAll<HTMLElement>('[data-comp-id]') ?? [])]
+    .find((item) => item.dataset.compId === componentId);
+  if (!target) {
+    return undefined;
+  }
+  try {
+    const { default: html2canvas } = await import('html2canvas');
+    const canvas = await html2canvas(target, {
+      backgroundColor: store.currentPage?.background.color || '#0D1730',
+      scale: Math.min(1, 320 / Math.max(1, target.offsetWidth)),
+      logging: false,
+      useCORS: true,
+      onclone: (_document, node) => {
+        const cloned = node as HTMLElement;
+        cloned.style.borderColor = 'transparent';
+        cloned.querySelectorAll('.cv-label, .cv-handle, .ratio, .del').forEach((item) => {
+          (item as HTMLElement).style.display = 'none';
+        });
+      },
+    });
+    return canvas.toDataURL('image/jpeg', 0.78);
+  } catch (error) {
+    ElMessage.warning('缩略图生成失败，个人组件将使用默认预览');
+    return undefined;
+  }
+}
+
 /** 把画布某点滚到视口中央 */
 function scrollToPoint(canvasX: number, canvasY: number): void {
   const wrap = wrapEl.value;
@@ -394,9 +594,29 @@ function onLibDragStart(event: DragEvent, id: string): void {
   }
 }
 
+function onPresetDragStart(event: DragEvent, id: string): void {
+  event.dataTransfer?.setData(PRESET_MIME, id);
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'copy';
+  }
+}
+
 /** 拖到画布放下 */
 function onCanvasDrop(event: DragEvent): void {
   event.preventDefault();
+  const presetId = event.dataTransfer?.getData(PRESET_MIME);
+  if (presetId && canvasEl.value) {
+    const preset = personalPresets.value.find((item) => item._id === presetId);
+    if (!preset) {
+      return;
+    }
+    const rect = canvasEl.value.getBoundingClientRect();
+    const z = store.zoom / 100;
+    const x = (event.clientX - rect.left) / z - preset.definition.defaultSize.w / 2;
+    const y = (event.clientY - rect.top) / z - preset.definition.defaultSize.h / 2;
+    addPersonalPreset(preset, x, y);
+    return;
+  }
   const id = event.dataTransfer?.getData(TPL_MIME) || event.dataTransfer?.getData('text/plain');
   if (!id || !canvasEl.value) {
     return;
@@ -634,12 +854,17 @@ async function renamePage(pageId: string, name: string): Promise<void> {
             <button class="lib-cat" :class="{ active: libCat === 'media' }" type="button" @click="libCat = 'media'"><ImageIcon :size="17" />媒体</button>
             <button class="lib-cat" :class="{ active: libCat === 'control' }" type="button" @click="libCat = 'control'"><MousePointer :size="17" />控件</button>
           </div>
+          <div v-if="libCat === 'chart' || libCat === 'decoration'" class="seg lib-source">
+            <button class="seg-item" :class="{ active: libSource === 'builtin' }" type="button" @click="libSource = 'builtin'">内置组件</button>
+            <button class="seg-item" :class="{ active: libSource === 'personal' }" type="button" @click="libSource = 'personal'">我的组件</button>
+          </div>
           <div class="seg" style="margin-bottom: 10px; width: 100%">
             <button class="seg-item" :class="{ active: libTheme === 'dark' }" type="button" @click="libTheme = 'dark'">暗</button>
             <button class="seg-item" :class="{ active: libTheme === 'light' }" type="button" @click="libTheme = 'light'">明</button>
           </div>
-          <div v-if="!templates.length" class="empty" style="padding: 24px 0">无匹配组件</div>
-          <div class="lib-grid">
+          <div v-if="libSource === 'builtin' || (libCat !== 'chart' && libCat !== 'decoration')">
+            <div v-if="!templates.length" class="empty" style="padding: 24px 0">无匹配组件</div>
+            <div class="lib-grid">
             <div
               v-for="item in templates"
               :key="item.id"
@@ -653,6 +878,45 @@ async function renamePage(pageId: string, name: string): Promise<void> {
                 <img :src="'/' + (libTheme === 'dark' ? item.previews.dark : item.previews.light)" :alt="item.label" />
               </div>
               <div class="lib-name">{{ item.label }}</div>
+            </div>
+            </div>
+          </div>
+          <div v-else>
+            <div v-if="!visiblePresets.length" class="empty" style="padding: 24px 0">暂无个人组件</div>
+            <div class="lib-grid">
+              <div
+                v-for="item in visiblePresets"
+                :key="item._id"
+                class="lib-item personal-item"
+                draggable="true"
+                title="点击或拖拽到画布"
+                @click="addPersonalPreset(item)"
+                @dragstart="onPresetDragStart($event, item._id)"
+              >
+                <div class="lib-thumb personal-preview">
+                  <img v-if="item.thumbnail" :src="item.thumbnail" :alt="item.name" />
+                  <span
+                    v-else
+                    v-for="(color, index) in presetPalette(item)"
+                    :key="color + index"
+                    :style="{ height: (26 + index * 9) + '%', backgroundColor: color }"
+                  />
+                </div>
+                <div class="lib-name personal-name">
+                  <span>{{ item.name }}</span>
+                  <el-dropdown trigger="click" @command="(command: string) => handlePresetCommand(command, item)">
+                    <button class="personal-more" type="button" title="更多" @click.stop><MoreHorizontal :size="13" /></button>
+                    <template #dropdown>
+                      <el-dropdown-menu>
+                        <el-dropdown-item command="rename">重命名</el-dropdown-item>
+                        <el-dropdown-item command="copy">复制</el-dropdown-item>
+                        <el-dropdown-item command="delete" divided>删除</el-dropdown-item>
+                      </el-dropdown-menu>
+                    </template>
+                  </el-dropdown>
+                </div>
+                <small>{{ item.definition.group }} · {{ item.definition.styleMode === 'locked' ? '锁定样式' : '可编辑' }}</small>
+              </div>
             </div>
           </div>
           <button class="btn btn-ghost btn-sm" type="button" style="width:100%;margin-top:10px" @click="addPlaceholder">添加占位框</button>
@@ -692,6 +956,12 @@ async function renamePage(pageId: string, name: string): Promise<void> {
         </div>
       </div>
       <aside class="ed-right">
+        <div v-if="selected?.definitionSnapshot" class="p-sec ai-component-head">
+          <span class="tag tag-pri">AI 生成</span>
+          <button class="btn btn-sm" type="button" @click="saveSelectedAsPersonal">
+            {{ selected.definitionSnapshot.source === 'personal' ? '更新个人组件' : '保存为个人组件' }}
+          </button>
+        </div>
         <div v-if="selected" class="p-sec" style="display:flex;gap:8px;align-items:center">
           <el-input :model-value="selected.name" size="small" @change="onComponentNameChange" />
           <button class="ed-tool" type="button" :title="selected.hidden ? '显示' : '隐藏'" @click="store.patchComponent(selected.id, { hidden: !selected.hidden })">
@@ -770,6 +1040,16 @@ async function renamePage(pageId: string, name: string): Promise<void> {
 .ed-state { align-items: center; justify-content: center; gap: 16px; color: var(--t2); }
 .seg { width: 100%; }
 .seg .seg-item { flex: 1; text-align: center; }
+.lib-source { margin-bottom: 8px; }
+.personal-item { position: relative; }
+.personal-preview { display: flex; align-items: end; justify-content: center; gap: 6px; padding: 10px 16px; background: var(--panel2); }
+.personal-preview img { width: 100%; height: 100%; object-fit: cover; }
+.personal-preview span { width: 12px; min-height: 12px; border-radius: 3px 3px 0 0; }
+.personal-name { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+.personal-name > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.personal-more { display: grid; place-items: center; width: 22px; height: 22px; border: 0; color: var(--t2); background: transparent; }
+.personal-item > small { display: block; padding: 0 8px 7px; color: var(--t3); font-size: 10px; }
+.ai-component-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .kbd-table { width: 100%; font-size: 13px; border-collapse: collapse; }
 .kbd-table td { padding: 8px 6px; border-bottom: 1px solid var(--border); color: var(--t2); }
 .kbd-table td:last-child { text-align: right; color: var(--t1); }

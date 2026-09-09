@@ -1,7 +1,6 @@
-import type { AiEditorContext, AiEditorPlanRequest } from '@screencraft/shared';
+import type { AiEditorContext, AiEditorPlanRequest, AiGenerateComponentRequest } from '@screencraft/shared';
 import {
   ArrayMaxSize,
-  ArrayMinSize,
   IsArray,
   IsBoolean,
   IsIn,
@@ -81,8 +80,7 @@ export class AiEditorPlanDto implements AiEditorPlanRequest {
   scope!: AiEditorPlanRequest['scope'];
 
   @IsArray()
-  @ArrayMinSize(1)
-  @ArrayMaxSize(50)
+  @ArrayMaxSize(200)
   @IsString({ each: true })
   componentIds!: string[];
 
@@ -102,4 +100,33 @@ export class AiEditorPlanDto implements AiEditorPlanRequest {
 
   @IsObject()
   context!: AiEditorContext;
+}
+
+export class AiGenerateComponentDto implements AiGenerateComponentRequest {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(128)
+  screenId!: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(128)
+  pageId!: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(2000)
+  instruction!: string;
+
+  @IsIn(['chart', 'border'])
+  kind!: 'chart' | 'border';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  referenceAssetId?: string;
+
+  @IsInt()
+  @Min(0)
+  editorRevision!: number;
 }

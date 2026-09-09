@@ -121,32 +121,36 @@ export function buildChartOption(input: {
 
   if (family === 'combo') {
     const data = input.data as ComboData;
+    const horizontal = Boolean(style.horizontal);
+    const categoryAxis = {
+      type: 'category',
+      data: data.categories,
+      show: Boolean(style.showXAxis),
+      axisLabel: { show: !forPreview, color: String(style.axisLabelColor), fontSize: axisFont },
+      axisTick: { show: !forPreview },
+    };
+    const valueAxes = [
+      {
+        type: 'value',
+        show: Boolean(style.showYAxis),
+        axisLabel: { show: !forPreview, color: String(style.axisLabelColor), fontSize: axisFont },
+        splitLine: { lineStyle: { color: String(style.gridColor), type: 'dashed' } },
+      },
+      { type: 'value', show: Boolean(style.showYAxis) && !forPreview, splitLine: { show: false } },
+    ];
     return {
       ...common,
       grid: axisGrid,
-      xAxis: {
-        type: 'category',
-        data: data.categories,
-        show: Boolean(style.showXAxis),
-        axisLabel: { show: !forPreview, color: String(style.axisLabelColor), fontSize: axisFont },
-        axisTick: { show: !forPreview },
-      },
-      yAxis: [
-        {
-          type: 'value',
-          show: Boolean(style.showYAxis),
-          axisLabel: { show: !forPreview, color: String(style.axisLabelColor), fontSize: axisFont },
-          splitLine: { lineStyle: { color: String(style.gridColor), type: 'dashed' } },
-        },
-        { type: 'value', show: Boolean(style.showYAxis) && !forPreview, splitLine: { show: false } },
-      ],
+      xAxis: horizontal ? valueAxes : categoryAxis,
+      yAxis: horizontal ? categoryAxis : valueAxes,
       series: data.series.map((serie) => {
         const isBar = serie.type === 'bar';
         const isLine = serie.type === 'line';
         return {
           name: serie.name,
           type: serie.type,
-          yAxisIndex: serie.yAxisIndex ?? 0,
+          xAxisIndex: horizontal ? (serie.yAxisIndex ?? 0) : undefined,
+          yAxisIndex: horizontal ? undefined : (serie.yAxisIndex ?? 0),
           stack: isBar && style.stack ? 'total' : undefined,
           smooth: isLine ? Boolean(style.lineSmooth) : undefined,
           symbol: isLine ? (style.showSymbol ? 'circle' : 'none') : undefined,
