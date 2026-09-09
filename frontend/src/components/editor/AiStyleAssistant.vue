@@ -49,6 +49,7 @@ const errorMessage = ref('');
 const lastAction = ref<'plan' | 'chart' | 'border'>('plan');
 const plan = ref<AiEditorPlanResponse | null>(null);
 const planRequest = ref<AiEditorPlanRequest | null>(null);
+const generatedFeedback = ref<Pick<AiGeneratedComponent, 'name' | 'fidelity' | 'warnings' | 'unsupportedFeatures'> | null>(null);
 const capabilitiesLoading = ref(false);
 const visionEnabled = ref(false);
 const visionUnavailableReason = ref('正在读取视觉能力…');
@@ -175,6 +176,7 @@ function closePanel(): void {
   store.cancelAiPreview();
   plan.value = null;
   planRequest.value = null;
+  generatedFeedback.value = null;
   errorMessage.value = '';
   open.value = false;
   void removeReference(true);
@@ -413,6 +415,7 @@ async function generateCustomComponent(kind: 'chart' | 'border'): Promise<void> 
   cancelRequest();
   store.cancelAiPreview();
   errorMessage.value = '';
+  generatedFeedback.value = null;
   lastAction.value = kind;
   const controller = new AbortController();
   const serial = ++requestSerial;
@@ -466,8 +469,13 @@ async function generateCustomComponent(kind: 'chart' | 'border'): Promise<void> 
     });
     plan.value = null;
     planRequest.value = null;
-    ElMessage.success(`已添加 AI ${kind === 'chart' ? '图表' : '边框'}「${created.name}」`);
-    result.warnings.forEach((warning) => ElMessage.warning(warning));
+    generatedFeedback.value = {
+      name: result.name,
+      fidelity: result.fidelity,
+      warnings: [...result.warnings],
+      unsupportedFeatures: result.unsupportedFeatures.map((item) => ({ ...item })),
+    };
+    ElMessage.success(`已添加${result.fidelity === 'exact' ? '精确还原' : '近似还原'} AI ${kind === 'chart' ? '图表' : '边框'}「${created.name}」`);
   } catch (error) {
     if (serial === requestSerial && !isCanceled(error) && error !== 'cancel') {
       const action = error as string;
@@ -507,6 +515,12 @@ function assertGeneratedComponent(
   const expectedRenderer = kind === 'chart' ? 'echarts-safe-v1' : 'border-parametric-v1';
   if (result.definitionSnapshot.rendererKey !== expectedRenderer) {
     throw new Error('组件类型与本次生成请求不一致');
+  }
+  if (result.fidelity !== 'exact' && result.fidelity !== 'approximate') {
+    throw new Error('组件还原等级不合法');
+  }
+  if (!Array.isArray(result.warnings) || !Array.isArray(result.unsupportedFeatures)) {
+    throw new Error('组件还原说明不合法');
   }
   if (!isProtocolValid(result.definitionSnapshot.dataProtocol, result.defaultData)) {
     throw new Error('组件模拟数据不符合声明协议');
@@ -714,6 +728,26 @@ watch(() => store.editorRevision, () => {
         <button v-if="!loading && instruction.trim()" type="button" @click="retryLastAction">重试</button>
       </section>
 
+      <section v-if="generatedFeedback" class="ai-generated-feedback">
+        <div class="ai-plan-title">
+          <Check :size="16" />
+          <strong>{{ generatedFeedback.name }}</strong>
+          <em :class="generatedFeedback.fidelity">
+            {{ generatedFeedback.fidelity === 'exact' ? '精确还原' : '近似还原' }}
+          </em>
+        </div>
+        <div v-if="generatedFeedback.unsupportedFeatures.length" class="ai-note unsupported">
+          <b>不支持项</b>
+          <p v-for="item in generatedFeedback.unsupportedFeatures" :key="item.description">
+            <em>暂不支持</em>{{ item.description }}：{{ item.reason }}<template v-if="item.suggestion">；{{ item.suggestion }}</template>
+          </p>
+        </div>
+        <div v-if="generatedFeedback.warnings.length" class="ai-note warning">
+          <b>近似说明</b>
+          <p v-for="item in generatedFeedback.warnings" :key="item">{{ item }}</p>
+        </div>
+      </section>
+
       <section v-if="plan" class="ai-plan" :class="{ stale }">
         <div class="ai-plan-title">
           <Check :size="16" />
@@ -821,6 +855,12 @@ watch(() => store.editorRevision, () => {
 .ai-error { display: flex; align-items: flex-start; gap: 7px; padding: 10px; margin-bottom: 10px; border: 1px solid color-mix(in srgb, var(--err) 42%, var(--border)); border-radius: 7px; color: var(--err); font-size: 12px; }
 .ai-error span { flex: 1; line-height: 1.5; }
 .ai-error button { border: 0; background: transparent; color: inherit; text-decoration: underline; }
+.ai-generated-feedback { padding: 12px; margin-bottom: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel2); }
+.ai-generated-feedback .ai-plan-title { align-items: center; }
+.ai-generated-feedback .ai-plan-title strong { flex: 1; }
+.ai-generated-feedback .ai-plan-title > em { padding: 2px 6px; border: 1px solid currentColor; border-radius: 4px; font-size: 10px; font-style: normal; }
+.ai-generated-feedback .ai-plan-title > em.exact { color: var(--ok); }
+.ai-generated-feedback .ai-plan-title > em.approximate { color: var(--warn); }
 .ai-plan { padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel2); }
 .ai-plan.stale > :not(.ai-stale, .ai-actions) { opacity: .45; }
 .ai-plan-title { display: flex; align-items: flex-start; gap: 7px; color: var(--ok); }

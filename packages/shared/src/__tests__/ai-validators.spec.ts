@@ -49,6 +49,52 @@ const borderSpec: SafeBorderSpec = {
   contentPadding: 16,
 };
 
+const chartSpecV2: SafeChartSpec = {
+  kind: 'chart',
+  schemaVersion: 2,
+  family: 'radar',
+  fidelity: 'exact',
+  option: {
+    palette: ['#2F7FF7', '#35E0FF'],
+    backgroundColor: 'transparent',
+    legend: {
+      show: true,
+      position: 'right',
+      orientation: 'vertical',
+      icon: 'diamond',
+      itemWidth: 14,
+      itemHeight: 10,
+      gap: 12,
+      textColor: '#B8CAE6',
+      textSize: 12,
+    },
+    radar: {
+      shape: 'polygon',
+      splitNumber: 5,
+      centerX: 46,
+      centerY: 54,
+      radius: 72,
+      areaOpacity: 0.24,
+      axisNameColor: '#DCE8FF',
+      axisNameSize: 13,
+      axisLineColor: '#345079',
+      splitLineColor: '#2F527F',
+      splitAreaColors: ['rgba(47,127,247,0.03)', 'rgba(47,127,247,0.08)'],
+      symbol: 'diamond',
+      symbolSize: 6,
+      lineWidth: 3,
+      label: {
+        show: false,
+        position: 'top',
+        color: '#F5FAFF',
+        fontSize: 12,
+        fontWeight: 'bold',
+        distance: 8,
+      },
+    },
+  },
+};
+
 const borderStyle = {
   cornerType: borderSpec.cornerType,
   cornerSize: borderSpec.cornerSize,
@@ -293,7 +339,90 @@ describe('AI 预览草稿', () => {
 describe('安全 renderer 描述', () => {
   it('接受合法图表和边框描述', () => {
     expect(validateSafeChartSpec(chartSpec)).toEqual([]);
+    expect(validateSafeChartSpec(chartSpecV2)).toEqual([]);
     expect(validateSafeBorderSpec(borderSpec)).toEqual([]);
+  });
+
+  it('校验 v2 渐变、百分比范围和图表族完整字段', () => {
+    const gradientLine: SafeChartSpec = {
+      kind: 'chart',
+      schemaVersion: 2,
+      family: 'line',
+      fidelity: 'exact',
+      option: {
+        line: {
+          smooth: true,
+          width: 3,
+          lineType: 'solid',
+          areaOpacity: 0.3,
+          areaColor: {
+            type: 'linear',
+            direction: 'vertical',
+            stops: [{ offset: 0, color: '#35E0FF' }, { offset: 1, color: 'rgba(47,127,247,0)' }],
+          },
+          symbol: 'circle',
+          symbolSize: 6,
+          label: { show: true, position: 'top', color: '#fff', fontSize: 12, fontWeight: 'normal', distance: 8 },
+        },
+      },
+    };
+    expect(validateSafeChartSpec(gradientLine)).toEqual([]);
+
+    const invalid = clone(chartSpecV2) as Extract<SafeChartSpec, { schemaVersion: 2 }>;
+    invalid.option.radar!.radius = 101;
+    expect(validateSafeChartSpec(invalid).some((item) => item.path === '$.option.radar.radius')).toBe(true);
+  });
+
+  it('接受通用安全视觉扩展、文本 formatter 与受限 path', () => {
+    const visualChart: SafeChartSpec = {
+      kind: 'chart',
+      schemaVersion: 2,
+      family: 'line',
+      fidelity: 'exact',
+      option: {
+        line: {
+          smooth: true,
+          width: 3,
+          lineType: 'solid',
+          areaOpacity: 0.3,
+          areaColor: '#2F7FF7',
+          symbol: 'circle',
+          symbolSize: 6,
+          label: { show: false, position: 'top', color: '#fff', fontSize: 12, fontWeight: 'normal', distance: 8 },
+        },
+        visual: {
+          root: { animationDuration: 300, tooltip: { renderMode: 'richText', formatter: '{b}: {c}' } },
+          series: {
+            symbol: 'path://M0 0 L10 0 L5 10 Z',
+            itemStyle: { shadowBlur: 20, shadowColor: 'rgba(47,127,247,0.4)' },
+          },
+        },
+      },
+    };
+    expect(validateSafeChartSpec(visualChart)).toEqual([]);
+  });
+
+  it('拒绝视觉扩展中的数据注入、HTML formatter、外部资源和性能越界', () => {
+    const baseVisual = {
+      ...chartSpecV2,
+      option: { ...chartSpecV2.option },
+    } as Extract<SafeChartSpec, { schemaVersion: 2 }>;
+
+    const unsafeCases = [
+      { series: { data: [1, 2, 3] } },
+      { series: { label: { formatter: '<b>{c}</b>' } } },
+      { series: { label: { formatter: 12 } } },
+      { series: { type: 'custom' } },
+      { series: { symbol: 'path://M Z' } },
+      { series: { symbol: 'path://M0 0 A10 10 0 2 0 20 20' } },
+      { series: { itemStyle: { color: { image: '//example.com/a.png' } } } },
+      { series: { symbol: 'image://https://example.com/icon.png' } },
+      { root: { animationDuration: 60_000 } },
+    ];
+    unsafeCases.forEach((visual) => {
+      const candidate = { ...baseVisual, option: { ...baseVisual.option, visual } };
+      expect(validateSafeChartSpec(candidate).length).toBeGreaterThan(0);
+    });
   });
 
   it('拒绝函数入口、外部地址与未知字段', () => {
@@ -338,6 +467,15 @@ describe('安全 renderer 描述', () => {
 describe('组件定义快照', () => {
   it('接受自包含的安全图表快照', () => {
     expect(validateComponentDefinitionSnapshot(snapshot)).toEqual([]);
+    expect(validateComponentDefinitionSnapshot({
+      ...snapshot,
+      group: 'radar',
+      dataProtocol: 'radar',
+      styleMode: 'locked',
+      styleSchema: [],
+      defaultStyle: { dark: {}, light: {} },
+      safeSpec: chartSpecV2,
+    })).toEqual([]);
   });
 
   it('接受参数化边框快照并拒绝伪造字段与越界实例样式', () => {

@@ -2,8 +2,10 @@ import type { ConfigService } from '@nestjs/config';
 import {
   isProtocolValid,
   validateComponentDefinitionSnapshot,
+  validateSafeChartSpec,
   type SafeBorderSpec,
   type SafeChartSpec,
+  type ComponentDoc,
   type ScreenDoc,
 } from '@screencraft/shared';
 import axios from 'axios';
@@ -19,6 +21,8 @@ import {
   buildGeneratedBorderDefinition,
   buildGeneratedChartDefinition,
 } from '../ai/safe-chart.factory';
+import { projectGeneratedChartSpec } from '../ai/safe-chart.projection';
+import { buildSafeChartOption } from '../../../frontend/src/registry/safe-chart-option';
 
 const lineSpec: SafeChartSpec = {
   kind: 'chart',
@@ -122,7 +126,10 @@ describe('AI 安全自定义图表生成', () => {
       group: 'line',
       dataProtocol: 'axis',
       specVersion: 1,
+      safeSpec: { schemaVersion: 2, fidelity: 'approximate' },
     });
+    expect(result.fidelity).toBe('approximate');
+    expect(result.unsupportedFeatures).toEqual([]);
     expect(isProtocolValid(result.definitionSnapshot.dataProtocol, result.defaultData)).toBe(true);
     expect(JSON.stringify(result.defaultData)).toContain('计划值');
     expect(result.editorRevision).toBe(12);
@@ -132,10 +139,10 @@ describe('AI 安全自定义图表生成', () => {
       messages: Array<{ content: string }>;
     };
     expect(payload.response_format).toEqual({ type: 'json_object' });
-    expect(payload.messages[0].content).toContain('禁止数据、函数、formatter、renderItem、HTML、CSS、SVG、URL');
+    expect(payload.messages[0].content).toContain('禁止数据、series、dataset、函数 formatter、renderItem、HTML、CSS、完整 SVG/XML');
   });
 
-  it('拒绝模型注入的 formatter 和未知安全字段', async () => {
+  it('拒绝模型注入的可执行 formatter', async () => {
     vi.spyOn(axios, 'post').mockResolvedValue({
       data: {
         choices: [{ message: { content: JSON.stringify({
@@ -155,7 +162,7 @@ describe('AI 安全自定义图表生成', () => {
       .rejects.toMatchObject({ bizCode: 4401 });
   });
 
-  it('将模型常见的图例位置别名安全映射到正式枚举', async () => {
+  it('将模型常见的图例位置值投影到 v2 正式枚举', async () => {
     vi.spyOn(axios, 'post').mockResolvedValue({
       data: {
         choices: [{ message: { content: JSON.stringify({
@@ -177,13 +184,14 @@ describe('AI 安全自定义图表生成', () => {
     const result = await createService().generateComponent(createRequest(), 'user-1');
 
     expect(result.definitionSnapshot.safeSpec).toMatchObject({
-      option: { legend: { position: 'topRight' } },
+      schemaVersion: 2,
+      option: { legend: { position: 'right' } },
     });
-    expect(result.warnings).toContain('图例位置 right 已安全映射为 topRight');
+    expect(result.fidelity).toBe('approximate');
     expect(validateComponentDefinitionSnapshot(result.definitionSnapshot)).toEqual([]);
   });
 
-  it('忽略模型输出的雷达图半径并明确提示使用默认值', async () => {
+  it('保留并归一化模型输出的雷达图半径', async () => {
     vi.spyOn(axios, 'post').mockResolvedValue({
       data: {
         choices: [{ message: { content: JSON.stringify({
@@ -192,8 +200,9 @@ describe('AI 安全自定义图表生成', () => {
           styleMode: 'editable',
           safeSpec: {
             kind: 'chart',
-            schemaVersion: 1,
+            schemaVersion: 2,
             family: 'radar',
+            fidelity: 'exact',
             option: {
               radar: {
                 shape: 'polygon',
@@ -211,12 +220,194 @@ describe('AI 安全自定义图表生成', () => {
     const result = await createService().generateComponent(createRequest(), 'user-1');
 
     expect(result.definitionSnapshot.safeSpec).toMatchObject({
-      option: { radar: { shape: 'polygon', splitNumber: 5, areaOpacity: 0.24 } },
+      schemaVersion: 2,
+      option: { radar: { shape: 'polygon', splitNumber: 5, areaOpacity: 0.24, radius: 72 } },
     });
-    expect((result.definitionSnapshot.safeSpec as SafeChartSpec).option.radar)
-      .not.toHaveProperty('radius');
-    expect(result.warnings).toContain('雷达图半径不在安全契约中，已使用 renderer 默认值');
+    expect(result.warnings).toEqual([]);
+    expect(result.fidelity).toBe('exact');
     expect(validateComponentDefinitionSnapshot(result.definitionSnapshot)).toEqual([]);
+  });
+
+  it('保留七类图表的安全视觉扩展，并硬拒绝危险字段', () => {
+    const projected = projectGeneratedChartSpec({
+      kind: 'chart',
+      schemaVersion: 2,
+      family: 'pie',
+      fidelity: 'exact',
+      option: {
+        pie: { radius: ['40%', '70%'], shadowBlur: 20 },
+        animationDuration: 300,
+      },
+    });
+    expect(projected.rejectedReason).toBeUndefined();
+    expect(projected.safeSpec?.schemaVersion).toBe(2);
+    expect(projected.safeSpec?.fidelity).toBe('exact');
+    expect(projected.safeSpec?.option.visual).toMatchObject({
+      root: { animationDuration: 300 },
+      series: { itemStyle: { shadowBlur: 20 } },
+    });
+    expect(projected.warnings).toEqual([]);
+    expect(validateSafeChartSpec(projected.safeSpec)).toEqual([]);
+
+    const rejected = projectGeneratedChartSpec({
+      kind: 'chart', schemaVersion: 2, family: 'line',
+      option: { line: { formatter: 'javascript:alert(1)' } },
+    });
+    expect(rejected.rejectedReason).toContain('formatter');
+    expect(rejected.safeSpec).toBeUndefined();
+
+    const rawSvg = projectGeneratedChartSpec({
+      kind: 'chart', schemaVersion: 2, family: 'pie',
+      option: { pie: { rawSvg: '<svg><path /></svg>' } },
+    });
+    expect(rawSvg.rejectedReason).toContain('rawSvg');
+  });
+
+  it('将雷达图扁平视觉字段投影到坐标系与系列，且不为安全归一化降级', () => {
+    const projected = projectGeneratedChartSpec({
+      kind: 'chart', schemaVersion: 2, family: 'radar', fidelity: 'exact',
+      option: {
+        grid: { left: 10 },
+        axis: { showX: false },
+        radar: {
+          centerX: '50%', centerY: '55%', radius: '65%',
+          axisLineWidth: 2, splitLineWidth: 1, splitAreaColor: 'rgba(47,127,247,0.08)',
+          areaColor: 'rgba(53,224,255,0.25)', lineType: 'dashed',
+        },
+      },
+    });
+
+    expect(projected.rejectedReason).toBeUndefined();
+    expect(projected.warnings).toEqual([]);
+    expect(projected.safeSpec).toMatchObject({
+      fidelity: 'exact',
+      option: {
+        radar: { centerX: 50, centerY: 55, radius: 65 },
+        visual: {
+          coordinate: {
+            axisLine: { lineStyle: { width: 2 } },
+            splitLine: { lineStyle: { width: 1 } },
+            splitArea: { areaStyle: { color: ['rgba(47,127,247,0.08)'] } },
+          },
+          series: {
+            areaStyle: { color: 'rgba(53,224,255,0.25)' },
+            lineStyle: { type: 'dashed' },
+          },
+        },
+      },
+    });
+    expect(validateSafeChartSpec(projected.safeSpec)).toEqual([]);
+  });
+
+  it('接受安全 formatter 与受限 path，拒绝 HTML formatter 和超复杂路径', () => {
+    const safe = projectGeneratedChartSpec({
+      kind: 'chart', schemaVersion: 2, family: 'line', fidelity: 'exact',
+      option: {
+        line: { symbol: 'path://M0 0 L10 0 L5 10 Z' },
+        visual: { series: { label: { formatter: '{b}: {c}' } } },
+      },
+    });
+    expect(safe.rejectedReason).toBeUndefined();
+    expect(safe.safeSpec?.option.visual?.series).toMatchObject({
+      symbol: 'path://M0 0 L10 0 L5 10 Z',
+      label: { formatter: '{b}: {c}' },
+    });
+    expect(validateSafeChartSpec(safe.safeSpec)).toEqual([]);
+
+    const html = projectGeneratedChartSpec({
+      kind: 'chart', schemaVersion: 2, family: 'line',
+      option: { line: {}, visual: { series: { label: { formatter: '<b>{c}</b>' } } } },
+    });
+    expect(html.rejectedReason).toContain('formatter');
+
+    const complexPath = `path://${Array.from({ length: 300 }, (_, index) => `M${index} ${index}`).join(' ')}`;
+    const rejectedPath = projectGeneratedChartSpec({
+      kind: 'chart', schemaVersion: 2, family: 'line',
+      option: { line: {}, visual: { series: { symbol: complexPath } } },
+    });
+    expect(rejectedPath.rejectedReason).toContain('path://');
+  });
+
+  it('七种图表族投影为合法 v2，200 次配置投影低于一秒', () => {
+    const families: SafeChartSpec['family'][] = ['line', 'bar', 'pie', 'combo', 'funnel', 'radar', 'gauge'];
+    families.forEach((family) => {
+      const familyOption = family === 'combo'
+        ? { line: { shadowBlur: 12 }, bar: { shadowBlur: 12 } }
+        : { [family]: { shadowBlur: 12 } };
+      const projected = projectGeneratedChartSpec({
+        kind: 'chart', schemaVersion: 2, family, fidelity: 'exact', option: familyOption,
+      });
+      expect(projected.rejectedReason, family).toBeUndefined();
+      expect(projected.warnings, family).toEqual([]);
+      expect(projected.safeSpec?.fidelity, family).toBe('exact');
+      expect(validateSafeChartSpec(projected.safeSpec), family).toEqual([]);
+      const definition = buildGeneratedChartDefinition(projected.safeSpec!, 'locked');
+      expect(validateComponentDefinitionSnapshot(definition), family).toEqual([]);
+    });
+
+    const complete = projectGeneratedChartSpec({
+      kind: 'chart', schemaVersion: 2, family: 'radar', fidelity: 'exact', option: { radar: {} },
+    }).safeSpec!;
+    const exactRoundTrip = projectGeneratedChartSpec({ ...complete, fidelity: 'exact' });
+    expect(exactRoundTrip.warnings).toEqual([]);
+    expect(exactRoundTrip.safeSpec?.fidelity).toBe('exact');
+
+    const startedAt = performance.now();
+    let generatedCount = 0;
+    for (let index = 0; index < 200; index += 1) {
+      const projected = projectGeneratedChartSpec({
+        kind: 'chart', schemaVersion: 2, family: 'radar', fidelity: 'exact',
+        option: { radar: { radius: `${60 + (index % 20)}%` } },
+      });
+      if (projected.safeSpec) generatedCount += 1;
+    }
+    expect(generatedCount).toBe(200);
+    expect(performance.now() - startedAt).toBeLessThan(1000);
+  });
+
+  it('七族视觉扩展进入最终渲染 option，保留业务数据且不修改快照', () => {
+    const families: SafeChartSpec['family'][] = ['line', 'bar', 'pie', 'combo', 'funnel', 'radar', 'gauge'];
+    for (const family of families) {
+      const projected = projectGeneratedChartSpec({
+        kind: 'chart', schemaVersion: 2, family, fidelity: 'exact',
+        option: {
+          ...(family === 'radar' ? { radar: { lineWidth: 7 } } : {}),
+          visual: {
+            series: { itemStyle: { shadowBlur: 12 }, label: { formatter: '{b}: {c}' } },
+            root: { tooltip: { formatter: '{b}: {c}' } },
+            ...(family === 'radar' ? { coordinate: { splitLine: { lineStyle: { width: 3 } } } } : {}),
+          },
+        },
+      });
+      expect(projected.rejectedReason, family).toBeUndefined();
+      const definition = buildGeneratedChartDefinition(projected.safeSpec!, 'locked');
+      const data = buildChineseMockData(family);
+      const doc: ComponentDoc = {
+        id: 'test', templateId: 'generated', name: '测试', x: 0, y: 0, w: 400, h: 300,
+        zIndex: 0, locked: false, hidden: false, groupId: null, theme: 'dark',
+        style: {}, events: [], definitionSnapshot: definition,
+      };
+      const before = JSON.stringify({ doc, data });
+      const rendered = buildSafeChartOption(doc, data);
+      const series = rendered.series as Array<Record<string, unknown>>;
+      expect(series.length, family).toBeGreaterThan(0);
+      for (const item of series) {
+        expect(item.itemStyle).toMatchObject({ shadowBlur: 12 });
+        expect(item.label).toMatchObject({ formatter: '{b}: {c}' });
+        expect(Array.isArray(item.data)).toBe(true);
+        expect(family === 'combo' ? ['line', 'bar'] : [family]).toContain(item.type);
+      }
+      expect(rendered.tooltip).toMatchObject({ renderMode: 'richText', confine: true });
+      if (family === 'radar') {
+        expect(series[0].lineStyle).toMatchObject({ width: 7 });
+        expect(rendered.radar).toMatchObject({ splitLine: { lineStyle: { width: 3 } } });
+        const editable = buildGeneratedChartDefinition(projected.safeSpec!, 'editable');
+        expect(editable.defaultStyle.dark.lineWidth).toBe(7);
+        const editableOption = buildSafeChartOption({ ...doc, definitionSnapshot: editable }, data);
+        expect((editableOption.series as Array<Record<string, unknown>>)[0].lineStyle).toMatchObject({ width: 7 });
+      }
+      expect(JSON.stringify({ doc, data })).toBe(before);
+    }
   });
 
   it('生成可编辑参数化边框快照且不包含数据协议', async () => {

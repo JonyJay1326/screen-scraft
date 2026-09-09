@@ -13,6 +13,8 @@ const legendPositionOptions = [
   { label: '顶部', value: 'top' },
   { label: '右上', value: 'topRight' },
   { label: '底部', value: 'bottom' },
+  { label: '左侧', value: 'left' },
+  { label: '右侧', value: 'right' },
 ];
 
 export function buildGeneratedChartDefinition(
@@ -177,7 +179,7 @@ function approvedStyleSchema(family: SafeChartSpec['family']): StyleField[] {
     fields.push(
       {
         key: 'funnelSort', label: '排序', type: 'select', group: '漏斗', aiWritable: true,
-        options: [{ label: '升序', value: 'ascending' }, { label: '降序', value: 'descending' }],
+        options: [{ label: '升序', value: 'ascending' }, { label: '降序', value: 'descending' }, { label: '不排序', value: 'none' }],
       },
       {
         key: 'funnelAlign', label: '对齐', type: 'select', group: '漏斗', aiWritable: true,
@@ -288,8 +290,8 @@ function defaultStyle(spec: SafeChartSpec, theme: 'dark' | 'light'): Record<stri
       radarShape: option.radar.shape,
       splitNumber: option.radar.splitNumber,
       areaOpacity: option.radar.areaOpacity * 100,
-      lineWidth: 2,
-      showSymbol: true,
+      lineWidth: spec.schemaVersion === 2 ? spec.option.radar?.lineWidth ?? 2 : 2,
+      showSymbol: spec.schemaVersion === 2 ? spec.option.radar?.symbol !== 'none' : true,
     });
   }
   if (option.funnel) {

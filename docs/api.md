@@ -192,14 +192,14 @@ type TencentWeatherData = {
 // ---------- AI 安全描述 ----------
 type ChartFamily = 'line' | 'bar' | 'pie' | 'combo' | 'funnel' | 'radar' | 'gauge';
 
-interface SafeChartSpec {
+interface SafeChartSpecV1 {
   kind: 'chart';
   schemaVersion: 1;
   family: ChartFamily;
-  option: SafeChartOption;
+  option: SafeChartOptionV1;
 }
 
-interface SafeChartOption {
+interface SafeChartOptionV1 {
   grid?: { left: number; right: number; top: number; bottom: number };
   palette?: string[];
   legend?: { show: boolean; position: 'top' | 'topRight' | 'bottom' };
@@ -211,6 +211,170 @@ interface SafeChartOption {
   radar?: { shape: 'polygon' | 'circle'; splitNumber: number; areaOpacity: number };
   gauge?: { min: number; max: number; startAngle: number; endAngle: number; showPointer: boolean; showProgress: boolean };
 }
+
+type ChartFidelity = 'exact' | 'approximate';
+type SafeChartColor = string | {
+  type: 'linear';
+  direction: 'vertical' | 'horizontal' | 'diagonal';
+  stops: { offset: number; color: string }[];
+};
+
+interface SafeChartLabel {
+  show: boolean;
+  position: 'top' | 'inside' | 'center' | 'outside' | 'right';
+  color: string;
+  fontSize: number;
+  fontWeight: 'normal' | 'bold';
+  distance: number;
+}
+
+type SafeChartVisualValue =
+  | string | number | boolean | null
+  | SafeChartVisualValue[]
+  | SafeChartVisualObject;
+interface SafeChartVisualObject { [key: string]: SafeChartVisualValue }
+interface SafeChartVisualOverrides {
+  root?: SafeChartVisualObject;
+  grid?: SafeChartVisualObject;
+  legend?: SafeChartVisualObject;
+  axis?: SafeChartVisualObject;
+  xAxis?: SafeChartVisualObject;
+  yAxis?: SafeChartVisualObject;
+  coordinate?: SafeChartVisualObject;
+  series?: SafeChartVisualObject;
+  lineSeries?: SafeChartVisualObject;
+  barSeries?: SafeChartVisualObject;
+}
+// visual 仅允许纯 JSON 视觉/布局值，并限制深度、字段数、数组长度与高成本数值。
+// 禁止数据/series 注入、函数、renderItem、HTML/CSS、完整 SVG/XML、URL/data URI 和危险键。
+// formatter 仅允许 {a}/{b}/{c}/{d}/{value}/{name}/{seriesName} 固定占位符纯文本模板；
+// path:// 仅允许长度≤4096、命令数≤256、坐标绝对值≤100000 的标准 SVG path 数据。
+
+interface SafeChartSpecV2 {
+  kind: 'chart';
+  schemaVersion: 2;
+  family: ChartFamily;
+  fidelity: ChartFidelity;
+  option: SafeChartOptionV2;
+}
+
+interface SafeChartOptionV2 {
+  grid?: { left: number; right: number; top: number; bottom: number; containLabel: boolean };
+  palette?: string[];
+  backgroundColor?: string;
+  visual?: SafeChartVisualOverrides; // 仅保存经过服务端安全投影的纯视觉扩展
+  legend?: {
+    show: boolean;
+    position: 'top' | 'topRight' | 'bottom' | 'left' | 'right';
+    orientation: 'horizontal' | 'vertical';
+    icon: 'circle' | 'rect' | 'roundRect' | 'triangle' | 'diamond' | 'line';
+    itemWidth: number;
+    itemHeight: number;
+    gap: number;
+    textColor: string;
+    textSize: number;
+  };
+  axis?: {
+    showX: boolean;
+    showY: boolean;
+    labelColor: string;
+    labelSize: number;
+    labelRotate: number;
+    showTicks: boolean;
+    axisLineColor: string;
+    axisLineWidth: number;
+    gridColor: string;
+    gridWidth: number;
+    gridType: 'solid' | 'dashed' | 'dotted';
+  };
+  line?: {
+    smooth: boolean;
+    width: number;
+    lineType: 'solid' | 'dashed' | 'dotted';
+    areaOpacity: number;
+    areaColor: SafeChartColor;
+    symbol: 'none' | 'circle' | 'rect' | 'triangle' | 'diamond';
+    symbolSize: number;
+    label: SafeChartLabel;
+  };
+  bar?: {
+    width: number;
+    maxWidth: number;
+    radius: number;
+    stack: boolean;
+    horizontal: boolean;
+    color: SafeChartColor;
+    borderColor: string;
+    borderWidth: number;
+    showBackground: boolean;
+    backgroundColor: string;
+    label: SafeChartLabel;
+  };
+  pie?: {
+    innerRadius: number;
+    outerRadius: number;
+    centerX: number;
+    centerY: number;
+    startAngle: number;
+    clockwise: boolean;
+    padAngle: number;
+    borderRadius: number;
+    borderColor: string;
+    borderWidth: number;
+    roseType: 'none' | 'radius' | 'area';
+    label: SafeChartLabel;
+  };
+  funnel?: {
+    sort: 'ascending' | 'descending' | 'none';
+    align: 'left' | 'center' | 'right';
+    gap: number;
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+    minSize: number;
+    maxSize: number;
+    label: SafeChartLabel;
+  };
+  radar?: {
+    shape: 'polygon' | 'circle';
+    splitNumber: number;
+    centerX: number;
+    centerY: number;
+    radius: number;
+    areaOpacity: number;
+    axisNameColor: string;
+    axisNameSize: number;
+    axisLineColor: string;
+    splitLineColor: string;
+    splitAreaColors: string[];
+    symbol: 'none' | 'circle' | 'rect' | 'triangle' | 'diamond';
+    symbolSize: number;
+    lineWidth: number;
+    label: SafeChartLabel;
+  };
+  gauge?: {
+    min: number;
+    max: number;
+    startAngle: number;
+    endAngle: number;
+    centerX: number;
+    centerY: number;
+    radius: number;
+    showPointer: boolean;
+    pointerWidth: number;
+    showProgress: boolean;
+    progressWidth: number;
+    axisLineWidth: number;
+    splitNumber: number;
+    titleColor: string;
+    titleSize: number;
+    detailColor: string;
+    detailSize: number;
+  };
+}
+
+type SafeChartSpec = SafeChartSpecV1 | SafeChartSpecV2;
 
 interface SafeBorderSpec {
   kind: 'border';
@@ -294,10 +458,12 @@ interface AiGenerateComponentRequest {
 interface AiGeneratedComponent {
   name: string;
   theme: 'dark' | 'light';
+  fidelity: ChartFidelity;
   definitionSnapshot: ComponentDefinitionSnapshot;
   style: Record<string, unknown>;
   defaultData?: unknown;
   warnings: string[];
+  unsupportedFeatures: { description: string; reason: string; suggestion?: string }[];
   editorRevision: number;
 }
 
