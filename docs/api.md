@@ -310,6 +310,11 @@ interface AiReferenceAsset {
   expiresAt: string;
 }
 
+interface AiEditorCapabilities {
+  visionEnabled: boolean;
+  visionUnavailableReason?: string;
+}
+
 interface AiSettingsView {
   provider: 'deepseek';
   baseUrl: string;
@@ -409,6 +414,7 @@ interface CustomComponentPreset {
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
+| GET | /ai/editor/capabilities | 当前用户：读取 `{visionEnabled,visionUnavailableReason?}`；不返回模型名、BaseURL 或密钥信息 |
 | POST | /ai/editor/plan | `AiEditorPlanRequest` → `AiEditorPlanResponse`；生成已有组件/页面样式方案，不写数据库 |
 | POST | /ai/editor/generate-component | `AiGenerateComponentRequest` → `AiGeneratedComponent`；返回临时安全组件定义，不直接写大屏 |
 | POST | /ai/editor/reference-assets | multipart 单图 → `AiReferenceAsset`；仅 PNG/JPEG/WebP，真实文件头校验，≤10MB、单边≤8192px，默认 24 小时过期 |

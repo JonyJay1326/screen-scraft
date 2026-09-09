@@ -5,14 +5,20 @@ import {
   AI_SCREEN_COMPONENT_LIMIT,
   getBuiltinComponentMetadata,
   validateAiEditorPlanResponse,
+  type AiReferenceAsset,
   type AiEditorPlanRequest,
   type AiEditorPlanResponse,
   type ComponentDoc,
   type StyleValue,
 } from '@screencraft/shared';
-import { AlertTriangle, Check, Eye, RotateCcw, Send, Sparkles, WandSparkles, X } from 'lucide-vue-next';
+import { AlertTriangle, Check, Eye, ImagePlus, RotateCcw, Send, Sparkles, Trash2, WandSparkles, X } from 'lucide-vue-next';
 import { ElMessage } from 'element-plus';
-import { createAiEditorPlan } from '../../api/ai';
+import {
+  createAiEditorPlan,
+  deleteAiReferenceAsset,
+  getAiEditorCapabilities,
+  uploadAiReferenceAsset,
+} from '../../api/ai';
 import { getTemplate } from '../../registry';
 import { useScreenStore } from '../../stores/screen';
 
@@ -38,8 +44,17 @@ const stage = ref('');
 const errorMessage = ref('');
 const plan = ref<AiEditorPlanResponse | null>(null);
 const planRequest = ref<AiEditorPlanRequest | null>(null);
+const capabilitiesLoading = ref(false);
+const visionEnabled = ref(false);
+const visionUnavailableReason = ref('正在读取视觉能力…');
+const referenceAsset = ref<AiReferenceAsset | null>(null);
+const referencePreviewUrl = ref('');
+const referenceBusy = ref(false);
+const referenceDragging = ref(false);
+const referenceInput = ref<HTMLInputElement | null>(null);
 let requestController: AbortController | null = null;
 let requestSerial = 0;
+let referenceSerial = 0;
 
 const selectedComponents = computed(() => {
   const ids = new Set(store.selectedIds);
@@ -147,6 +162,7 @@ const canApply = computed(() => Boolean(plan.value?.operations.length && planReq
 
 function showPanel(): void {
   open.value = true;
+  void refreshCapabilities();
 }
 
 function closePanel(): void {
@@ -156,6 +172,120 @@ function closePanel(): void {
   planRequest.value = null;
   errorMessage.value = '';
   open.value = false;
+  void removeReference(true);
+}
+
+async function refreshCapabilities(): Promise<void> {
+  capabilitiesLoading.value = true;
+  try {
+    const capabilities = await getAiEditorCapabilities();
+    visionEnabled.value = capabilities.visionEnabled;
+    visionUnavailableReason.value = capabilities.visionUnavailableReason || '';
+    if (!capabilities.visionEnabled && referenceAsset.value) {
+      await removeReference(true);
+    }
+  } catch {
+    visionEnabled.value = false;
+    visionUnavailableReason.value = '无法读取视觉能力，请稍后重试';
+  } finally {
+    capabilitiesLoading.value = false;
+  }
+}
+
+function selectReferenceFile(): void {
+  if (visionEnabled.value && !referenceBusy.value) {
+    referenceInput.value?.click();
+  }
+}
+
+function handleReferenceInput(event: Event): void {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  if (file) {
+    void uploadReference(file);
+  }
+}
+
+function handleReferenceDrop(event: DragEvent): void {
+  referenceDragging.value = false;
+  if (!visionEnabled.value || referenceBusy.value) {
+    return;
+  }
+  const file = event.dataTransfer?.files?.[0];
+  if (file) {
+    void uploadReference(file);
+  }
+}
+
+async function uploadReference(file: File): Promise<void> {
+  if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+    errorMessage.value = '参考图仅支持 PNG、JPEG 或 WebP';
+    return;
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    errorMessage.value = '参考图不能超过 10MB';
+    return;
+  }
+  const serial = ++referenceSerial;
+  referenceBusy.value = true;
+  errorMessage.value = '';
+  const previousId = referenceAsset.value?._id;
+  try {
+    const uploaded = await uploadAiReferenceAsset(file);
+    if (serial !== referenceSerial) {
+      await deleteAiReferenceAsset(uploaded._id).catch(() => {
+        ElMessage.warning('参考图主动清理失败，将由服务端过期清理');
+      });
+      return;
+    }
+    clearReferencePreview();
+    referenceAsset.value = uploaded;
+    referencePreviewUrl.value = URL.createObjectURL(file);
+    if (previousId && previousId !== uploaded._id) {
+      void deleteAiReferenceAsset(previousId).catch(() => {
+        ElMessage.warning('旧参考图主动清理失败，将由服务端过期清理');
+      });
+    }
+  } catch (error) {
+    errorMessage.value = getErrorMessage(error);
+  } finally {
+    if (serial === referenceSerial) {
+      referenceBusy.value = false;
+    }
+  }
+}
+
+async function removeReference(bestEffort = false): Promise<void> {
+  const serial = ++referenceSerial;
+  const id = referenceAsset.value?._id;
+  clearReferencePreview();
+  referenceAsset.value = null;
+  if (!id) {
+    referenceBusy.value = false;
+    return;
+  }
+  referenceBusy.value = true;
+  try {
+    await deleteAiReferenceAsset(id);
+  } catch (error) {
+    if (!bestEffort) {
+      errorMessage.value = getErrorMessage(error);
+    } else {
+      ElMessage.warning('参考图主动清理失败，将由服务端过期清理');
+    }
+  } finally {
+    if (serial === referenceSerial) {
+      referenceBusy.value = false;
+    }
+  }
+}
+
+function clearReferencePreview(): void {
+  if (referencePreviewUrl.value) {
+    URL.revokeObjectURL(referencePreviewUrl.value);
+    referencePreviewUrl.value = '';
+  }
 }
 
 function cancelRequest(): void {
@@ -203,6 +333,7 @@ async function generatePlan(): Promise<void> {
     scope: scope.value,
     componentIds: scopeComponents.value.map((component) => component.id),
     instruction: instruction.value.trim(),
+    ...(referenceAsset.value ? { referenceAssetId: referenceAsset.value._id } : {}),
     editorRevision: revision,
     context: {
       pageBackground: {
@@ -332,6 +463,7 @@ function getErrorMessage(error: unknown): string {
 onUnmounted(() => {
   cancelRequest();
   store.cancelAiPreview();
+  void removeReference(true);
 });
 
 watch(() => store.currentPageId, () => {
@@ -410,7 +542,47 @@ watch(() => store.editorRevision, () => {
           placeholder="例如：隐藏图例，线宽改为 4，使用蓝青配色"
           :disabled="loading"
         />
-        <div class="ai-reference-disabled">参考图风格迁移将在 M9.3 开放</div>
+        <div class="ai-reference-head">
+          <span>参考图（可选）</span>
+          <small>图片将发送至管理员配置的 DeepSeek 服务</small>
+        </div>
+        <input
+          ref="referenceInput"
+          class="ai-reference-input"
+          type="file"
+          accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp"
+          @change="handleReferenceInput"
+        />
+        <div v-if="referenceAsset" class="ai-reference-preview">
+          <img :src="referencePreviewUrl" alt="AI 样式参考图预览" />
+          <div>
+            <b>{{ referenceAsset.width }} × {{ referenceAsset.height }}</b>
+            <span>{{ referenceAsset.mimeType.replace('image/', '').toUpperCase() }} · {{ (referenceAsset.size / 1024 / 1024).toFixed(2) }}MB</span>
+            <small>到期自动清理</small>
+          </div>
+          <button type="button" title="删除参考图" :disabled="referenceBusy" @click="removeReference()">
+            <Trash2 :size="16" />
+          </button>
+        </div>
+        <button
+          v-else
+          class="ai-reference-drop"
+          :class="{ dragging: referenceDragging }"
+          type="button"
+          :disabled="!visionEnabled || capabilitiesLoading || referenceBusy"
+          @click="selectReferenceFile"
+          @dragenter.prevent="referenceDragging = true"
+          @dragover.prevent="referenceDragging = true"
+          @dragleave.prevent="referenceDragging = false"
+          @drop.prevent="handleReferenceDrop"
+        >
+          <ImagePlus :size="20" />
+          <span>{{ referenceBusy ? '正在上传…' : '点击或拖入 PNG / JPEG / WebP' }}</span>
+          <small>不超过 10MB，单边不超过 8192px</small>
+        </button>
+        <p v-if="!capabilitiesLoading && !visionEnabled" class="ai-reference-unavailable">
+          {{ visionUnavailableReason }}，仍可使用文本样式编辑。
+        </p>
         <button class="btn btn-pri ai-generate" type="button" :disabled="!canGenerate" @click="generatePlan">
           <Send :size="14" />{{ loading ? stage : '生成修改方案' }}
         </button>
@@ -511,7 +683,20 @@ watch(() => store.editorRevision, () => {
 .ai-summary-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .ai-summary-strip span { padding: 7px; text-align: center; border-radius: 5px; background: color-mix(in srgb, var(--pri) 9%, transparent); color: var(--t2); font-size: 11px; }
 .ai-summary-strip b { color: var(--t1); font-family: var(--font-num); }
-.ai-reference-disabled { margin-top: 10px; padding: 8px; border: 1px dashed var(--border); border-radius: 6px; color: var(--t3); font-size: 11px; text-align: center; }
+.ai-reference-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; color: var(--t2); font-size: 12px; }
+.ai-reference-head small { color: var(--warn); font-size: 10px; text-align: right; }
+.ai-reference-input { display: none; }
+.ai-reference-drop { width: 100%; min-height: 76px; margin-top: 7px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border: 1px dashed var(--border); border-radius: 6px; color: var(--t2); background: transparent; font-size: 11px; }
+.ai-reference-drop.dragging { border-color: var(--pri); background: color-mix(in srgb, var(--pri) 9%, transparent); }
+.ai-reference-drop:disabled { cursor: not-allowed; opacity: .48; }
+.ai-reference-drop small { color: var(--t3); font-size: 10px; }
+.ai-reference-preview { margin-top: 7px; display: grid; grid-template-columns: 72px 1fr 30px; align-items: center; gap: 9px; padding: 7px; border: 1px solid var(--border); border-radius: 6px; background: color-mix(in srgb, var(--pri) 6%, transparent); }
+.ai-reference-preview img { width: 72px; height: 50px; object-fit: cover; border-radius: 4px; background: var(--bg); }
+.ai-reference-preview > div { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.ai-reference-preview b { color: var(--t1); font: 600 11px var(--font-num); }
+.ai-reference-preview span, .ai-reference-preview small { color: var(--t3); font-size: 10px; }
+.ai-reference-preview button { display: grid; place-items: center; width: 28px; height: 28px; border: 0; color: var(--err); background: transparent; }
+.ai-reference-unavailable { margin: 6px 0 0; color: var(--warn); font-size: 10px; line-height: 1.5; }
 .ai-generate { width: 100%; margin-top: 10px; justify-content: center; }
 .ai-cancel-request { width: 100%; margin-top: 6px; justify-content: center; }
 .ai-error { display: flex; align-items: flex-start; gap: 7px; padding: 10px; margin-bottom: 10px; border: 1px solid color-mix(in srgb, var(--err) 42%, var(--border)); border-radius: 7px; color: var(--err); font-size: 12px; }

@@ -314,6 +314,11 @@ export interface AiReferenceAsset {
   expiresAt: string;
 }
 
+export interface AiEditorCapabilities {
+  visionEnabled: boolean;
+  visionUnavailableReason?: string;
+}
+
 export interface CustomComponentPreset {
   _id: string;
   ownerId: string;

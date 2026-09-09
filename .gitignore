@@ -19,6 +19,7 @@ frontend/.env
 
 # 上传与本地数据库
 uploads
+ai-reference-assets
 /data
 .tools
 
