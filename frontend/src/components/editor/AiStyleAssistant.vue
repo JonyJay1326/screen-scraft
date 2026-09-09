@@ -4,7 +4,10 @@ import {
   AI_PAGE_COMPONENT_LIMIT,
   AI_SCREEN_COMPONENT_LIMIT,
   getBuiltinComponentMetadata,
+  isProtocolValid,
+  validateComponentDefinitionSnapshot,
   validateAiEditorPlanResponse,
+  type AiGeneratedComponent,
   type AiReferenceAsset,
   type AiEditorPlanRequest,
   type AiEditorPlanResponse,
@@ -12,11 +15,12 @@ import {
   type StyleValue,
 } from '@screencraft/shared';
 import { AlertTriangle, Check, Eye, ImagePlus, RotateCcw, Send, Sparkles, Trash2, WandSparkles, X } from 'lucide-vue-next';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import {
   createAiEditorPlan,
   deleteAiReferenceAsset,
   getAiEditorCapabilities,
+  generateAiComponent,
   uploadAiReferenceAsset,
 } from '../../api/ai';
 import { getTemplate } from '../../registry';
@@ -400,6 +404,94 @@ function cancelPreview(): void {
   store.cancelAiPreview();
 }
 
+async function generateCustomChart(): Promise<void> {
+  if (!store.screen || !store.currentPage || !instruction.value.trim()) {
+    return;
+  }
+  cancelRequest();
+  store.cancelAiPreview();
+  errorMessage.value = '';
+  const controller = new AbortController();
+  const serial = ++requestSerial;
+  requestController = controller;
+  loading.value = true;
+  stage.value = 'DeepSeek 正在生成安全图表…';
+  const revision = store.editorRevision;
+  try {
+    const result = await generateAiComponent({
+      screenId: store.screen._id,
+      pageId: store.currentPageId,
+      instruction: instruction.value.trim(),
+      kind: 'chart',
+      ...(referenceAsset.value ? { referenceAssetId: referenceAsset.value._id } : {}),
+      editorRevision: revision,
+    }, controller.signal);
+    if (serial !== requestSerial) {
+      return;
+    }
+    assertGeneratedComponent(result, revision);
+    if (result.definitionSnapshot.styleMode === 'locked') {
+      await ElMessageBox.confirm(
+        '现有可编辑字段无法完整表达该视觉结构。是否添加为锁定样式图表？数据绑定和交互事件仍可编辑。',
+        '确认生成锁定样式图表',
+        { type: 'warning', confirmButtonText: '确认添加', cancelButtonText: '取消' },
+      );
+    }
+    if (revision !== store.editorRevision || !store.currentPage) {
+      throw new Error('画布已变化，请重新生成组件');
+    }
+    const size = result.definitionSnapshot.defaultSize;
+    const canvas = store.screen.canvas;
+    const offset = (store.currentPage.components.length % 6) * 24;
+    const created = store.addComponent({
+      templateId: `custom:${crypto.randomUUID()}`,
+      name: result.name,
+      x: Math.max(0, Math.round((canvas.width - size.w) / 2 + offset)),
+      y: Math.max(0, Math.round((canvas.height - size.h) / 2 + offset)),
+      w: size.w,
+      h: size.h,
+      locked: false,
+      hidden: false,
+      groupId: store.inGroupId,
+      theme: result.theme,
+      style: { ...result.style },
+      data: result.defaultData === undefined ? undefined : { source: 'static', staticData: result.defaultData },
+      events: [],
+      definitionSnapshot: result.definitionSnapshot,
+    });
+    plan.value = null;
+    planRequest.value = null;
+    ElMessage.success(`已添加 AI 图表「${created.name}」`);
+    result.warnings.forEach((warning) => ElMessage.warning(warning));
+  } catch (error) {
+    if (serial === requestSerial && !isCanceled(error) && error !== 'cancel') {
+      const action = error as string;
+      if (action !== 'cancel' && action !== 'close') {
+        errorMessage.value = getErrorMessage(error);
+      }
+    }
+  } finally {
+    if (serial === requestSerial && requestController === controller) {
+      requestController = null;
+      loading.value = false;
+      stage.value = '';
+    }
+  }
+}
+
+function assertGeneratedComponent(result: AiGeneratedComponent, revision: number): void {
+  const issues = validateComponentDefinitionSnapshot(result.definitionSnapshot);
+  if (issues.length) {
+    throw new Error(`组件定义未通过前端校验：${issues[0].message}`);
+  }
+  if (result.editorRevision !== revision) {
+    throw new Error('画布已变化，请重新生成组件');
+  }
+  if (!isProtocolValid(result.definitionSnapshot.dataProtocol, result.defaultData)) {
+    throw new Error('组件模拟数据不符合声明协议');
+  }
+}
+
 function formatSkippedTarget(targetId: string): string {
   const component = store.screen?.pages.flatMap((page) => page.components).find((item) => item.id === targetId);
   const page = store.screen?.pages.find((item) => item.id === targetId);
@@ -585,6 +677,9 @@ watch(() => store.editorRevision, () => {
         </p>
         <button class="btn btn-pri ai-generate" type="button" :disabled="!canGenerate" @click="generatePlan">
           <Send :size="14" />{{ loading ? stage : '生成修改方案' }}
+        </button>
+        <button class="btn btn-ghost ai-generate ai-custom-generate" type="button" :disabled="!instruction.trim() || loading" @click="generateCustomChart">
+          <Sparkles :size="14" />生成自定义图表
         </button>
         <button v-if="loading" class="btn btn-ghost ai-cancel-request" type="button" @click="cancelRequest">取消请求</button>
       </section>

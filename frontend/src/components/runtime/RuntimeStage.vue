@@ -2,7 +2,7 @@
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import type { ComponentDoc, EventDoc, ScreenDoc } from '@screencraft/shared';
 import { isProtocolValid } from '@screencraft/shared';
-import { getTemplate } from '../../registry';
+import { resolveComponentTemplate } from '../../registry';
 import { fetchDataApi, fetchWeather } from '../../api/runtime';
 import { calcFit } from '../../utils/fit';
 import ComponentRenderer from './ComponentRenderer.vue';
@@ -46,7 +46,7 @@ function applyFit(): void {
 
 /** 取数 */
 async function loadComp(comp: ComponentDoc): Promise<void> {
-  const tpl = getTemplate(comp.templateId);
+  const tpl = resolveComponentTemplate(comp);
   if (comp.templateId.startsWith('weather-')) {
     const adcode = String(comp.data?.builtin?.adcode || comp.style.adcode || '330108');
     try {

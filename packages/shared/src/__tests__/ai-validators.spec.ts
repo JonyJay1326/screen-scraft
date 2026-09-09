@@ -247,6 +247,20 @@ describe('安全 renderer 描述', () => {
 
     const unsafeBorder = { ...borderSpec, rawSvg: '<svg><script /></svg>' };
     expect(validateSafeBorderSpec(unsafeBorder).some((item) => item.path === '$.rawSvg')).toBe(true);
+
+    const functionChart = clone(chartSpec) as unknown as { option: { line: Record<string, unknown> } };
+    functionChart.option.line.smooth = () => true;
+    expect(validateSafeChartSpec(functionChart).some((item) => item.path === '$.option.line.smooth')).toBe(true);
+
+    for (const key of ['renderItem', 'html', 'css', 'svg'] as const) {
+      const unsafe = clone(chartSpec) as unknown as { option: Record<string, unknown> };
+      unsafe.option[key] = key === 'renderItem' ? 'return null' : `<${key}>unsafe</${key}>`;
+      expect(validateSafeChartSpec(unsafe).some((item) => item.path === `$.option.${key}`)).toBe(true);
+    }
+
+    const urlChart = clone(chartSpec);
+    urlChart.option.palette = ['https://example.com/theme.css'];
+    expect(validateSafeChartSpec(urlChart).some((item) => item.path === '$.option.palette[0]')).toBe(true);
   });
 
   it('拒绝危险键、过深对象和超长数组', () => {
@@ -287,6 +301,23 @@ describe('组件定义快照', () => {
       safeSpec: { kind: 'nineSlice', schemaVersion: 1, assetId: 'asset-1', slice: { top: 12, right: 12, bottom: 12, left: 12 } },
     };
     expect(validateComponentDefinitionSnapshot(nineSlice).some((item) => item.message.includes('尚未启用'))).toBe(true);
+
+    const unknownRenderer = { ...clone(snapshot), rendererKey: 'custom-script-renderer' };
+    expect(validateComponentDefinitionSnapshot(unknownRenderer).some((item) => item.path === '$.rendererKey')).toBe(true);
+  });
+
+  it('拒绝客户端伪造样式字段目录和错误的图表数据协议', () => {
+    const forgedSchema = clone(snapshot);
+    forgedSchema.styleSchema.push({
+      key: 'formatter', label: '格式化', type: 'text', group: '系列', aiWritable: true,
+    });
+    expect(validateComponentDefinitionSnapshot(forgedSchema)
+      .some((item) => item.message.includes('批准目录'))).toBe(true);
+
+    const wrongProtocol = clone(snapshot);
+    wrongProtocol.dataProtocol = 'nameValue';
+    expect(validateComponentDefinitionSnapshot(wrongProtocol)
+      .some((item) => item.path === '$.dataProtocol')).toBe(true);
   });
 
   it('保存大屏时要求 custom 组件携带合法快照', () => {
@@ -316,6 +347,14 @@ describe('组件定义快照', () => {
     expect(validatePageComponentDefinitions(pages).some((item) => item.message.includes('必须包含定义快照'))).toBe(true);
     pages[0].components[0] = { ...component, definitionSnapshot: snapshot };
     expect(validatePageComponentDefinitions(pages)).toEqual([]);
+
+    pages[0].components[0] = {
+      ...component,
+      style: { formatter: 'javascript:alert(1)' },
+      definitionSnapshot: snapshot,
+    };
+    expect(validatePageComponentDefinitions(pages)
+      .some((item) => item.path.endsWith('.style.formatter'))).toBe(true);
   });
 });
 

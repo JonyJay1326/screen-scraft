@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { isProtocolValid, type AxisData } from '@screencraft/shared';
-import { getTemplate } from '../../registry';
+import { resolveComponentTemplate } from '../../registry';
 import { useScreenStore } from '../../stores/screen';
 import { cloneJson } from '../../utils/clone';
 import { fetchApiConfigs, type ApiConfigListItem } from '../../api/apiConfig';
@@ -10,7 +10,7 @@ import { uploadAsset } from '../../api/runtime';
 const store = useScreenStore();
 const apis = ref<ApiConfigListItem[]>([]);
 const selected = computed(() => store.currentPage?.components.find((item) => item.id === store.selectedIds[0]));
-const tpl = computed(() => (selected.value ? getTemplate(selected.value.templateId) : undefined));
+const tpl = computed(() => (selected.value ? resolveComponentTemplate(selected.value) : undefined));
 const protocol = computed(() => tpl.value?.dataProtocol);
 const invalid = computed(() =>
   selected.value && protocol.value ? !isProtocolValid(protocol.value, selected.value.data?.staticData) : false,

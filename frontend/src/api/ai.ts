@@ -2,6 +2,8 @@ import type {
   AiEditorCapabilities,
   AiEditorPlanRequest,
   AiEditorPlanResponse,
+  AiGenerateComponentRequest,
+  AiGeneratedComponent,
   AiReferenceAsset,
 } from '@screencraft/shared';
 import { get, post } from './http';
@@ -26,4 +28,11 @@ export function createAiEditorPlan(
   signal?: AbortSignal,
 ): Promise<AiEditorPlanResponse> {
   return post<AiEditorPlanResponse>('/ai/editor/plan', payload, { signal, timeout: 65_000 });
+}
+
+export function generateAiComponent(
+  payload: AiGenerateComponentRequest,
+  signal?: AbortSignal,
+): Promise<AiGeneratedComponent> {
+  return post<AiGeneratedComponent>('/ai/editor/generate-component', payload, { signal, timeout: 65_000 });
 }

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { ComponentDoc } from '@screencraft/shared';
-import { getTemplate } from '../../registry';
+import { resolveComponentTemplate } from '../../registry';
 
 const props = defineProps<{
   doc: ComponentDoc;
@@ -12,7 +12,7 @@ const props = defineProps<{
 
 defineEmits<{ change: [value: string] }>();
 
-const tpl = computed(() => getTemplate(props.doc.templateId));
+const tpl = computed(() => resolveComponentTemplate(props.doc));
 const data = computed(() => (props.mode === 'runtime' && props.runtimeData !== undefined ? props.runtimeData : props.doc.data?.staticData));
 </script>
 
@@ -27,7 +27,7 @@ const data = computed(() => (props.mode === 'runtime' && props.runtimeData !== u
       :mode="mode"
       @change="$emit('change', $event)"
     />
-    <div v-else class="ph">{{ doc.name }}</div>
+    <div v-else class="ph">组件配置不可用</div>
   </div>
 </template>
 

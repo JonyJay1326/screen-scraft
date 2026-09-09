@@ -7,6 +7,7 @@ import { AiModule } from './ai/ai.module';
 import { ApiConfigsModule } from './api-configs/api-configs.module';
 import { AssetsModule } from './assets/assets.module';
 import { AuthModule } from './auth/auth.module';
+import { ComponentPresetsModule } from './component-presets/component-presets.module';
 import { DataModule } from './data/data.module';
 import { HealthController } from './health/health.controller';
 import { ProjectsModule } from './projects/projects.module';
@@ -41,6 +42,7 @@ import { WeatherModule } from './weather/weather.module';
     WeatherModule,
     AssetsModule,
     AiModule,
+    ComponentPresetsModule,
   ],
   controllers: [HealthController],
 })

@@ -171,6 +171,9 @@ export function validateComponentDefinitionSnapshot(
   if (input.styleMode === 'locked' && styleSchema.some((item) => item.aiWritable && !item.readOnly)) {
     issues.push({ path: '$.styleSchema', message: '锁定样式组件不能包含可写字段' });
   }
+  if (input.rendererKey === 'echarts-safe-v1' && typeof input.group === 'string') {
+    validateApprovedChartStyleSchema(input.group, input.styleMode, styleSchema, issues);
+  }
   validateDefaultStyle(input.defaultStyle, styleSchema, issues);
   validateRendererSpecPair(input, options, issues);
   return issues;
@@ -191,7 +194,14 @@ export function validatePageComponentDefinitions(pages: PageDoc[]): AiValidation
         return;
       }
       if (component.definitionSnapshot) {
-        issues.push(...prefixIssues(validateComponentDefinitionSnapshot(component.definitionSnapshot), `${path}.definitionSnapshot`));
+        const definitionIssues = validateComponentDefinitionSnapshot(component.definitionSnapshot);
+        issues.push(...prefixIssues(definitionIssues, `${path}.definitionSnapshot`));
+        if (!definitionIssues.length) {
+          issues.push(...prefixIssues(
+            validateAiStylePatch(component.definitionSnapshot.styleSchema, component.style),
+            `${path}.style`,
+          ));
+        }
       }
     });
   });
@@ -303,6 +313,10 @@ function validateRendererSpecPair(
     if (input.dataProtocol === undefined) {
       issues.push({ path: '$.dataProtocol', message: '安全图表必须声明数据协议' });
     }
+    const expectedProtocol = chartProtocol(input.group);
+    if (expectedProtocol && input.dataProtocol !== expectedProtocol) {
+      issues.push({ path: '$.dataProtocol', message: `图表族 ${String(input.group)} 必须使用 ${expectedProtocol} 协议` });
+    }
     issues.push(...prefixIssues(validateSafeChartSpec(input.safeSpec), '$.safeSpec'));
     if (isPlainRecord(input.safeSpec) && input.safeSpec.family !== input.group) {
       issues.push({ path: '$.safeSpec.family', message: '图表族必须与组件分组一致' });
@@ -319,6 +333,134 @@ function validateRendererSpecPair(
   if (input.rendererKey === 'border-nine-slice-v1' && options.allowNineSlice) {
     validateNineSliceSpec(input.safeSpec, issues);
   }
+}
+
+interface ApprovedStyleRule {
+  type: StyleField['type'];
+  min?: number;
+  max?: number;
+  options?: string[];
+}
+
+function validateApprovedChartStyleSchema(
+  family: string,
+  styleMode: unknown,
+  schema: StyleField[],
+  issues: AiValidationIssue[],
+): void {
+  if (!chartFamilies.has(family)) {
+    return;
+  }
+  const rules = styleMode === 'locked' ? new Map<string, ApprovedStyleRule>() : approvedChartStyleRules(family);
+  schema.forEach((field, index) => {
+    const rule = rules.get(field.key);
+    const path = `$.styleSchema[${index}]`;
+    if (!rule) {
+      issues.push({ path: `${path}.key`, message: '字段未在安全 renderer 批准目录中' });
+      return;
+    }
+    if (field.type !== rule.type || !field.aiWritable || field.readOnly === true) {
+      issues.push({ path, message: '样式字段类型或写入权限与安全目录不一致' });
+    }
+    if (rule.type === 'number' && (
+      field.min === undefined
+      || field.max === undefined
+      || rule.min === undefined
+      || rule.max === undefined
+      || field.min < rule.min
+      || field.max > rule.max
+    )) {
+      issues.push({ path, message: '数值范围与安全目录不一致' });
+    }
+    if (rule.type === 'select') {
+      const actual = field.options?.map((item) => item.value) ?? [];
+      if (JSON.stringify(actual) !== JSON.stringify(rule.options)) {
+        issues.push({ path, message: '下拉选项与安全目录不一致' });
+      }
+    }
+  });
+}
+
+function approvedChartStyleRules(family: string): Map<string, ApprovedStyleRule> {
+  const rules = new Map<string, ApprovedStyleRule>([
+    ['seriesColors', { type: 'colorList' }],
+    ['showLegend', { type: 'switch' }],
+    ['legendPosition', { type: 'select', options: ['top', 'topRight', 'bottom'] }],
+  ]);
+  const add = (entries: Array<[string, ApprovedStyleRule]>) => entries.forEach(([key, rule]) => rules.set(key, rule));
+  if (family === 'line' || family === 'bar' || family === 'combo') {
+    add([
+      ['showXAxis', { type: 'switch' }],
+      ['showYAxis', { type: 'switch' }],
+      ['axisLabelColor', { type: 'color' }],
+      ['gridColor', { type: 'color' }],
+    ]);
+  }
+  if (family === 'line' || family === 'combo' || family === 'radar') {
+    add([
+      ['lineWidth', { type: 'number', min: 1, max: 20 }],
+      ['areaOpacity', { type: 'number', min: 0, max: 100 }],
+      ['showSymbol', { type: 'switch' }],
+    ]);
+  }
+  if (family === 'line' || family === 'combo') {
+    add([['lineSmooth', { type: 'switch' }]]);
+  }
+  if (family === 'bar' || family === 'combo') {
+    add([
+      ['barWidth', { type: 'number', min: 1, max: 100 }],
+      ['barRadius', { type: 'number', min: 0, max: 50 }],
+      ['stack', { type: 'switch' }],
+      ['horizontal', { type: 'switch' }],
+    ]);
+  }
+  if (family === 'pie') {
+    add([
+      ['innerRadius', { type: 'number', min: 0, max: 99 }],
+      ['outerRadius', { type: 'number', min: 1, max: 100 }],
+      ['roseType', { type: 'select', options: ['none', 'radius', 'area'] }],
+    ]);
+  }
+  if (family === 'funnel') {
+    add([
+      ['funnelSort', { type: 'select', options: ['ascending', 'descending'] }],
+      ['funnelAlign', { type: 'select', options: ['left', 'center', 'right'] }],
+      ['funnelGap', { type: 'number', min: 0, max: 64 }],
+    ]);
+  }
+  if (family === 'radar') {
+    add([
+      ['radarShape', { type: 'select', options: ['polygon', 'circle'] }],
+      ['splitNumber', { type: 'number', min: 2, max: 12 }],
+    ]);
+  }
+  if (family === 'gauge') {
+    add([
+      ['gaugeMin', { type: 'number', min: -1_000_000, max: 1_000_000 }],
+      ['gaugeMax', { type: 'number', min: -1_000_000, max: 1_000_000 }],
+      ['gaugeStartAngle', { type: 'number', min: -360, max: 360 }],
+      ['gaugeEndAngle', { type: 'number', min: -360, max: 360 }],
+      ['showPointer', { type: 'switch' }],
+      ['showProgress', { type: 'switch' }],
+    ]);
+  }
+  return rules;
+}
+
+function chartProtocol(family: unknown): 'axis' | 'combo' | 'radar' | 'nameValue' | undefined {
+  if (family === 'line' || family === 'bar') {
+    return 'axis';
+  }
+  if (family === 'combo') {
+    return 'combo';
+  }
+  if (family === 'radar') {
+    return 'radar';
+  }
+  if (family === 'pie' || family === 'funnel' || family === 'gauge') {
+    return 'nameValue';
+  }
+  return undefined;
 }
 
 function validateStyleSchema(input: unknown, issues: AiValidationIssue[]): StyleField[] {

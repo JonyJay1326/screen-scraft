@@ -7,7 +7,14 @@ import { BizException } from '../common/biz.exception';
 import { CurrentUser, type RequestUser } from '../common/current-user.decorator';
 import { AiReferenceAssetsService } from './ai-reference-assets.service';
 import { AiService } from './ai.service';
-import { AiEditorPlanDto, AiSettingsDto, AiSettingsTestDto, ChatDto, UpsertKbDto } from './ai.dto';
+import {
+  AiEditorPlanDto,
+  AiGenerateComponentDto,
+  AiSettingsDto,
+  AiSettingsTestDto,
+  ChatDto,
+  UpsertKbDto,
+} from './ai.dto';
 
 /** AI 智能设计配置；v0.3 客服接口仅作兼容保留 */
 @Controller('ai')
@@ -64,6 +71,26 @@ export class AiController {
     };
     response?.once('close', abortOnDisconnect);
     return this.ai.createEditorPlan(dto, user.id, controller.signal).finally(() => {
+      response?.off('close', abortOnDisconnect);
+    });
+  }
+
+  /** 生成安全声明式图表定义，不直接写大屏。 */
+  @Post('editor/generate-component')
+  generateComponent(
+    @Body() dto: AiGenerateComponentDto,
+    @CurrentUser() user: RequestUser,
+    @Req() request: Request,
+  ) {
+    const controller = new AbortController();
+    const response = request.res;
+    const abortOnDisconnect = () => {
+      if (!response?.writableEnded) {
+        controller.abort();
+      }
+    };
+    response?.once('close', abortOnDisconnect);
+    return this.ai.generateComponent(dto, user.id, controller.signal).finally(() => {
       response?.off('close', abortOnDisconnect);
     });
   }
