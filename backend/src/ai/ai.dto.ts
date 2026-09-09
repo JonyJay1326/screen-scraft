@@ -1,7 +1,6 @@
 import type { AiEditorContext, AiEditorPlanRequest } from '@screencraft/shared';
 import {
   ArrayMaxSize,
-  ArrayMinSize,
   IsArray,
   IsBoolean,
   IsIn,
@@ -81,8 +80,7 @@ export class AiEditorPlanDto implements AiEditorPlanRequest {
   scope!: AiEditorPlanRequest['scope'];
 
   @IsArray()
-  @ArrayMinSize(1)
-  @ArrayMaxSize(50)
+  @ArrayMaxSize(200)
   @IsString({ each: true })
   componentIds!: string[];
 

@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import type { Request } from 'express';
 import { AdminGuard } from '../auth/admin.guard';
 import { CurrentUser, type RequestUser } from '../common/current-user.decorator';
 import { AiService } from './ai.service';
@@ -9,10 +10,24 @@ import { AiEditorPlanDto, AiSettingsDto, AiSettingsTestDto, ChatDto, UpsertKbDto
 export class AiController {
   constructor(private readonly ai: AiService) {}
 
-  /** 为编辑器选中组件生成安全样式修改方案，不写大屏。 */
+  /** 为编辑器生成安全样式修改方案，不写大屏。 */
   @Post('editor/plan')
-  createEditorPlan(@Body() dto: AiEditorPlanDto, @CurrentUser() user: RequestUser) {
-    return this.ai.createEditorPlan(dto, user.id);
+  createEditorPlan(
+    @Body() dto: AiEditorPlanDto,
+    @CurrentUser() user: RequestUser,
+    @Req() request: Request,
+  ) {
+    const controller = new AbortController();
+    const response = request.res;
+    const abortOnDisconnect = () => {
+      if (!response?.writableEnded) {
+        controller.abort();
+      }
+    };
+    response?.once('close', abortOnDisconnect);
+    return this.ai.createEditorPlan(dto, user.id, controller.signal).finally(() => {
+      response?.off('close', abortOnDisconnect);
+    });
   }
 
   /** @deprecated v0.4 前端停止新调用 */

@@ -11,11 +11,16 @@ export interface AiValidationIssue {
 export const AI_STRUCTURE_LIMITS = {
   maxDepth: 8,
   maxArrayLength: 64,
+  maxPlanOperations: 201,
+  maxPlanTargets: 200,
   maxObjectKeys: 64,
   maxStringLength: 1024,
   maxStyleFields: 64,
   maxPaletteColors: 16,
 } as const;
+
+export const AI_PAGE_COMPONENT_LIMIT = 50;
+export const AI_SCREEN_COMPONENT_LIMIT = 200;
 
 const dangerousKeys = new Set(['__proto__', 'prototype', 'constructor']);
 const rendererKeys = new Set(['echarts-safe-v1', 'border-parametric-v1', 'border-nine-slice-v1']);
@@ -194,8 +199,8 @@ export function validatePageComponentDefinitions(pages: PageDoc[]): AiValidation
 }
 
 function validatePlanOperations(input: unknown, issues: AiValidationIssue[]): void {
-  if (!Array.isArray(input) || input.length > AI_STRUCTURE_LIMITS.maxArrayLength) {
-    issues.push({ path: '$.operations', message: `operations 必须是长度不超过 ${AI_STRUCTURE_LIMITS.maxArrayLength} 的数组` });
+  if (!Array.isArray(input) || input.length > AI_STRUCTURE_LIMITS.maxPlanOperations) {
+    issues.push({ path: '$.operations', message: `operations 必须是长度不超过 ${AI_STRUCTURE_LIMITS.maxPlanOperations} 的数组` });
     return;
   }
   input.forEach((operation, index) => {
@@ -237,8 +242,8 @@ function validatePageBackgroundPatch(input: unknown, path: string, issues: AiVal
 }
 
 function validateSkippedTargets(input: unknown, issues: AiValidationIssue[]): void {
-  if (!Array.isArray(input) || input.length > AI_STRUCTURE_LIMITS.maxArrayLength) {
-    issues.push({ path: '$.skipped', message: `skipped 必须是长度不超过 ${AI_STRUCTURE_LIMITS.maxArrayLength} 的数组` });
+  if (!Array.isArray(input) || input.length > AI_STRUCTURE_LIMITS.maxPlanTargets) {
+    issues.push({ path: '$.skipped', message: `skipped 必须是长度不超过 ${AI_STRUCTURE_LIMITS.maxPlanTargets} 的数组` });
     return;
   }
   input.forEach((item, index) => {
@@ -536,10 +541,15 @@ function validateStructure(input: unknown, path = '$', depth = 0): AiValidationI
   }
   if (Array.isArray(input)) {
     const issues: AiValidationIssue[] = [];
-    if (input.length > AI_STRUCTURE_LIMITS.maxArrayLength) {
-      issues.push({ path, message: `数组长度不能超过 ${AI_STRUCTURE_LIMITS.maxArrayLength}` });
+    const maxLength = path === '$.operations'
+      ? AI_STRUCTURE_LIMITS.maxPlanOperations
+      : path === '$.skipped'
+        ? AI_STRUCTURE_LIMITS.maxPlanTargets
+        : AI_STRUCTURE_LIMITS.maxArrayLength;
+    if (input.length > maxLength) {
+      issues.push({ path, message: `数组长度不能超过 ${maxLength}` });
     }
-    input.slice(0, AI_STRUCTURE_LIMITS.maxArrayLength).forEach((item, index) => {
+    input.slice(0, maxLength).forEach((item, index) => {
       issues.push(...validateStructure(item, `${path}[${index}]`, depth + 1));
     });
     return issues;

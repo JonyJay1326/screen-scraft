@@ -5,6 +5,7 @@ import type { Model } from 'mongoose';
 import type { ScreenDoc } from '@screencraft/shared';
 import { AiService } from '../ai/ai.service';
 import type { AiSettings } from '../ai/ai.schema';
+import type { AiEditorPlanDto } from '../ai/ai.dto';
 import type { ScreensService } from '../screens/screens.service';
 
 afterEach(() => {
@@ -85,13 +86,126 @@ describe('AI 选中组件样式方案', () => {
     await expect(createService().createEditorPlan(createRequest(), 'user-1')).rejects.toMatchObject({ bizCode: 4302 });
     expect(request).toHaveBeenCalledTimes(2);
   });
+
+  it('当前页可批量修改组件与页面背景，并要求跨组件共用色板', async () => {
+    const request = vi.spyOn(axios, 'post').mockResolvedValue({
+      data: {
+        choices: [{ message: { content: JSON.stringify({
+          summary: '统一页面背景与图表色板',
+          operations: [
+            { targetType: 'page', targetId: 'page-1', backgroundPatch: { color: '#08152D', opacity: 92 } },
+            { targetType: 'component', targetId: 'c1', stylePatch: { seriesColors: ['#2F7FF7', '#35E0FF'] } },
+            { targetType: 'component', targetId: 'c2', stylePatch: { seriesColors: ['#2F7FF7', '#35E0FF'] } },
+          ],
+          skipped: [],
+          unsupportedFeatures: [{
+            description: '渐变描边',
+            reason: '现有字段只支持纯色',
+            handling: 'approximate',
+            suggestion: '使用强调色近似还原',
+          }],
+          warnings: [],
+        }) } }],
+      },
+    });
+    const dto = createRequest();
+    dto.scope = 'page';
+    dto.componentIds = ['c1', 'c2'];
+    dto.context.pageBackground = { color: '#0D1730', opacity: 100 };
+    dto.context.components.push({ ...dto.context.components[0], id: 'c2', name: '产量图' });
+
+    const result = await createService().createEditorPlan(dto, 'user-1');
+
+    expect(result.operations).toHaveLength(3);
+    expect(result.operations[0]).toEqual({
+      targetType: 'page',
+      targetId: 'page-1',
+      backgroundPatch: { color: '#08152D', opacity: 92 },
+    });
+    expect(result.unsupportedFeatures[0].handling).toBe('approximate');
+    const payload = request.mock.calls[0][1] as { messages: Array<{ content: string }> };
+    expect(payload.messages[0].content).toContain('共享色板');
+    expect(payload.messages[1].content).toContain('currentBackground');
+  });
+
+  it('当前页超过 50 个组件时要求缩小范围且不调用模型', async () => {
+    const request = vi.spyOn(axios, 'post');
+    const dto = createBulkRequest(51, 'page');
+    await expect(createService().createEditorPlan(dto, 'user-1')).rejects.toMatchObject({ bizCode: 4304 });
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it('整屏开关默认关闭', async () => {
+    const dto = createBulkRequest(1, 'screen');
+    await expect(createService().createEditorPlan(dto, 'user-1')).rejects.toMatchObject({ bizCode: 4304 });
+  });
+
+  it('200 组件整屏上下文与响应校验在一秒内完成', async () => {
+    const dto = createBulkRequest(200, 'screen');
+    vi.spyOn(axios, 'post').mockResolvedValue({
+      data: {
+        choices: [{ message: { content: JSON.stringify({
+          summary: '统一整屏色板',
+          operations: dto.componentIds.map((targetId) => ({
+            targetType: 'component',
+            targetId,
+            stylePatch: { lineWidth: 4, seriesColors: ['#2F7FF7', '#35E0FF'] },
+          })),
+          skipped: [],
+          unsupportedFeatures: [],
+          warnings: [],
+        }) } }],
+      },
+    });
+    const startedAt = performance.now();
+    const result = await createService({ AI_SCREEN_SCOPE_ENABLED: 'true' }).createEditorPlan(dto, 'user-1');
+    const elapsedMs = performance.now() - startedAt;
+    expect(result.operations).toHaveLength(200);
+    expect(elapsedMs).toBeLessThan(1000);
+  });
+
+  it('同一用户重复提交时取消旧上游请求并只保留新结果', async () => {
+    let callCount = 0;
+    let markFirstStarted: (() => void) | undefined;
+    const firstStarted = new Promise<void>((resolve) => {
+      markFirstStarted = resolve;
+    });
+    vi.spyOn(axios, 'post').mockImplementation((_url, _payload, config) => {
+      callCount += 1;
+      if (callCount === 1) {
+        markFirstStarted?.();
+        return new Promise((_resolve, reject) => {
+          config?.signal?.addEventListener('abort', () => reject(new axios.CanceledError()), { once: true });
+        });
+      }
+      return Promise.resolve({
+        data: {
+          choices: [{ message: { content: JSON.stringify({
+            summary: '使用最新方案',
+            operations: [{ targetType: 'component', targetId: 'c1', stylePatch: { lineWidth: 3 } }],
+            skipped: [],
+            unsupportedFeatures: [],
+            warnings: [],
+          }) } }],
+        },
+      });
+    });
+    const service = createService();
+    const first = service.createEditorPlan(createRequest(), 'user-1');
+    await firstStarted;
+    const second = service.createEditorPlan(createRequest(), 'user-1');
+
+    await expect(first).rejects.toMatchObject({ bizCode: 4304 });
+    await expect(second).resolves.toMatchObject({ summary: '使用最新方案' });
+    expect(callCount).toBe(2);
+  });
 });
 
-function createRequest() {
+function createRequest(): AiEditorPlanDto {
   return {
     screenId: 'screen-1',
     pageId: 'page-1',
-    scope: 'selected' as const,
+    scope: 'selected',
     componentIds: ['c1'],
     instruction: '隐藏图例、线宽改为 4、蓝青配色',
     editorRevision: 7,
@@ -109,7 +223,20 @@ function createRequest() {
   };
 }
 
-function createService(): AiService {
+function createBulkRequest(count: number, scope: 'page' | 'screen') {
+  const dto = createRequest();
+  dto.scope = scope;
+  dto.context.pageBackground = { color: '#0D1730', opacity: 100 };
+  dto.context.components = Array.from({ length: count }, (_, index) => ({
+    ...dto.context.components[0],
+    id: `c${index + 1}`,
+    name: `趋势图 ${index + 1}`,
+  }));
+  dto.componentIds = dto.context.components.map((component) => component.id);
+  return dto;
+}
+
+function createService(configOverrides: Record<string, string | undefined> = {}): AiService {
   const settings = {
     provider: 'deepseek' as const,
     baseUrl: 'https://api.deepseek.com',
@@ -125,6 +252,7 @@ function createService(): AiService {
   const configValues: Record<string, string | undefined> = {
     LLM_API_KEY: 'test-key',
     JWT_SECRET: 'test-secret',
+    ...configOverrides,
   };
   const config = {
     get: (key: string) => configValues[key],

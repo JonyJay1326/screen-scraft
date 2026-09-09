@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildAiEditorDraft,
   getBuiltinComponentMetadata,
   validateAiEditorPlanResponse,
   validateAiStylePatch,
@@ -8,7 +9,15 @@ import {
   validateSafeBorderSpec,
   validateSafeChartSpec,
 } from '../index';
-import type { ComponentDefinitionSnapshot, PageDoc, SafeBorderSpec, SafeChartSpec } from '../types';
+import type {
+  AiEditorPlanRequest,
+  AiEditorPlanResponse,
+  ComponentDefinitionSnapshot,
+  PageDoc,
+  SafeBorderSpec,
+  SafeChartSpec,
+  ScreenDoc,
+} from '../types';
 
 const chartSpec: SafeChartSpec = {
   kind: 'chart',
@@ -116,6 +125,114 @@ describe('AI 修改方案结构', () => {
   });
 });
 
+describe('AI 预览草稿', () => {
+  it('200 组件整屏方案在一秒内完成校验与草稿构造，且不修改正式状态', () => {
+    const components = Array.from({ length: 200 }, (_, index) => ({
+      id: `c${index + 1}`,
+      templateId: 'chart-line-1',
+      name: `趋势图 ${index + 1}`,
+      x: 0,
+      y: index * 4,
+      w: 480,
+      h: 260,
+      zIndex: index + 1,
+      locked: false,
+      hidden: false,
+      groupId: null,
+      theme: 'dark' as const,
+      style: { lineWidth: 2 },
+      events: [],
+    }));
+    const screen: ScreenDoc = {
+      _id: 'screen-1',
+      projectId: 'project-1',
+      name: '性能测试大屏',
+      category: '通用',
+      deployed: false,
+      fitMode: 'center',
+      canvas: { width: 1920, height: 1080 },
+      pages: [{
+        id: 'page-1',
+        name: '页面 1',
+        parentId: null,
+        background: { type: 'normal', color: '#0D1730', opacity: 100, fill: 'cover' },
+        components,
+      }],
+      createdAt: '2026-09-08T00:00:00.000Z',
+      updatedAt: '2026-09-08T00:00:00.000Z',
+    };
+    const request: AiEditorPlanRequest = {
+      screenId: screen._id,
+      pageId: 'page-1',
+      scope: 'screen',
+      componentIds: components.map((component) => component.id),
+      instruction: '统一整屏色板',
+      editorRevision: 8,
+      context: {
+        pageBackground: { color: '#0D1730', opacity: 100 },
+        components: components.map(({ id, templateId, name, theme, locked, hidden, style }) => ({
+          id, templateId, name, theme, locked, hidden, style,
+        })),
+      },
+    };
+    const plan: AiEditorPlanResponse = {
+      planId: 'screen-plan',
+      summary: '统一整屏色板',
+      operations: [
+        { targetType: 'page', targetId: 'page-1', backgroundPatch: { color: '#08152D', opacity: 92 } },
+        ...components.map((component) => ({
+          targetType: 'component' as const,
+          targetId: component.id,
+          stylePatch: { lineWidth: 4 },
+        })),
+      ],
+      skipped: [],
+      unsupportedFeatures: [],
+      warnings: [],
+      editorRevision: 8,
+    };
+
+    const startedAt = performance.now();
+    const result = buildAiEditorDraft(screen, plan, request, 8);
+    const elapsedMs = performance.now() - startedAt;
+
+    expect(result.ok).toBe(true);
+    expect(elapsedMs).toBeLessThan(1000);
+    expect(screen.pages[0].components[0].style.lineWidth).toBe(2);
+    if (result.ok) {
+      expect(result.screen.pages[0].components).toHaveLength(200);
+      expect(result.screen.pages[0].components[199].style.lineWidth).toBe(4);
+      expect(result.screen.pages[0].background.color).toBe('#08152D');
+    }
+  });
+
+  it('拒绝超出请求边界的目标', () => {
+    const screen = createScreenForBoundaryTest();
+    const request: AiEditorPlanRequest = {
+      screenId: screen._id,
+      pageId: 'page-1',
+      scope: 'page',
+      componentIds: [],
+      instruction: '修改背景',
+      editorRevision: 1,
+      context: { pageBackground: { color: '#0D1730', opacity: 100 }, components: [] },
+    };
+    const plan: AiEditorPlanResponse = {
+      planId: 'bad-boundary',
+      summary: '越界修改',
+      operations: [{ targetType: 'page', targetId: 'page-2', backgroundPatch: { opacity: 80 } }],
+      skipped: [],
+      unsupportedFeatures: [],
+      warnings: [],
+      editorRevision: 1,
+    };
+    expect(buildAiEditorDraft(screen, plan, request, 1)).toEqual({
+      ok: false,
+      error: '页面 page-2 不在本次 AI 修改范围内',
+    });
+  });
+});
+
 describe('安全 renderer 描述', () => {
   it('接受合法图表和边框描述', () => {
     expect(validateSafeChartSpec(chartSpec)).toEqual([]);
@@ -204,4 +321,23 @@ describe('组件定义快照', () => {
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function createScreenForBoundaryTest(): ScreenDoc {
+  const background = { type: 'normal' as const, color: '#0D1730', opacity: 100, fill: 'cover' as const };
+  return {
+    _id: 'screen-1',
+    projectId: 'project-1',
+    name: '边界测试大屏',
+    category: '通用',
+    deployed: false,
+    fitMode: 'center',
+    canvas: { width: 1920, height: 1080 },
+    pages: [
+      { id: 'page-1', name: '页面 1', parentId: null, background: { ...background }, components: [] },
+      { id: 'page-2', name: '页面 2', parentId: null, background: { ...background }, components: [] },
+    ],
+    createdAt: '2026-09-08T00:00:00.000Z',
+    updatedAt: '2026-09-08T00:00:00.000Z',
+  };
 }
