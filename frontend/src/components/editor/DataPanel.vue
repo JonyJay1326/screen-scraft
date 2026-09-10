@@ -1,11 +1,23 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { isProtocolValid, type AxisData } from '@screencraft/shared';
+import { isProtocolValid } from '@screencraft/shared';
 import { resolveComponentTemplate } from '../../registry';
 import { useScreenStore } from '../../stores/screen';
-import { cloneJson } from '../../utils/clone';
 import { fetchApiConfigs, type ApiConfigListItem } from '../../api/apiConfig';
 import { uploadAsset } from '../../api/runtime';
+import {
+  applyAddCol,
+  applyAddRow,
+  applyCellEdit,
+  applyContextAction,
+  canAddColumn,
+  canAddRow,
+  modelColumns,
+  modelRows,
+  resolveStaticTableModel,
+  supportsStaticTable,
+  type StaticTableModel,
+} from './static-data-table';
 
 const store = useScreenStore();
 const apis = ref<ApiConfigListItem[]>([]);
@@ -16,7 +28,10 @@ const invalid = computed(() =>
   selected.value && protocol.value ? !isProtocolValid(protocol.value, selected.value.data?.staticData) : false,
 );
 const source = computed(() => selected.value?.data?.source ?? 'static');
-const axis = computed(() => selected.value?.data?.staticData as AxisData | undefined);
+
+const tableModel = computed(() =>
+  resolveStaticTableModel(protocol.value, selected.value?.data?.staticData),
+);
 
 onMounted(async () => {
   try {
@@ -41,112 +56,102 @@ function setSource(next: 'static' | 'api' | 'builtin'): void {
   patchData({ source: next, staticData: selected.value?.data?.staticData ?? tpl.value?.defaultData });
 }
 
-const columns = computed(() => {
-  if (!axis.value?.categories) {
-    return [] as { key: string; label: string }[];
-  }
-  return [{ key: 'categories', label: 'categories' }, ...axis.value.series.map((serie) => ({ key: serie.name, label: serie.name }))];
-});
-const rows = computed(() => {
-  if (!axis.value?.categories) {
-    return [] as Record<string, string | number>[];
-  }
-  return axis.value.categories.map((label, index) => {
-    const row: Record<string, string | number> = { categories: label };
-    axis.value!.series.forEach((serie) => {
-      row[serie.name] = serie.data[index];
-    });
-    return row;
-  });
-});
-
-const menuConfig = {
-  enabled: true,
-  body: {
-    options: [
-      [
-        { code: 'insertRowBefore', name: '插入行上' },
-        { code: 'insertRowAfter', name: '插入行下' },
-        { code: 'deleteRow', name: '删除行' },
-      ],
-      [
-        { code: 'insertColBefore', name: '插入列左' },
-        { code: 'insertColAfter', name: '插入列右' },
-        { code: 'deleteCol', name: '删除列' },
-      ],
-    ],
-  },
-};
-
-/** 写 axis */
-function writeAxis(next: AxisData): void {
+/** 写回表格编辑结果 */
+function commitModel(next: unknown): void {
   patchData({ source: 'static', staticData: next });
 }
 
+const mainColumns = computed(() => (tableModel.value ? modelColumns(tableModel.value, 'main') : []));
+const mainRows = computed(() => (tableModel.value ? modelRows(tableModel.value, 'main') : []));
+const sideColumns = computed(() =>
+  tableModel.value?.kind === 'kpi3' ? modelColumns(tableModel.value, 'sides') : [],
+);
+const sideRows = computed(() =>
+  tableModel.value?.kind === 'kpi3' ? modelRows(tableModel.value, 'sides') : [],
+);
+const showAddCol = computed(() => (tableModel.value ? canAddColumn(tableModel.value, 'main') : false));
+const showAddRow = computed(() => (tableModel.value ? canAddRow(tableModel.value, 'main') : false));
+const showSideAddRow = computed(() => (tableModel.value ? canAddRow(tableModel.value, 'sides') : false));
+
+/** 右键菜单配置 */
+function buildMenuConfig(model: StaticTableModel | undefined, section: 'main' | 'sides') {
+  const rowMenus = [
+    { code: 'insertRowBefore', name: '插入行上' },
+    { code: 'insertRowAfter', name: '插入行下' },
+    { code: 'deleteRow', name: '删除行' },
+  ];
+  const colMenus = model && canAddColumn(model, section)
+    ? [
+        { code: 'insertColBefore', name: '插入列左' },
+        { code: 'insertColAfter', name: '插入列右' },
+        { code: 'deleteCol', name: '删除列' },
+      ]
+    : [];
+  return {
+    enabled: true,
+    body: {
+      options: colMenus.length ? [rowMenus, colMenus] : [rowMenus],
+    },
+  };
+}
+
+const mainMenuConfig = computed(() => buildMenuConfig(tableModel.value, 'main'));
+const sideMenuConfig = computed(() => buildMenuConfig(tableModel.value, 'sides'));
+
+/** vxe 单元格编辑结束参数 */
+type VxeEditClosed = {
+  rowIndex: number;
+  column: { field: string };
+  row: Record<string, string | number>;
+};
+
 /** 改单元格 */
-function setCell(row: number, key: string, value: string): void {
-  if (!axis.value) {
+function onEditClosed(section: 'main' | 'sides', params: VxeEditClosed): void {
+  if (!tableModel.value) {
     return;
   }
-  const next = cloneJson(axis.value);
-  if (key === 'categories') {
-    next.categories[row] = value;
-  } else {
-    const serie = next.series.find((item) => item.name === key);
-    if (serie) {
-      serie.data[row] = Number(value);
-    }
-  }
-  writeAxis(next);
+  commitModel(
+    applyCellEdit(
+      tableModel.value,
+      params.rowIndex,
+      params.column.field,
+      String(params.row[params.column.field] ?? ''),
+      section,
+    ),
+  );
 }
 
 /** 加行 */
-function addRow(): void {
-  if (!axis.value) {
+function onAddRow(section: 'main' | 'sides' = 'main'): void {
+  if (!tableModel.value) {
     return;
   }
-  const next = cloneJson(axis.value);
-  next.categories.push(`项${next.categories.length + 1}`);
-  next.series.forEach((serie) => serie.data.push(0));
-  writeAxis(next);
+  commitModel(applyAddRow(tableModel.value, section));
 }
 
 /** 加列 */
-function addCol(): void {
-  if (!axis.value) {
+function onAddCol(): void {
+  if (!tableModel.value) {
     return;
   }
-  const next = cloneJson(axis.value);
-  next.series.push({ name: `系列${next.series.length + 1}`, data: next.categories.map(() => 0) });
-  writeAxis(next);
+  commitModel(applyAddCol(tableModel.value));
 }
 
-/** 六项菜单 */
-function onContext(action: string, row: number, colKey: string): void {
-  if (!axis.value) {
+/** 右键菜单 */
+function onMenuClick(section: 'main' | 'sides', params: unknown): void {
+  if (!tableModel.value) {
     return;
   }
-  const next = cloneJson(axis.value);
-  if (action === 'insertRowBefore' || action === 'insertRowAfter') {
-    const at = action === 'insertRowBefore' ? row : row + 1;
-    next.categories.splice(at, 0, '新项');
-    next.series.forEach((serie) => serie.data.splice(at, 0, 0));
-  } else if (action === 'deleteRow' && next.categories.length > 1) {
-    next.categories.splice(row, 1);
-    next.series.forEach((serie) => serie.data.splice(row, 1));
-  } else if ((action === 'insertColBefore' || action === 'insertColAfter') && colKey !== 'categories') {
-    const idx = next.series.findIndex((item) => item.name === colKey);
-    const at = action === 'insertColBefore' ? idx : idx + 1;
-    next.series.splice(at, 0, { name: `系列${next.series.length + 1}`, data: next.categories.map(() => 0) });
-  } else if (action === 'deleteCol' && colKey !== 'categories' && next.series.length > 1) {
-    next.series = next.series.filter((item) => item.name !== colKey);
-  }
-  writeAxis(next);
-}
-
-/** vxe 编辑结束 */
-function onEditClosed(params: { rowIndex: number; column: { field: string }; row: Record<string, string | number> }): void {
-  setCell(params.rowIndex, params.column.field, String(params.row[params.column.field] ?? ''));
+  const body = params as { menu?: { code?: string }; rowIndex?: number; column?: { field?: string } };
+  commitModel(
+    applyContextAction(
+      tableModel.value,
+      body.menu?.code ?? '',
+      body.rowIndex ?? 0,
+      body.column?.field ?? '',
+      section,
+    ),
+  );
 }
 
 /** 写天气 adcode */
@@ -158,15 +163,9 @@ function setWeatherAdcode(adcode: string): void {
   store.patchComponent(selected.value.id, { style: { ...selected.value.style, adcode } });
 }
 
-/** vxe 菜单 */
-function onMenuClick(params: unknown): void {
-  const body = params as { menu?: { code?: string }; rowIndex?: number; column?: { field?: string } };
-  onContext(body.menu?.code ?? '', body.rowIndex ?? 0, body.column?.field ?? '');
-}
-
 const jsonText = computed(() => JSON.stringify(selected.value?.data?.staticData ?? null, null, 2));
 
-/** JSON 回写 */
+/** JSON 回写兜底 */
 function onJson(ev: Event): void {
   try {
     const value = JSON.parse((ev.target as HTMLTextAreaElement).value);
@@ -188,7 +187,8 @@ async function onFile(ev: Event): Promise<void> {
 
 const weatherMode = computed(() => selected.value?.templateId.startsWith('weather-'));
 const mediaMode = computed(() => selected.value?.templateId.startsWith('media-'));
-const axisMode = computed(() => protocol.value === 'axis' || protocol.value === 'combo');
+const hasTableData = computed(() => Boolean(tableModel.value) && supportsStaticTable(protocol.value));
+const isKpi3 = computed(() => tableModel.value?.kind === 'kpi3');
 </script>
 
 <template>
@@ -243,28 +243,55 @@ const axisMode = computed(() => protocol.value === 'axis' || protocol.value === 
 
     <template v-else>
       <p v-if="invalid" class="warn">静态数据不符合协议，仍可保存</p>
-      <template v-if="axisMode && axis">
+      <template v-if="hasTableData && tableModel">
+        <p v-if="isKpi3" class="section-label">中心指标</p>
         <div class="ops">
-          <button class="btn btn-sm" type="button" @click="addRow">加行</button>
-          <button class="btn btn-sm" type="button" @click="addCol">加列</button>
+          <button v-if="showAddRow" class="btn btn-sm" type="button" @click="onAddRow('main')">加行</button>
+          <button v-if="showAddCol" class="btn btn-sm" type="button" @click="onAddCol">加列</button>
         </div>
         <div class="ed-static-table" v-bind="{ ['data-vxe-ui-theme']: 'dark' }">
           <vxe-table
-            :data="rows"
+            :data="mainRows"
             border
             size="mini"
             max-height="280"
             :edit-config="{ trigger: 'click', mode: 'cell' }"
-            :menu-config="menuConfig"
-            @edit-closed="onEditClosed"
-            @menu-click="onMenuClick"
+            :menu-config="mainMenuConfig"
+            @edit-closed="(p: VxeEditClosed) => onEditClosed('main', p)"
+            @menu-click="(p: unknown) => onMenuClick('main', p)"
           >
-            <template v-for="col in columns" :key="col.key">
+            <template v-for="col in mainColumns" :key="col.key">
               <vxe-column :field="col.key" :title="col.label" :edit-render="{ name: 'input' }" min-width="88" />
             </template>
           </vxe-table>
         </div>
-        <p class="muted hint">点击编辑；右键插入行上/下、删除行、插入列左/右、删除列。</p>
+
+        <template v-if="isKpi3">
+          <p class="section-label">两侧指标</p>
+          <div class="ops">
+            <button v-if="showSideAddRow" class="btn btn-sm" type="button" @click="onAddRow('sides')">加行</button>
+          </div>
+          <div class="ed-static-table" v-bind="{ ['data-vxe-ui-theme']: 'dark' }">
+            <vxe-table
+              :data="sideRows"
+              border
+              size="mini"
+              max-height="200"
+              :edit-config="{ trigger: 'click', mode: 'cell' }"
+              :menu-config="sideMenuConfig"
+              @edit-closed="(p: VxeEditClosed) => onEditClosed('sides', p)"
+              @menu-click="(p: unknown) => onMenuClick('sides', p)"
+            >
+              <template v-for="col in sideColumns" :key="col.key">
+                <vxe-column :field="col.key" :title="col.label" :edit-render="{ name: 'input' }" min-width="88" />
+              </template>
+            </vxe-table>
+          </div>
+        </template>
+
+        <p class="muted hint">
+          点击编辑；右键插入行上/下、删除行<span v-if="showAddCol">、插入列左/右、删除列</span>。
+        </p>
       </template>
       <textarea v-else class="textarea json" :value="jsonText" @change="onJson" />
     </template>
@@ -281,4 +308,5 @@ const axisMode = computed(() => protocol.value === 'axis' || protocol.value === 
 .ops { display: flex; gap: 6px; margin: 0 0 8px; }
 .hint { margin-top: 8px; font-size: 12px; line-height: 1.5; }
 .json { min-height: 160px; font-family: var(--font-num); font-size: 12px; }
+.section-label { margin: 10px 0 6px; font-size: 12px; color: var(--text-2); }
 </style>

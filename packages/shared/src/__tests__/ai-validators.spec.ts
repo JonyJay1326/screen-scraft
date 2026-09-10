@@ -478,6 +478,55 @@ describe('组件定义快照', () => {
     })).toEqual([]);
   });
 
+  it('完整快照按 safeSpec 自身深度预算接受深层渐变', () => {
+    const gradientSpec = clone(chartSpecV2) as Extract<SafeChartSpec, { schemaVersion: 2 }>;
+    gradientSpec.option.visual = {
+      series: {
+        itemStyle: {
+          color: {
+            type: 'linear',
+            direction: 'vertical',
+            stops: [
+              { offset: 0, color: 'rgba(47,127,247,0.8)' },
+              { offset: 1, color: 'rgba(47,127,247,0)' },
+            ],
+          },
+        },
+      },
+    };
+    const gradientSnapshot: ComponentDefinitionSnapshot = {
+      ...clone(snapshot),
+      group: 'radar',
+      dataProtocol: 'radar',
+      styleMode: 'locked',
+      styleSchema: [],
+      defaultStyle: { dark: {}, light: {} },
+      safeSpec: gradientSpec,
+    };
+    expect(validateSafeChartSpec(gradientSpec)).toEqual([]);
+    expect(validateComponentDefinitionSnapshot(gradientSnapshot)).toEqual([]);
+  });
+
+  it('独立计算 safeSpec 深度后仍拒绝超深结构和危险键，并保留完整错误路径', () => {
+    let nested: Record<string, unknown> = {};
+    for (let index = 0; index < 10; index += 1) nested = { next: nested };
+    for (const field of ['safeSpec', 'defaultStyle'] as const) {
+      const issues = validateComponentDefinitionSnapshot({ ...snapshot, [field]: nested });
+      expect(issues.some((item) => item.path.startsWith(`$.${field}.`)
+        && item.message.includes('对象深度'))).toBe(true);
+    }
+    for (const key of ['__proto__', 'constructor', 'prototype']) {
+      const dangerous = JSON.parse(`{"${key}":{"polluted":true}}`) as Record<string, unknown>;
+      for (const field of ['safeSpec', 'defaultStyle'] as const) {
+        const issues = validateComponentDefinitionSnapshot({ ...snapshot, [field]: dangerous });
+        expect(issues.some((item) => item.path === `$.${field}.${key}`
+          && item.message.includes('危险字段'))).toBe(true);
+      }
+      expect(validateComponentDefinitionSnapshot({ ...snapshot, ...dangerous })
+        .some((item) => item.path === `$.${key}` && item.message.includes('危险字段'))).toBe(true);
+    }
+  });
+
   it('接受参数化边框快照并拒绝伪造字段与越界实例样式', () => {
     expect(validateComponentDefinitionSnapshot(borderSnapshot)).toEqual([]);
 

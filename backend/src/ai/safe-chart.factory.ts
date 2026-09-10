@@ -283,7 +283,11 @@ function defaultStyle(spec: SafeChartSpec, theme: 'dark' | 'light'): Record<stri
     });
   }
   if (option.pie) {
-    Object.assign(style, option.pie);
+    Object.assign(style, {
+      innerRadius: option.pie.innerRadius,
+      outerRadius: option.pie.outerRadius,
+      roseType: option.pie.roseType,
+    });
   }
   if (option.radar) {
     Object.assign(style, {

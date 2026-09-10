@@ -157,7 +157,7 @@ export function validateComponentDefinitionSnapshot(
   input: unknown,
   options: { allowNineSlice?: boolean } = {},
 ): AiValidationIssue[] {
-  const issues = validateStructure(input);
+  const issues = validateSnapshotStructure(input);
   if (!isPlainRecord(input)) {
     return append(issues, '$', '组件定义快照必须是普通对象');
   }
@@ -199,6 +199,15 @@ export function validateComponentDefinitionSnapshot(
   validateDefaultStyle(input.defaultStyle, styleSchema, issues);
   validateRendererSpecPair(input, options, issues);
   return issues;
+}
+
+function validateSnapshotStructure(input: unknown): AiValidationIssue[] {
+  if (!isPlainRecord(input)) return validateStructure(input);
+  const shell = Object.fromEntries(Object.entries(input).filter(([key]) => key !== 'safeSpec'));
+  return [
+    ...validateStructure(shell),
+    ...prefixIssues(validateStructure(input.safeSpec), '$.safeSpec'),
+  ];
 }
 
 export function isAiContractValid(issues: AiValidationIssue[]): boolean {

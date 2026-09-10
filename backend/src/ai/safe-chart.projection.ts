@@ -115,6 +115,11 @@ export function projectGeneratedChartSpec(input: unknown): SafeChartProjectionRe
     '$.option',
     warnings,
   ) as unknown as SafeChartOptionV2;
+  const rawRadar = isRecord(prepared.canonical.radar) ? prepared.canonical.radar : undefined;
+  if (option.radar && rawRadar?.splitNumber === undefined
+    && Array.isArray(rawRadar?.splitAreaColors) && option.radar.splitAreaColors.length > 2) {
+    option.radar.splitNumber = option.radar.splitAreaColors.length;
+  }
   if (Object.keys(prepared.visual).length) option.visual = prepared.visual;
   normalizeCrossFields(option, family, warnings);
   return {
@@ -356,8 +361,32 @@ function mergeExplicitVisual(raw: unknown, visual: SafeChartVisualOverrides, war
       addWarning(warnings, '$.option.visual 包含无效目标，已忽略');
       continue;
     }
-    mergeVisualTarget(visual, key as keyof SafeChartVisualOverrides, value, warnings);
+    const normalized = ['coordinate', 'axis', 'xAxis', 'yAxis'].includes(key)
+      ? normalizeCoordinateVisual(value)
+      : value;
+    mergeVisualTarget(visual, key as keyof SafeChartVisualOverrides, normalized, warnings);
   }
+}
+
+function normalizeCoordinateVisual(raw: Record<string, unknown>): Record<string, unknown> {
+  const result = { ...raw };
+  for (const key of ['axisLine', 'splitLine', 'axisTick', 'minorTick', 'minorSplitLine']) {
+    const block = raw[key];
+    if (!isRecord(block)) continue;
+    const normalized = { ...block };
+    const lineStyle: Record<string, unknown> = {};
+    for (const field of ['color', 'width', 'type', 'opacity', 'shadowBlur', 'shadowColor', 'shadowOffsetX', 'shadowOffsetY']) {
+      if (field in block) {
+        lineStyle[field] = block[field];
+        delete normalized[field];
+      }
+    }
+    if (Object.keys(lineStyle).length) {
+      normalized.lineStyle = { ...lineStyle, ...(isRecord(block.lineStyle) ? block.lineStyle : {}) };
+    }
+    result[key] = normalized;
+  }
+  return result;
 }
 
 function mergeFamilyVisual(
@@ -369,7 +398,7 @@ function mergeFamilyVisual(
 ): void {
   if (family === 'radar') {
     const { coordinate, series } = normalizeRadarVisual(extra);
-    if (Object.keys(coordinate).length) mergeVisualTarget(visual, 'coordinate', coordinate, warnings);
+    if (Object.keys(coordinate).length) mergeVisualTarget(visual, 'coordinate', normalizeCoordinateVisual(coordinate), warnings);
     if (Object.keys(series).length) mergeVisualTarget(visual, 'series', series, warnings);
     return;
   }
@@ -389,7 +418,7 @@ function normalizeRadarVisual(extra: Record<string, unknown>): {
   const coordinate: Record<string, unknown> = {};
   const seriesInput: Record<string, unknown> = {};
   const coordinateKeys = new Set([
-    'center', 'radius', 'startAngle', 'shape', 'splitNumber', 'nameGap', 'scale', 'silent', 'triggerEvent',
+    'center', 'radius', 'startAngle', 'shape', 'splitNumber', 'nameGap', 'axisNameGap', 'scale', 'silent', 'triggerEvent',
     'axisName', 'name', 'axisLine', 'axisLabel', 'splitLine', 'splitArea',
   ]);
   for (const [key, value] of Object.entries(extra)) {
@@ -513,6 +542,7 @@ function clampVisualNumber(key: string, value: number): number {
   if (key === 'animationThreshold') return Math.round(Math.min(2000, Math.max(0, value)));
   if (key === 'zlevel') return Math.round(Math.min(4, Math.max(0, value)));
   if (/^(?:shadowBlur|symbolSize)$/.test(key)) return Math.min(256, Math.max(0, value));
+  if (/^(?:lineWidth|borderWidth|width)$/.test(key)) return Math.min(4096, Math.max(0, value));
   return Math.min(1_000_000, Math.max(-1_000_000, value));
 }
 
@@ -728,6 +758,157 @@ function normalizeCrossFields(option: SafeChartOptionV2, family: ChartFamily, wa
     option.gauge.max = 100;
     addWarning(warnings, '$.option.gauge 数值范围无效，已使用安全默认值');
   }
+  if (family === 'radar') {
+    normalizeRadarSplitAreaColors(option, warnings);
+  }
+}
+
+/** 实色分层雷达：纠正倒置明暗，并在中心过暗时提升中心透明度、保留外圈淡化。 */
+function normalizeRadarSplitAreaColors(option: SafeChartOptionV2, warnings: string[]): void {
+  const radar = option.radar;
+  if (!radar || !Array.isArray(radar.splitAreaColors) || radar.splitAreaColors.length < 3) {
+    return;
+  }
+  const splitArea = isRecord(option.visual?.coordinate) ? option.visual?.coordinate?.splitArea : undefined;
+  if (isRecord(splitArea) && splitArea.show === false) {
+    return;
+  }
+  if (isAlternatingSplitAreaColors(radar.splitAreaColors)) {
+    return;
+  }
+
+  let colors = [...radar.splitAreaColors];
+  let changed = false;
+  if (isInvertedSplitAreaBrightness(colors)) {
+    colors = colors.reverse();
+    changed = true;
+    addWarning(warnings, '$.option.radar.splitAreaColors 内外明暗方向已纠正为中心更亮、外圈更淡');
+  }
+
+  const lifted = liftSolidLayerCenterAlpha(colors);
+  if (lifted.changed) {
+    colors = lifted.colors;
+    changed = true;
+    addWarning(warnings, '$.option.radar.splitAreaColors 中心过暗，已提升中心透明度并保留外圈淡化');
+  }
+
+  if (!changed) {
+    return;
+  }
+  radar.splitAreaColors = colors;
+  if (isRecord(splitArea) && isRecord(splitArea.areaStyle) && Array.isArray(splitArea.areaStyle.color)
+    && splitArea.areaStyle.color.length === colors.length) {
+    splitArea.areaStyle.color = [...colors];
+  }
+}
+
+/** 中心 alpha 过低时按原梯度拉伸到更亮中心，外圈 alpha 尽量保持。 */
+function liftSolidLayerCenterAlpha(colors: string[]): { colors: string[]; changed: boolean } {
+  const parsed = colors.map((color) => parseCssColor(color));
+  if (parsed.some((item) => !item)) {
+    return { colors, changed: false };
+  }
+  const layers = parsed as Array<{ r: number; g: number; b: number; a: number }>;
+  const first = layers[0].a;
+  const last = layers[layers.length - 1].a;
+  if (first < last - 0.02 || first >= 0.36) {
+    return { colors, changed: false };
+  }
+  const targetFirst = Math.min(0.55, Math.max(0.45, first * 2.8));
+  const targetLast = last;
+  const span = first - last;
+  const next = layers.map((layer, index) => {
+    const t = colors.length === 1 ? 0 : index / (colors.length - 1);
+    const alpha = span > 0.01
+      ? targetLast + (layer.a - last) * ((targetFirst - targetLast) / span)
+      : targetFirst + (targetLast - targetFirst) * t;
+    const clamped = Math.min(0.85, Math.max(0, alpha));
+    return `rgba(${Math.round(layer.r)}, ${Math.round(layer.g)}, ${Math.round(layer.b)}, ${Number(clamped.toFixed(2))})`;
+  });
+  return { colors: next, changed: true };
+}
+
+/** 判断是否为两色交替网格，避免把线框雷达误判为实色分层。 */
+function isAlternatingSplitAreaColors(colors: string[]): boolean {
+  if (colors.length < 4) {
+    return false;
+  }
+  const normalized = colors.map((color) => color.trim().toLowerCase());
+  const first = normalized[0];
+  const second = normalized[1];
+  if (!first || !second || first === second) {
+    return false;
+  }
+  return normalized.every((color, index) => color === (index % 2 === 0 ? first : second));
+}
+
+/** 检测从内到外整体变亮/变实（与中心亮外圈淡相反）。 */
+function isInvertedSplitAreaBrightness(colors: string[]): boolean {
+  const presence = colors.map((color) => colorPresence(color));
+  if (presence.some((value) => value === undefined)) {
+    return false;
+  }
+  const values = presence as number[];
+  const first = values[0];
+  const last = values[values.length - 1];
+  if (first >= last - 0.02) {
+    return false;
+  }
+  let ups = 0;
+  let downs = 0;
+  for (let index = 1; index < values.length; index += 1) {
+    const delta = values[index] - values[index - 1];
+    if (delta > 0.005) ups += 1;
+    else if (delta < -0.005) downs += 1;
+  }
+  return ups > downs;
+}
+
+/** 估算色带在深色底上的可见强度：透明度权重大于亮度。 */
+function colorPresence(color: string): number | undefined {
+  const parsed = parseCssColor(color);
+  if (!parsed) {
+    return undefined;
+  }
+  const luminance = (0.2126 * parsed.r + 0.7152 * parsed.g + 0.0722 * parsed.b) / 255;
+  return luminance * 0.35 + parsed.a * 0.65;
+}
+
+/** 解析安全 CSS 颜色为 RGBA 分量。 */
+function parseCssColor(color: string): { r: number; g: number; b: number; a: number } | undefined {
+  const text = color.trim().toLowerCase();
+  if (text === 'transparent') {
+    return { r: 0, g: 0, b: 0, a: 0 };
+  }
+  const hex = text.match(/^#([0-9a-f]{3,8})$/i);
+  if (hex) {
+    const raw = hex[1];
+    if (raw.length === 3 || raw.length === 4) {
+      const r = Number.parseInt(raw[0] + raw[0], 16);
+      const g = Number.parseInt(raw[1] + raw[1], 16);
+      const b = Number.parseInt(raw[2] + raw[2], 16);
+      const a = raw.length === 4 ? Number.parseInt(raw[3] + raw[3], 16) / 255 : 1;
+      return { r, g, b, a };
+    }
+    if (raw.length === 6 || raw.length === 8) {
+      const r = Number.parseInt(raw.slice(0, 2), 16);
+      const g = Number.parseInt(raw.slice(2, 4), 16);
+      const b = Number.parseInt(raw.slice(4, 6), 16);
+      const a = raw.length === 8 ? Number.parseInt(raw.slice(6, 8), 16) / 255 : 1;
+      return { r, g, b, a };
+    }
+    return undefined;
+  }
+  const rgba = text.match(/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)$/);
+  if (rgba) {
+    return {
+      r: Number(rgba[1]),
+      g: Number(rgba[2]),
+      b: Number(rgba[3]),
+      a: rgba[4] === undefined ? 1 : Number(rgba[4]),
+    };
+  }
+  return undefined;
 }
 
 function isPercentPath(path: string): boolean {

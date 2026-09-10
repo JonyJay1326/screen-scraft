@@ -203,9 +203,10 @@ function applyV2Overrides(
         width: Number(style.lineWidth ?? option.line.width),
         type: option.line.lineType,
       };
-      item.areaStyle = option.line.areaOpacity > 0
+      const areaOpacity = Number(style.areaOpacity ?? option.line.areaOpacity * 100) / 100;
+      item.areaStyle = areaOpacity > 0
         ? {
-            opacity: Number(style.areaOpacity ?? option.line.areaOpacity * 100) / 100,
+            opacity: areaOpacity,
             color: safeColorToEcharts(option.line.areaColor),
           }
         : undefined;
@@ -269,7 +270,7 @@ function applyV2Overrides(
         axisName: { show: true, color: radar.axisNameColor, fontSize: radar.axisNameSize },
         axisLine: { lineStyle: { color: radar.axisLineColor } },
         splitLine: { lineStyle: { color: radar.splitLineColor } },
-        splitArea: { areaStyle: { color: radar.splitAreaColors } },
+        splitArea: { show: true, areaStyle: { color: radar.splitAreaColors } },
       });
     }
     series.forEach((item) => {
