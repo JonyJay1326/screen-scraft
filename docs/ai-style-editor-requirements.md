@@ -79,7 +79,7 @@ AI 生成后加入当前大屏的安全组件实例。它始终携带完整 `def
 
 - `echarts-safe-v1`：把通过白名单校验的 SafeChartSpec 和协议数据转换为 ECharts option。
 - `border-parametric-v1`：使用预先实现的 SVG DOM 图元和 CSS 变量绘制边框。
-- `border-nine-slice-v1`：M9.6 预留；未启用前服务端和前端必须拒绝。
+- `border-nine-slice-v1`：透明 PNG/WebP 九宫格图片边框；`assetId` 指向永久边框资产，切片参数可编辑；遮挡/水印等写入 warnings 并标记 approximate。
 
 服务端不能返回组件路径，前端不能动态加载或执行服务端代码。
 
@@ -265,6 +265,6 @@ renderer 只创建批准的 SVG DOM 图元并绑定 CSS 变量，不接受原始
 - M9.3：参考图风格迁移。
 - M9.4：安全自定义图表、动态注册表和个人组件。
 - M9.5：参数化边框。
-- M9.6：高还原九宫格图片边框。
+- M9.6：高还原九宫格图片边框（专用永久资产 + 参考图可生成 nineSlice + fidelity/warnings）。
 
 每个里程碑的详细范围和验收清单以 `docs/milestones.md` 为准。未经用户同意不得跨里程碑实现。

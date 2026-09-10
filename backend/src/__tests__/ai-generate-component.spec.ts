@@ -11,6 +11,7 @@ import {
 import axios from 'axios';
 import type { Model } from 'mongoose';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { AiBorderAssetsService } from '../ai/ai-border-assets.service';
 import type { AiReferenceAssetsService } from '../ai/ai-reference-assets.service';
 import type { AiGenerateComponentDto } from '../ai/ai.dto';
 import type { AiSettings } from '../ai/ai.schema';
@@ -20,6 +21,7 @@ import {
   buildChineseMockData,
   buildGeneratedBorderDefinition,
   buildGeneratedChartDefinition,
+  buildGeneratedNineSliceDefinition,
 } from '../ai/safe-chart.factory';
 import { projectGeneratedChartSpec } from '../ai/safe-chart.projection';
 import { buildSafeChartOption } from '../../../frontend/src/registry/safe-chart-option';
@@ -726,7 +728,81 @@ describe('AI 安全自定义图表生成', () => {
     expect(validateComponentDefinitionSnapshot(result.definitionSnapshot)).toEqual([]);
     expect(result.style).toMatchObject({ cornerType: 'cut', contentPadding: 16 });
     const payload = request.mock.calls[0][1] as { messages: Array<{ content: string }> };
-    expect(payload.messages[0].content).toContain('禁止函数、HTML、CSS、SVG/path 原文、URL');
+    expect(payload.messages[0].content).toContain('禁止函数、HTML、CSS、SVG/path 原文、外部 URL');
+  });
+
+  it('有参考图时可将九宫格边框转存永久资产并注入 assetId', async () => {
+    const png = Buffer.alloc(24);
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(png);
+    png.write('IHDR', 12, 'ascii');
+    png.writeUInt32BE(64, 16);
+    png.writeUInt32BE(64, 20);
+    const referenceAssets = {
+      readOwned: vi.fn(async () => ({ mimeType: 'image/png', buffer: png })),
+    } as unknown as AiReferenceAssetsService;
+    const borderAssets = {
+      saveFromBuffer: vi.fn(async () => ({
+        _id: 'border-asset-9',
+        mimeType: 'image/png',
+        size: png.length,
+        width: 64,
+        height: 64,
+        url: '/uploads/border-assets/border-asset-9.png',
+      })),
+    } as unknown as AiBorderAssetsService;
+    const service = createService({ referenceAssets, borderAssets });
+    vi.spyOn(axios, 'post').mockResolvedValue({
+      data: {
+        choices: [{ message: { content: JSON.stringify({
+          name: '科技边框图',
+          theme: 'dark',
+          styleMode: 'editable',
+          safeSpec: {
+            kind: 'nineSlice',
+            schemaVersion: 1,
+            slice: { top: 24, right: 24, bottom: 24, left: 24 },
+          },
+          warnings: ['右下角水印无法精确去除'],
+          unsupportedFeatures: [],
+        }) } }],
+      },
+    });
+
+    const result = await service.generateComponent({
+      ...createRequest(),
+      kind: 'border',
+      referenceAssetId: 'ref-1',
+      instruction: '按参考图生成九宫格边框',
+    }, 'user-1');
+
+    expect(borderAssets.saveFromBuffer).toHaveBeenCalled();
+    expect(result.definitionSnapshot).toMatchObject({
+      rendererKey: 'border-nine-slice-v1',
+      category: 'decoration',
+      group: 'border',
+      safeSpec: {
+        kind: 'nineSlice',
+        assetId: 'border-asset-9',
+        slice: { top: 24, right: 24, bottom: 24, left: 24 },
+      },
+    });
+    expect(result.style).toMatchObject({
+      assetUrl: '/uploads/border-assets/border-asset-9.png',
+      sliceTop: 24,
+    });
+    expect(result.fidelity).toBe('approximate');
+    expect(validateComponentDefinitionSnapshot(result.definitionSnapshot)).toEqual([]);
+  });
+
+  it('拒绝九宫格中的外部 URL assetId', () => {
+    const definition = buildGeneratedNineSliceDefinition({
+      kind: 'nineSlice',
+      schemaVersion: 1,
+      assetId: 'https://evil.example/x.png',
+      slice: { top: 8, right: 8, bottom: 8, left: 8 },
+    }, '/uploads/border-assets/x.png');
+    expect(validateComponentDefinitionSnapshot(definition)
+      .some((item) => item.message.includes('禁止使用外部 URL'))).toBe(true);
   });
 
   it('拒绝参数化边框中的原始 SVG 和越界参数', async () => {
@@ -746,13 +822,16 @@ describe('AI 安全自定义图表生成', () => {
       .rejects.toMatchObject({ bizCode: 4401 });
   });
 
-  it('边框批准字段完整通过快照校验', () => {
-    const definition = buildGeneratedBorderDefinition(borderSpec);
+  it('九宫格批准字段完整通过快照校验', () => {
+    const definition = buildGeneratedNineSliceDefinition({
+      kind: 'nineSlice',
+      schemaVersion: 1,
+      assetId: 'asset-ok',
+      slice: { top: 16, right: 16, bottom: 16, left: 16 },
+    }, '/uploads/border-assets/asset-ok.png');
     expect(validateComponentDefinitionSnapshot(definition)).toEqual([]);
     expect(definition.styleSchema.map((field) => field.key)).toEqual(expect.arrayContaining([
-      'cornerType', 'cornerSize', 'primaryColor', 'accentColor', 'backgroundColor',
-      'lineWidth', 'lineOpacity', 'innerGlow', 'outerGlow', 'glowOpacity',
-      'titlePosition', 'contentPadding',
+      'sliceTop', 'sliceRight', 'sliceBottom', 'sliceLeft', 'contentPadding', 'assetUrl',
     ]));
   });
 });
@@ -767,7 +846,10 @@ function createRequest(): AiGenerateComponentDto {
   };
 }
 
-function createService(): AiService {
+function createService(overrides?: {
+  referenceAssets?: AiReferenceAssetsService;
+  borderAssets?: AiBorderAssetsService;
+}): AiService {
   const settings = {
     provider: 'deepseek' as const,
     baseUrl: 'https://api.deepseek.com',
@@ -808,6 +890,18 @@ function createService(): AiService {
     updatedAt: '2026-09-09T00:00:00.000Z',
   } satisfies ScreenDoc;
   const screens = { getById: vi.fn(async () => screen) } as unknown as ScreensService;
-  const referenceAssets = { readOwned: vi.fn() } as unknown as AiReferenceAssetsService;
-  return new AiService({} as never, settingsModel, config, screens, referenceAssets);
+  const referenceAssets = overrides?.referenceAssets
+    ?? { readOwned: vi.fn() } as unknown as AiReferenceAssetsService;
+  const borderAssets = overrides?.borderAssets ?? {
+    saveFromBuffer: vi.fn(async () => ({
+      _id: 'border-asset-1',
+      mimeType: 'image/png',
+      size: 24,
+      width: 64,
+      height: 64,
+      url: '/uploads/border-assets/border-asset-1.png',
+    })),
+    assertOwnedIds: vi.fn(async () => undefined),
+  } as unknown as AiBorderAssetsService;
+  return new AiService({} as never, settingsModel, config, screens, referenceAssets, borderAssets);
 }

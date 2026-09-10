@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, forwardRef } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { ScreenDoc, validatePageComponentDefinitions } from '@screencraft/shared';
 import { Model } from 'mongoose';
+import { AiBorderAssetsService } from '../ai/ai-border-assets.service';
 import { BizException } from '../common/biz.exception';
 import { Project } from '../projects/project.schema';
 import { createBlankPage } from './page.factory';
@@ -14,6 +15,8 @@ export class ScreensService {
   constructor(
     @InjectModel(Screen.name) private readonly screenModel: Model<Screen>,
     @InjectModel(Project.name) private readonly projectModel: Model<Project>,
+    @Inject(forwardRef(() => AiBorderAssetsService))
+    private readonly borderAssets: AiBorderAssetsService,
   ) {}
 
   /** 项目下大屏列表 */
@@ -44,8 +47,12 @@ export class ScreensService {
     return toScreenDoc(doc);
   }
 
-  /** 整屏覆盖保存，updatedAt 冲突返回 4001 */
-  async save(id: string, payload: Partial<ScreenDoc> & { updatedAt: string }): Promise<ScreenDoc> {
+  /** 整屏覆盖保存，updatedAt 冲突返回 4001；校验九宫格资产归属 */
+  async save(
+    id: string,
+    payload: Partial<ScreenDoc> & { updatedAt: string },
+    ownerId: string,
+  ): Promise<ScreenDoc> {
     const doc = await this.requireScreen(id);
     if (doc.updatedAt.toISOString() !== payload.updatedAt) {
       throw BizException.validation('大屏已被其他人更新，请刷新后重试');
@@ -65,6 +72,7 @@ export class ScreensService {
         const first = definitionIssues[0];
         throw BizException.componentDefinitionInvalid(`${first.path}: ${first.message}`);
       }
+      await this.borderAssets.assertOwnedIds(collectNineSliceAssetIds(payload.pages), ownerId);
       doc.pages = payload.pages;
     }
     if (payload.thumbnail !== undefined) {
@@ -138,4 +146,26 @@ export class ScreensService {
     }
     return doc;
   }
+}
+
+/** 收集页面中九宫格边框引用的永久资产 ID。 */
+function collectNineSliceAssetIds(pages: ScreenDoc['pages']): string[] {
+  const ids: string[] = [];
+  for (const page of pages) {
+    for (const component of page.components) {
+      const safeSpec = component.definitionSnapshot?.safeSpec;
+      if (
+        component.definitionSnapshot?.rendererKey === 'border-nine-slice-v1'
+        && safeSpec
+        && typeof safeSpec === 'object'
+        && 'kind' in safeSpec
+        && safeSpec.kind === 'nineSlice'
+        && 'assetId' in safeSpec
+        && typeof safeSpec.assetId === 'string'
+      ) {
+        ids.push(safeSpec.assetId);
+      }
+    }
+  }
+  return ids;
 }

@@ -92,7 +92,7 @@ interface StyleField {
 type SafeRendererKey =
   | 'echarts-safe-v1'
   | 'border-parametric-v1'
-  | 'border-nine-slice-v1';          // M9.6 预留；启用前服务端必须拒绝
+  | 'border-nine-slice-v1';          // 九宫格图片边框（M9.6）
 
 interface ComponentDefinitionSnapshot {
   source: 'generated' | 'personal' | 'public';
@@ -394,10 +394,19 @@ interface SafeBorderSpec {
 }
 
 interface SafeNineSliceSpec {
-  kind: 'nineSlice';                  // M9.6 可选能力
+  kind: 'nineSlice';
   schemaVersion: 1;
-  assetId: string;
+  assetId: string;                   // 永久边框资产 ID，禁止外部 URL
   slice: { top: number; right: number; bottom: number; left: number };
+}
+
+interface AiBorderAsset {
+  _id: string;
+  mimeType: 'image/png' | 'image/webp';
+  size: number;
+  width: number;
+  height: number;
+  url: string;                       // /uploads/border-assets/...
 }
 
 // ---------- AI 修改方案 ----------
@@ -585,6 +594,8 @@ interface CustomComponentPreset {
 | POST | /ai/editor/generate-component | `AiGenerateComponentRequest` → `AiGeneratedComponent`；返回临时安全组件定义，不直接写大屏 |
 | POST | /ai/editor/reference-assets | multipart 单图 → `AiReferenceAsset`；仅 PNG/JPEG/WebP，真实文件头校验，≤10MB、单边≤8192px，默认 24 小时过期 |
 | POST | /ai/editor/reference-assets/:id/delete | 主动清理本人临时参考图；未调用时由 TTL 清理 |
+| POST | /ai/editor/border-assets | multipart 单图 → `AiBorderAsset`；仅 PNG/WebP，真实文件头校验，≤10MB、单边≤8192px，永久归属当前用户 |
+| POST | /ai/editor/border-assets/:id/delete | 删除本人永久边框资产；已写入大屏实例的快照仍保留 assetId，删除后实例显示资产失效占位 |
 | GET | /ai/settings | 管理员：读取 `{provider:'deepseek',baseUrl,textModel,visionModel,visionEnabled,apiKeyMasked}` |
 | POST | /ai/settings | 管理员：保存 DeepSeek 配置；`apiKey` 只写不读，模型名可配置 |
 | POST | /ai/settings/test | 管理员：分别测试文本 JSON 输出与视觉图片输入能力，不返回模型原始敏感信息 |

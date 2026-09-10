@@ -497,7 +497,7 @@ async function saveSelectedAsPersonal(): Promise<void> {
   if (
     !component
     || !snapshot
-    || !['echarts-safe-v1', 'border-parametric-v1'].includes(snapshot.rendererKey)
+    || !['echarts-safe-v1', 'border-parametric-v1', 'border-nine-slice-v1'].includes(snapshot.rendererKey)
   ) {
     return;
   }

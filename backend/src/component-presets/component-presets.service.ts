@@ -112,8 +112,22 @@ export class ComponentPresetsService {
     if (issues.length) {
       throw BizException.componentDefinitionInvalid(`${issues[0].path}: ${issues[0].message}`);
     }
-    if (definition.rendererKey !== 'echarts-safe-v1' || definition.category !== 'chart') {
-      throw BizException.componentDefinitionInvalid('M9.4 仅支持保存安全自定义图表');
+    const allowedRenderers = new Set([
+      'echarts-safe-v1',
+      'border-parametric-v1',
+      'border-nine-slice-v1',
+    ]);
+    if (!allowedRenderers.has(definition.rendererKey)) {
+      throw BizException.componentDefinitionInvalid('仅支持保存安全自定义图表或边框');
+    }
+    if (definition.rendererKey === 'echarts-safe-v1' && definition.category !== 'chart') {
+      throw BizException.componentDefinitionInvalid('图表预设分类必须为 chart');
+    }
+    if (
+      (definition.rendererKey === 'border-parametric-v1' || definition.rendererKey === 'border-nine-slice-v1')
+      && (definition.category !== 'decoration' || definition.group !== 'border')
+    ) {
+      throw BizException.componentDefinitionInvalid('边框预设分类必须为 decoration/border');
     }
   }
 

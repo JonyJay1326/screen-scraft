@@ -488,6 +488,16 @@ export interface AiReferenceAsset {
   expiresAt: string;
 }
 
+/** 永久九宫格边框图资产 */
+export interface AiBorderAsset {
+  _id: string;
+  mimeType: 'image/png' | 'image/webp';
+  size: number;
+  width: number;
+  height: number;
+  url: string;
+}
+
 export interface AiEditorCapabilities {
   visionEnabled: boolean;
   visionUnavailableReason?: string;

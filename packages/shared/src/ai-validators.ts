@@ -43,6 +43,23 @@ export function validateAiStylePatch(
   styleSchema: StyleField[],
   patch: unknown,
 ): AiValidationIssue[] {
+  return validateStyleRecord(styleSchema, patch, { allowReadOnly: false });
+}
+
+/** 校验画布实例样式；允许携带只读字段（如九宫格 assetUrl）。 */
+export function validateComponentInstanceStyle(
+  styleSchema: StyleField[],
+  style: unknown,
+): AiValidationIssue[] {
+  return validateStyleRecord(styleSchema, style, { allowReadOnly: true });
+}
+
+/** 按 schema 校验样式对象；AI 补丁禁止只读字段。 */
+function validateStyleRecord(
+  styleSchema: StyleField[],
+  patch: unknown,
+  options: { allowReadOnly: boolean },
+): AiValidationIssue[] {
   const issues = validateStructure(patch);
   if (!isPlainRecord(patch)) {
     return append(issues, '$', '样式补丁必须是普通对象');
@@ -55,8 +72,12 @@ export function validateAiStylePatch(
       issues.push({ path, message: '字段未在目标 styleSchema 中声明' });
       continue;
     }
-    if (!field.aiWritable || field.readOnly) {
+    if ((!field.aiWritable || field.readOnly) && !options.allowReadOnly) {
       issues.push({ path, message: '字段不允许 AI 修改' });
+      continue;
+    }
+    if ((!field.aiWritable || field.readOnly) && options.allowReadOnly) {
+      issues.push(...validateStyleValue(field, value, path));
       continue;
     }
     issues.push(...validateStyleValue(field, value, path));
@@ -152,10 +173,10 @@ export function validateSafeBorderSpec(input: unknown): AiValidationIssue[] {
   return issues;
 }
 
-/** 校验动态组件自包含快照；九宫格能力默认保持关闭。 */
+/** 校验动态组件自包含快照；九宫格图片边框已启用。 */
 export function validateComponentDefinitionSnapshot(
   input: unknown,
-  options: { allowNineSlice?: boolean } = {},
+  options: { allowNineSlice?: boolean } = { allowNineSlice: true },
 ): AiValidationIssue[] {
   const issues = validateSnapshotStructure(input);
   if (!isPlainRecord(input)) {
@@ -196,6 +217,9 @@ export function validateComponentDefinitionSnapshot(
   if (input.rendererKey === 'border-parametric-v1') {
     validateApprovedBorderStyleSchema(input.styleMode, styleSchema, issues);
   }
+  if (input.rendererKey === 'border-nine-slice-v1') {
+    validateApprovedNineSliceStyleSchema(input.styleMode, styleSchema, issues);
+  }
   validateDefaultStyle(input.defaultStyle, styleSchema, issues);
   validateRendererSpecPair(input, options, issues);
   return issues;
@@ -229,7 +253,7 @@ export function validatePageComponentDefinitions(pages: PageDoc[]): AiValidation
         issues.push(...prefixIssues(definitionIssues, `${path}.definitionSnapshot`));
         if (!definitionIssues.length) {
           issues.push(...prefixIssues(
-            validateAiStylePatch(component.definitionSnapshot.styleSchema, component.style),
+            validateComponentInstanceStyle(component.definitionSnapshot.styleSchema, component.style),
             `${path}.style`,
           ));
         }
@@ -362,7 +386,10 @@ function validateRendererSpecPair(
     return;
   }
   if (input.rendererKey === 'border-nine-slice-v1' && options.allowNineSlice) {
-    validateNineSliceSpec(input.safeSpec, issues);
+    if (input.category !== 'decoration' || input.group !== 'border' || input.dataProtocol !== undefined) {
+      issues.push({ path: '$.rendererKey', message: '九宫格边框 renderer 与分类或数据协议不匹配' });
+    }
+    issues.push(...prefixIssues(validateSafeNineSliceSpec(input.safeSpec), '$.safeSpec'));
   }
 }
 
@@ -371,6 +398,7 @@ interface ApprovedStyleRule {
   min?: number;
   max?: number;
   options?: string[];
+  readOnly?: boolean;
 }
 
 function validateApprovedChartStyleSchema(
@@ -524,6 +552,48 @@ function validateApprovedBorderStyleSchema(
       if (JSON.stringify(actual) !== JSON.stringify(rule.options)) {
         issues.push({ path, message: '边框下拉选项与安全目录不一致' });
       }
+    }
+  });
+}
+
+function validateApprovedNineSliceStyleSchema(
+  styleMode: unknown,
+  schema: StyleField[],
+  issues: AiValidationIssue[],
+): void {
+  const rules = styleMode === 'locked'
+    ? new Map<string, ApprovedStyleRule>()
+    : new Map<string, ApprovedStyleRule>([
+        ['sliceTop', { type: 'number', min: 0, max: 4096 }],
+        ['sliceRight', { type: 'number', min: 0, max: 4096 }],
+        ['sliceBottom', { type: 'number', min: 0, max: 4096 }],
+        ['sliceLeft', { type: 'number', min: 0, max: 4096 }],
+        ['contentPadding', { type: 'number', min: 0, max: 160 }],
+        ['assetUrl', { type: 'text', readOnly: true }],
+      ]);
+  schema.forEach((field, index) => {
+    const rule = rules.get(field.key);
+    const path = `$.styleSchema[${index}]`;
+    if (!rule) {
+      issues.push({ path: `${path}.key`, message: '字段未在九宫格边框批准目录中' });
+      return;
+    }
+    if (rule.readOnly) {
+      if (field.type !== rule.type || field.aiWritable || field.readOnly !== true) {
+        issues.push({ path, message: '九宫格样式字段类型或写入权限与安全目录不一致' });
+      }
+    } else if (field.type !== rule.type || !field.aiWritable || field.readOnly === true) {
+      issues.push({ path, message: '九宫格样式字段类型或写入权限与安全目录不一致' });
+    }
+    if (rule.type === 'number' && (
+      field.min === undefined
+      || field.max === undefined
+      || rule.min === undefined
+      || rule.max === undefined
+      || field.min < rule.min
+      || field.max > rule.max
+    )) {
+      issues.push({ path, message: '九宫格数值范围与安全目录不一致' });
     }
   });
 }
@@ -1085,23 +1155,28 @@ function validateInnerOuterRadius(input: unknown, path: string, issues: AiValida
   }
 }
 
-function validateNineSliceSpec(input: unknown, issues: AiValidationIssue[]): void {
+/** 校验九宫格边框安全描述 */
+export function validateSafeNineSliceSpec(input: unknown): AiValidationIssue[] {
+  const issues: AiValidationIssue[] = [];
   if (!isPlainRecord(input)) {
-    issues.push({ path: '$.safeSpec', message: 'SafeNineSliceSpec 必须是普通对象' });
-    return;
+    return append(issues, '$', 'SafeNineSliceSpec 必须是普通对象');
   }
-  strictKeys(input, ['kind', 'schemaVersion', 'assetId', 'slice'], '$.safeSpec', issues);
-  literal(input.kind, 'nineSlice', '$.safeSpec.kind', issues);
-  literal(input.schemaVersion, 1, '$.safeSpec.schemaVersion', issues);
-  nonEmptyString(input.assetId, '$.safeSpec.assetId', issues, 128);
+  strictKeys(input, ['kind', 'schemaVersion', 'assetId', 'slice'], '$', issues);
+  literal(input.kind, 'nineSlice', '$.kind', issues);
+  literal(input.schemaVersion, 1, '$.schemaVersion', issues);
+  nonEmptyString(input.assetId, '$.assetId', issues, 128);
+  if (typeof input.assetId === 'string' && /^(?:https?:|data:|blob:|\/\/)/i.test(input.assetId.trim())) {
+    issues.push({ path: '$.assetId', message: 'assetId 禁止使用外部 URL 或 data URI' });
+  }
   if (isPlainRecord(input.slice)) {
-    strictKeys(input.slice, ['top', 'right', 'bottom', 'left'], '$.safeSpec.slice', issues);
+    strictKeys(input.slice, ['top', 'right', 'bottom', 'left'], '$.slice', issues);
     for (const key of ['top', 'right', 'bottom', 'left']) {
-      integerValue(input.slice[key], 0, 4096, `$.safeSpec.slice.${key}`, issues);
+      integerValue(input.slice[key], 0, 4096, `$.slice.${key}`, issues);
     }
   } else {
-    issues.push({ path: '$.safeSpec.slice', message: 'slice 必须是普通对象' });
+    issues.push({ path: '$.slice', message: 'slice 必须是普通对象' });
   }
+  return issues;
 }
 
 function validateStructure(input: unknown, path = '$', depth = 0): AiValidationIssue[] {

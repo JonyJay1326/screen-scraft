@@ -111,7 +111,7 @@ interface ComponentTemplate {
 2. `definitionSnapshot` 存在且合法：按 `rendererKey` 选择固定安全 renderer，以快照渲染。
 3. 两者均失败：显示“组件配置不可用”占位并记录错误。
 
-个人组件添加到画布时，复制完整定义到实例快照；`presetId` 只用于追踪，不参与渲染。更新或删除预设不扫描、不覆盖已有大屏。`rendererKey` 只允许 `echarts-safe-v1`、`border-parametric-v1`；`border-nine-slice-v1` 在 M9.6 启用前必须拒绝。
+个人组件添加到画布时，复制完整定义到实例快照；`presetId` 只用于追踪，不参与渲染。更新或删除预设不扫描、不覆盖已有大屏。`rendererKey` 允许 `echarts-safe-v1`、`border-parametric-v1`、`border-nine-slice-v1`。九宫格边框的 `assetId` 必须指向当前用户拥有的永久边框资产；禁止外部 URL 与未登记 ID。
 
 ### 2.4 编辑器状态（Pinia screenStore）
 
@@ -159,6 +159,7 @@ interface ComponentTemplate {
 | ai | DeepSeek 配置、文本/视觉能力测试、AI 方案编排、结构化输出解析、共享契约校验、用户级限流与调用统计；兼容期保留旧客服接口但不进入新调用链 |
 | component-preset | 个人/公共组件预设 CRUD、所有权校验、复制、版本号递增和管理员提升 |
 | ai-reference-asset | AI 参考图上传、真实文件头校验、10MB 限制、所有权和 TTL 清理 |
+| ai-border-asset | 永久九宫格边框图上传（PNG/WebP）、归属隔离、删除；供 `SafeNineSliceSpec.assetId` 引用 |
 
 ### 3.1 DeepSeek 模型适配
 
@@ -196,6 +197,7 @@ interface ComponentTemplate {
 | kb_docs | 操作手册文档 | |
 | component_presets | 个人/公共组件定义、ownerId、当前 specVersion | 实例不依赖此集合存活 |
 | ai_reference_assets | 临时参考图元数据、ownerId、expiresAt | TTL 到期删除元数据与文件 |
+| ai_border_assets | 永久边框图元数据、ownerId、url | 无 TTL；删除不扫描大屏，实例保留快照但资源可失效 |
 | ai_usage | 用户、能力类型、模型、结果、耗时、token 统计 | 不记录 prompt、图片和密钥 |
 
 `kb_docs` 为 v0.3 遗留数据，v0.4 升级不删除；新功能不读取该集合。
@@ -207,6 +209,8 @@ interface ComponentTemplate {
 - 第三方密钥：腾讯云天气 key 仅存后端配置、代理时注入，不暴露给浏览器【已确认】。
 - 上传：类型/大小限制（v1 单文件 ≤ 200MB，超限提示），分片/直传预留。
 - AI 参考图使用独立上传入口和 10MB 上限、8192px 单边上限、默认 24 小时 TTL，同时校验扩展名、MIME、PNG/JPEG/WebP 文件头、图片尺寸与 ownerId；不得复用通用资源接口的宽松规则。
+- 九宫格边框永久资产使用独立上传入口（仅 PNG/WebP），校验文件头与 ownerId；`safeSpec.assetId` 禁止外部 URL；保存大屏时校验资产存在且归属当前用户；删除资产不改写已有大屏快照。
+- 有参考图生成边框时，模型可返回参数化 `SafeBorderSpec` 或图片九宫格 `SafeNineSliceSpec`；后者由服务端把参考图转存为永久边框资产并注入 `assetId`。遮挡/水印等无法精确还原时写入 `warnings` 并将 `fidelity` 置为 `approximate`。
 - AI 对象递归拒绝 `__proto__`、`prototype`、`constructor`；安全图表拒绝函数 formatter、renderItem、HTML、CSS、完整 SVG/XML、外部 URL 和数据注入。纯文本 formatter 使用固定占位符语法；`path://` 限制长度、命令数和坐标范围；视觉树限制深度、字段数、数组长度和高成本数值。
 - ECharts renderer 只由本地适配器把 SafeChartSpec v1/v2 与既有数据协议组装为 option；模型不能提供 series data、dataset、事件、动画回调或不受控根节点。v2 `visual` 只能合并到既有 renderer 节点，页面级目标仍为最多 200 个组件，异常 spec 显示“组件配置不可用”。
 - 个人预设的 ownerId/scope/specVersion 由后端写入；普通用户不能读取、更新、复制或删除他人的个人预设。
@@ -219,7 +223,7 @@ interface ComponentTemplate {
 
 ## 5. 预留扩展位（v1 不实现）
 
-应用组件、页面链接、GIS 背景（背景 type 枚举预留）；字段映射；SQL 作为组件直连数据源（统一走 api-config）；页面跳转返回栈；多业务库连接管理；AI 生成/执行代码；AI 修改布局、数据、事件；组件市场；个人组件历史版本回滚；图片边框九宫格在 M9.6 前不实现。
+应用组件、页面链接、GIS 背景（背景 type 枚举预留）；字段映射；SQL 作为组件直连数据源（统一走 api-config）；页面跳转返回栈；多业务库连接管理；AI 生成/执行代码；AI 修改布局、数据、事件；组件市场；个人组件历史版本回滚。
 
 ## 6. 测试策略
 

@@ -313,5 +313,9 @@ function createService(
   const referenceAssets = {
     readOwned: vi.fn(async () => referenceImage),
   } as unknown as AiReferenceAssetsService;
-  return new AiService({} as never, settingsModel, config, screens, referenceAssets);
+  const borderAssets = {
+    saveFromBuffer: vi.fn(),
+    assertOwnedIds: vi.fn(),
+  } as unknown as import('../ai/ai-border-assets.service').AiBorderAssetsService;
+  return new AiService({} as never, settingsModel, config, screens, referenceAssets, borderAssets);
 }

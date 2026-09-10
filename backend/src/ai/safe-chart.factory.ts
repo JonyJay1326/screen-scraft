@@ -3,6 +3,7 @@ import type {
   ProtocolKind,
   SafeBorderSpec,
   SafeChartSpec,
+  SafeNineSliceSpec,
   StyleField,
 } from '@screencraft/shared';
 
@@ -48,6 +49,37 @@ export function buildGeneratedBorderDefinition(spec: SafeBorderSpec): ComponentD
   return {
     source: 'generated',
     rendererKey: 'border-parametric-v1',
+    specVersion: 1,
+    category: 'decoration',
+    group: 'border',
+    defaultSize: { w: 720, h: 420 },
+    styleSchema,
+    styleMode: 'editable',
+    defaultStyle: {
+      dark: { ...defaultStyle },
+      light: { ...defaultStyle },
+    },
+    safeSpec: spec,
+  };
+}
+
+/** 构造九宫格图片边框定义快照。 */
+export function buildGeneratedNineSliceDefinition(
+  spec: SafeNineSliceSpec,
+  assetUrl: string,
+): ComponentDefinitionSnapshot {
+  const styleSchema = approvedNineSliceStyleSchema();
+  const defaultStyle = {
+    sliceTop: spec.slice.top,
+    sliceRight: spec.slice.right,
+    sliceBottom: spec.slice.bottom,
+    sliceLeft: spec.slice.left,
+    contentPadding: 16,
+    assetUrl,
+  };
+  return {
+    source: 'generated',
+    rendererKey: 'border-nine-slice-v1',
     specVersion: 1,
     category: 'decoration',
     group: 'border',
@@ -248,6 +280,18 @@ function borderDefaultStyle(spec: SafeBorderSpec): Record<string, unknown> {
     titlePosition: spec.titlePosition,
     contentPadding: spec.contentPadding,
   };
+}
+
+/** 九宫格边框已批准 styleSchema；assetUrl 只读，切片可调。 */
+function approvedNineSliceStyleSchema(): StyleField[] {
+  return [
+    { key: 'sliceTop', label: '上切片', type: 'number', min: 0, max: 4096, step: 1, unit: 'px', group: '切片', aiWritable: true },
+    { key: 'sliceRight', label: '右切片', type: 'number', min: 0, max: 4096, step: 1, unit: 'px', group: '切片', aiWritable: true },
+    { key: 'sliceBottom', label: '下切片', type: 'number', min: 0, max: 4096, step: 1, unit: 'px', group: '切片', aiWritable: true },
+    { key: 'sliceLeft', label: '左切片', type: 'number', min: 0, max: 4096, step: 1, unit: 'px', group: '切片', aiWritable: true },
+    { key: 'contentPadding', label: '内容内边距', type: 'number', min: 0, max: 160, step: 1, unit: 'px', group: '布局', aiWritable: true },
+    { key: 'assetUrl', label: '边框图', type: 'text', group: '资源', aiWritable: false, readOnly: true },
+  ];
 }
 
 function defaultStyle(spec: SafeChartSpec, theme: 'dark' | 'light'): Record<string, unknown> {

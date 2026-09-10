@@ -11,6 +11,7 @@ import BorderFamily from './renderers/BorderFamily.vue';
 import Widgets from './renderers/Widgets.vue';
 import SafeChartRenderer from './renderers/SafeChartRenderer.vue';
 import SafeBorderRenderer from './renderers/SafeBorderRenderer.vue';
+import SafeNineSliceRenderer from './renderers/SafeNineSliceRenderer.vue';
 
 /** 按模板 id 选择渲染器 */
 function pickRenderer(id: string): Component {
@@ -61,7 +62,7 @@ export function resolveComponentTemplate(doc: ComponentDoc): ComponentTemplate |
   const definition = doc.definitionSnapshot;
   if (
     !definition
-    || !['echarts-safe-v1', 'border-parametric-v1'].includes(definition.rendererKey)
+    || !['echarts-safe-v1', 'border-parametric-v1', 'border-nine-slice-v1'].includes(definition.rendererKey)
     || validateComponentDefinitionSnapshot(definition).length
   ) {
     return undefined;
@@ -79,7 +80,11 @@ export function resolveComponentTemplate(doc: ComponentDoc): ComponentTemplate |
     hasDataTab: Boolean(definition.dataProtocol),
     hasEventTab: definition.rendererKey === 'echarts-safe-v1',
     renderer: markRaw(
-      definition.rendererKey === 'border-parametric-v1' ? SafeBorderRenderer : SafeChartRenderer,
+      definition.rendererKey === 'border-parametric-v1'
+        ? SafeBorderRenderer
+        : definition.rendererKey === 'border-nine-slice-v1'
+          ? SafeNineSliceRenderer
+          : SafeChartRenderer,
     ),
   };
 }

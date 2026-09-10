@@ -85,3 +85,32 @@ export class AiReferenceAssetRecord {
 }
 
 export const AiReferenceAssetRecordSchema = SchemaFactory.createForClass(AiReferenceAssetRecord);
+
+export type AiBorderAssetRecordDocument = HydratedDocument<AiBorderAssetRecord>;
+
+/** 永久九宫格边框图元数据；文件位于公开 uploads/border-assets，业务按 ownerId 鉴权。 */
+@Schema({ timestamps: true, collection: 'ai_border_assets' })
+export class AiBorderAssetRecord {
+  @Prop({ type: String, required: true, index: true })
+  ownerId!: string;
+
+  @Prop({ type: String, required: true })
+  storageName!: string;
+
+  @Prop({ type: String, required: true, enum: ['image/png', 'image/webp'] })
+  mimeType!: 'image/png' | 'image/webp';
+
+  @Prop({ type: Number, required: true })
+  size!: number;
+
+  @Prop({ type: Number, required: true })
+  width!: number;
+
+  @Prop({ type: Number, required: true })
+  height!: number;
+
+  @Prop({ type: String, required: true })
+  url!: string;
+}
+
+export const AiBorderAssetRecordSchema = SchemaFactory.createForClass(AiBorderAssetRecord);

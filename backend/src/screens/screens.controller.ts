@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { CurrentUser, type RequestUser } from '../common/current-user.decorator';
 import { CreateScreenDto, DeployedDto, SaveScreenDto } from './screens.dto';
 import { ScreensService } from './screens.service';
 
@@ -27,8 +28,12 @@ export class ScreensController {
 
   /** 保存 */
   @Post('screens/:id/save')
-  save(@Param('id') id: string, @Body() dto: SaveScreenDto) {
-    return this.screensService.save(id, dto);
+  save(
+    @Param('id') id: string,
+    @Body() dto: SaveScreenDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.screensService.save(id, dto, user.id);
   }
 
   /** 删除 */

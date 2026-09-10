@@ -4,6 +4,7 @@ import type { Request } from 'express';
 import { AdminGuard } from '../auth/admin.guard';
 import { BizException } from '../common/biz.exception';
 import { CurrentUser, type RequestUser } from '../common/current-user.decorator';
+import { AiBorderAssetsService } from './ai-border-assets.service';
 import { AiReferenceAssetsService } from './ai-reference-assets.service';
 import { AiService } from './ai.service';
 import {
@@ -21,6 +22,7 @@ export class AiController {
   constructor(
     private readonly ai: AiService,
     private readonly referenceAssets: AiReferenceAssetsService,
+    private readonly borderAssets: AiBorderAssetsService,
   ) {}
 
   /** 编辑器只读能力，不暴露模型配置或密钥。 */
@@ -51,6 +53,26 @@ export class AiController {
   @Post('editor/reference-assets/:id/delete')
   deleteReferenceAsset(@Param('id') id: string, @CurrentUser() user: RequestUser) {
     return this.referenceAssets.removeOwned(id, user.id);
+  }
+
+  /** 上传永久九宫格边框图。 */
+  @Post('editor/border-assets')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 10 * 1024 * 1024 },
+    }),
+  )
+  uploadBorderAsset(
+    @UploadedFile() file: { originalname: string; mimetype: string; buffer: Buffer; size: number } | undefined,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.borderAssets.save(file, user.id);
+  }
+
+  /** 删除本人永久边框资产。 */
+  @Post('editor/border-assets/:id/delete')
+  deleteBorderAsset(@Param('id') id: string, @CurrentUser() user: RequestUser) {
+    return this.borderAssets.removeOwned(id, user.id);
   }
 
   /** 为编辑器生成安全样式修改方案，不写大屏。 */

@@ -512,8 +512,10 @@ function assertGeneratedComponent(
   if (result.editorRevision !== revision) {
     throw new Error('画布已变化，请重新生成组件');
   }
-  const expectedRenderer = kind === 'chart' ? 'echarts-safe-v1' : 'border-parametric-v1';
-  if (result.definitionSnapshot.rendererKey !== expectedRenderer) {
+  const expectedRenderers = kind === 'chart'
+    ? ['echarts-safe-v1']
+    : ['border-parametric-v1', 'border-nine-slice-v1'];
+  if (!expectedRenderers.includes(result.definitionSnapshot.rendererKey)) {
     throw new Error('组件类型与本次生成请求不一致');
   }
   if (result.fidelity !== 'exact' && result.fidelity !== 'approximate') {

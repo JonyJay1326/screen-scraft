@@ -11,6 +11,9 @@ const styleLocked = computed(() => selected.value?.definitionSnapshot?.styleMode
 const groups = computed(() => {
   const map = new Map<string, StyleField[]>();
   tpl.value?.styleSchema.forEach((field) => {
+    if (field.readOnly) {
+      return;
+    }
     const list = map.get(field.group) ?? [];
     list.push(field);
     map.set(field.group, list);

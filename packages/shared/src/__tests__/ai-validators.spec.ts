@@ -541,7 +541,7 @@ describe('组件定义快照', () => {
       .map((item) => item.path)).toEqual(expect.arrayContaining(['$.cornerSize', '$.rawSvg']));
   });
 
-  it('拒绝 renderer 与描述不匹配、锁定模式可写和未启用九宫格', () => {
+  it('接受已启用的九宫格快照，并在显式关闭时拒绝', () => {
     const mismatched = clone(snapshot);
     mismatched.group = 'bar';
     mismatched.styleMode = 'locked';
@@ -549,16 +549,28 @@ describe('组件定义快照', () => {
 
     const nineSlice = {
       ...clone(snapshot),
-      rendererKey: 'border-nine-slice-v1',
-      category: 'decoration',
-      group: 'border',
+      rendererKey: 'border-nine-slice-v1' as const,
+      category: 'decoration' as const,
+      group: 'border' as const,
       dataProtocol: undefined,
-      styleSchema: [],
-      styleMode: 'locked',
-      defaultStyle: { dark: {}, light: {} },
+      styleSchema: [
+        { key: 'sliceTop', label: '上切', type: 'number', min: 0, max: 4096, group: '切片', aiWritable: true },
+        { key: 'sliceRight', label: '右切', type: 'number', min: 0, max: 4096, group: '切片', aiWritable: true },
+        { key: 'sliceBottom', label: '下切', type: 'number', min: 0, max: 4096, group: '切片', aiWritable: true },
+        { key: 'sliceLeft', label: '左切', type: 'number', min: 0, max: 4096, group: '切片', aiWritable: true },
+        { key: 'contentPadding', label: '内容边距', type: 'number', min: 0, max: 160, group: '布局', aiWritable: true },
+        { key: 'assetUrl', label: '边框图', type: 'text', group: '资源', aiWritable: false, readOnly: true },
+      ],
+      styleMode: 'editable' as const,
+      defaultStyle: {
+        dark: { sliceTop: 12, sliceRight: 12, sliceBottom: 12, sliceLeft: 12, contentPadding: 16, assetUrl: '/uploads/border-assets/a.png' },
+        light: { sliceTop: 12, sliceRight: 12, sliceBottom: 12, sliceLeft: 12, contentPadding: 16, assetUrl: '/uploads/border-assets/a.png' },
+      },
       safeSpec: { kind: 'nineSlice', schemaVersion: 1, assetId: 'asset-1', slice: { top: 12, right: 12, bottom: 12, left: 12 } },
     };
-    expect(validateComponentDefinitionSnapshot(nineSlice).some((item) => item.message.includes('尚未启用'))).toBe(true);
+    expect(validateComponentDefinitionSnapshot(nineSlice)).toEqual([]);
+    expect(validateComponentDefinitionSnapshot(nineSlice, { allowNineSlice: false })
+      .some((item) => item.message.includes('尚未启用'))).toBe(true);
 
     const unknownRenderer = { ...clone(snapshot), rendererKey: 'custom-script-renderer' };
     expect(validateComponentDefinitionSnapshot(unknownRenderer).some((item) => item.path === '$.rendererKey')).toBe(true);
