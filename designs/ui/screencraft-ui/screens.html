@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>大屏列表 · ScreenCraft 大屏配置平台</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  /* ---------- 页面局部样式（仅复用 styles.css 变量） ---------- */
+  .tool-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 16px 0; flex-wrap: wrap; }
+  .tool-row .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .screen-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+  .screen-grid .empty { grid-column: 1 / -1; }
+
+  .screen-card, .tpl-card { position: relative; }
+  .scr-thumb { position: relative; aspect-ratio: 16 / 10; overflow: hidden; background: var(--bg); border-bottom: 1px solid var(--border); border-radius: var(--r-lg) var(--r-lg) 0 0; }
+  .scr-thumb > svg { display: block; width: 100%; height: 100%; }
+
+  /* 缩略图右上角：状态标签 + 更多菜单（挂在卡片层，避免被缩略图 overflow 裁剪） */
+  .scr-topbar { position: absolute; top: 8px; right: 8px; display: flex; align-items: center; gap: 6px; z-index: 3; }
+  .scr-tags { display: flex; gap: 6px; }
+  .thumb-btn { width: 26px; height: 26px; display: grid; place-items: center; border-radius: var(--r-sm); background: var(--mask); color: #fff; transition: background .15s; flex: none; }
+  .thumb-btn:hover { background: var(--pri); }
+
+  /* hover 操作层 */
+  .scr-acts { position: absolute; inset: 0; z-index: 1; display: flex; align-items: center; justify-content: center; gap: 8px; background: var(--mask); opacity: 0; transition: opacity .18s ease; }
+  .screen-card:hover .scr-acts, .tpl-card:hover .scr-acts { opacity: 1; }
+
+  .scr-body { padding: 12px 14px; }
+  .scr-name { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .scr-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; font-size: 12px; }
+  .tpl-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .tpl-cat { font-size: 12px; margin-top: 6px; }
+
+  /* 骨架卡片 */
+  .sk-thumb { aspect-ratio: 16 / 10; border-radius: var(--r-lg) var(--r-lg) 0 0; }
+  .sk-l1 { height: 14px; width: 60%; margin-bottom: 8px; }
+  .sk-l2 { height: 12px; width: 40%; }
+
+  /* 新建大屏弹窗内的模板单选网格 */
+  .pick-row { align-items: flex-start; }
+  .pick-row .form-label { padding-top: 6px; }
+  .tpl-pick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .tpl-pick-item { border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; cursor: pointer; background: var(--panel2); transition: all .15s; }
+  .tpl-pick-item:hover { border-color: var(--pri); }
+  .tpl-pick-item.active { border-color: var(--pri); box-shadow: 0 0 0 2px var(--pri-bg); }
+  .tpl-pick-thumb { aspect-ratio: 16 / 10; overflow: hidden; background: var(--bg); }
+  .tpl-pick-thumb svg { display: block; width: 100%; height: 100%; }
+  .tpl-pick-name { font-size: 12px; padding: 6px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+</style>
+</head>
+<body data-page="screens">            <!-- 唯一每页不同处：data-page 值 -->
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="projects.html"><span class="brand-mark">S</span><span class="brand-name">ScreenCraft</span><span class="brand-sub">大屏配置平台</span></a>
+      <nav class="topnav">
+        <a data-nav="projects" href="projects.html"><i data-icon="folder"></i>项目</a>
+        <a data-nav="api-config" href="api-config.html"><i data-icon="plug"></i>API 配置</a>
+        <a data-nav="admin" href="admin.html"><i data-icon="settings"></i>管理后台</a>
+      </nav>
+      <div class="topbar-right">
+        <div class="user-chip" id="userChip">
+          <span class="avatar">管</span><span class="user-name">管理员</span><i data-icon="chevron-down" data-size="14"></i>
+          <div class="dropdown-menu" id="userMenu">
+            <a href="admin.html"><i data-icon="settings" data-size="14"></i>管理后台</a>
+            <a href="login.html"><i data-icon="log-out" data-size="14"></i>退出登录</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+  <main class="app-content">
+    <div class="crumb">
+      <a href="projects.html">项目</a>
+      <span class="sep"><i data-icon="chevron-right" data-size="13"></i></span>
+      <span class="cur" id="crumbName"></span>
+    </div>
+
+    <div class="page-head">
+      <div>
+        <h1 id="pageTitle"></h1>
+        <div class="desc" id="pageDesc"></div>
+      </div>
+      <button class="btn btn-pri" id="btnNewScreen"><i data-icon="plus" data-size="15"></i>新建大屏</button>
+    </div>
+
+    <div class="tabs" id="tabs">
+      <button class="tab active" data-tab="list">大屏列表</button>
+      <button class="tab" data-tab="tpl">模板库</button>
+    </div>
+
+    <!-- 页签一：大屏列表 -->
+    <div id="paneList">
+      <div class="tool-row">
+        <div class="chips" id="catChips"></div>
+        <span class="muted" id="screenCount"></span>
+      </div>
+      <div class="screen-grid" id="screenGrid"></div>
+    </div>
+
+    <!-- 页签二：模板库 -->
+    <div id="paneTpl" style="display:none">
+      <div class="tool-row">
+        <div class="seg" id="tplScope">
+          <button class="seg-item active" data-scope="all">全部</button>
+          <button class="seg-item" data-scope="public">公共模板</button>
+          <button class="seg-item" data-scope="personal">我的模板</button>
+        </div>
+        <div class="chips" id="tplCats"></div>
+      </div>
+      <div class="screen-grid" id="tplGrid"></div>
+    </div>
+  </main>
+
+  <!-- 新建大屏弹窗 -->
+  <div class="modal-wrap" id="mNewScreen">
+    <div class="modal modal-lg">
+      <div class="modal-head"><span>新建大屏</span><button class="x" data-close="#mNewScreen"><i data-icon="x" data-size="16"></i></button></div>
+      <div class="modal-body">
+        <div class="form-row">
+          <label class="form-label">大屏名称</label>
+          <div class="form-ctrl">
+            <input class="input" id="scrName" type="text" placeholder="请输入大屏名称" autocomplete="off">
+            <div class="form-err" id="scrNameErr"></div>
+          </div>
+        </div>
+        <div class="form-row pick-row">
+          <label class="form-label">选择模板</label>
+          <div class="form-ctrl">
+            <div class="tpl-pick" id="tplPick"></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" data-close="#mNewScreen">取消</button>
+        <button class="btn btn-pri" id="btnCreateScr">创建</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-wrap"></div>
+  <script src="icons.js"></script><script src="mock.js"></script><script src="api.js"></script><script src="nav-active.js"></script><script src="charts.js"></script>
+  <!-- 页面自己的 <script> 放最后 -->
+  <script>
+  (function () {
+    /* ---------- 定位当前项目（pid 非法/缺失时回退第一个项目） ---------- */
+    var pid = new URLSearchParams(location.search).get('pid');
+    if (!pid || !DB.projects.some(function (p) { return p.id === pid; })) pid = DB.projects[0].id;
+    var project = DB.projects.find(function (p) { return p.id === pid; });
+
+    var state = {
+      screens: [], cat: '全部',
+      tpls: [], tplScope: 'all', tplCat: '全部', tplLoaded: false,
+      selTpl: DB.templates[0] ? DB.templates[0].id : ''
+    };
+
+    function esc(s) {
+      return String(s).replace(/[&<>"]/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+      });
+    }
+    function setErr(input, errId, msg) {
+      input.classList.add('is-err');
+      var el = document.getElementById(errId);
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+    function clearErr(input, errId) {
+      input.classList.remove('is-err');
+      document.getElementById(errId).style.display = 'none';
+    }
+    function closeDropdowns() {
+      document.querySelectorAll('.dropdown-menu.show').forEach(function (m) { m.classList.remove('show'); });
+    }
+
+    /* ---------- 页头 / 面包屑 ---------- */
+    document.getElementById('crumbName').textContent = project.name;
+    document.getElementById('pageTitle').textContent = project.name;
+    function syncCount() {
+      var n = DB.screens.filter(function (s) { return s.projectId === pid; }).length;
+      document.getElementById('pageDesc').textContent = '共 ' + n + ' 块大屏 · 投放后可在展示页长期运行';
+      project.screenCount = n; /* 与 projects 页卡片口径保持同步 */
+    }
+    syncCount();
+
+    /* ---------- Tab 切换 ---------- */
+    var tabsEl = document.getElementById('tabs');
+    tabsEl.addEventListener('click', function (e) {
+      var tab = e.target.closest('.tab');
+      if (!tab) return;
+      tabsEl.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('active', t === tab); });
+      var which = tab.getAttribute('data-tab');
+      document.getElementById('paneList').style.display = which === 'list' ? '' : 'none';
+      document.getElementById('paneTpl').style.display = which === 'tpl' ? '' : 'none';
+      if (which === 'tpl' && !state.tplLoaded) fetchTpl();
+    });
+
+    /* ================= 页签一：大屏列表 ================= */
+    var screenGrid = document.getElementById('screenGrid');
+
+    function renderCatChips() {
+      document.getElementById('catChips').innerHTML = DB.categories.map(function (c) {
+        return '<button class="chip' + (c === state.cat ? ' active' : '') + '" data-cat="' + c + '">' + c + '</button>';
+      }).join('');
+    }
+
+    function screenCard(s) {
+      var tags = '';
+      if (s.deployed) tags += '<span class="tag tag-ok">已投放</span>';
+      if (s.inUse) tags += '<span class="tag tag-acc">使用中</span>';
+      return '<div class="card card-hover screen-card" data-id="' + s.id + '">' +
+        '<div class="scr-thumb">' + thumbSVG(s.thumbSeed) +
+          '<div class="scr-acts">' +
+            '<a class="btn btn-sm" href="editor.html?id=' + s.id + '">' + icon('pencil', 13) + '编辑</a>' +
+            '<a class="btn btn-sm btn-pri" href="display.html?id=' + s.id + '">' + icon('eye', 13) + '展示</a>' +
+          '</div>' +
+        '</div>' +
+        '<div class="scr-topbar">' +
+          '<div class="scr-tags">' + tags + '</div>' +
+          '<div class="dropdown">' +
+            '<button class="thumb-btn" data-act="menu" title="更多操作">' + icon('more-horizontal', 15) + '</button>' +
+            '<div class="dropdown-menu">' +
+              '<button data-act="copy">' + icon('copy', 14) + '复制</button>' +
+              '<button data-act="del" class="danger">' + icon('trash-2', 14) + '删除</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="scr-body">' +
+          '<div class="scr-name" title="' + esc(s.name) + '">' + esc(s.name) + '</div>' +
+          '<div class="scr-meta"><span class="muted">' + s.updatedAt + '</span><span class="tag tag-info">' + s.category + '</span></div>' +
+        '</div>' +
+      '</div>';
+    }
+
+    function renderScreens() {
+      var list = state.cat === '全部' ? state.screens : state.screens.filter(function (s) { return s.category === state.cat; });
+      document.getElementById('screenCount').textContent = '共 ' + list.length + ' 块';
+      if (!list.length) {
+        screenGrid.innerHTML = '<div class="empty">' + icon('monitor', 28) + '<div>' +
+          (state.screens.length ? ('「' + state.cat + '」分类下暂无大屏') : '暂无大屏，点击右上角「新建大屏」创建') +
+          '</div></div>';
+        return;
+      }
+      screenGrid.innerHTML = list.map(screenCard).join('');
+    }
+
+    function renderScreenSkeleton() {
+      var html = '';
+      for (var i = 0; i < 4; i++) {
+        html += '<div class="card sk-screen"><div class="skeleton sk-thumb"></div>' +
+          '<div class="scr-body"><div class="skeleton sk-l1"></div><div class="skeleton sk-l2"></div></div></div>';
+      }
+      screenGrid.innerHTML = html;
+    }
+
+    async function loadScreens() {
+      renderScreenSkeleton();
+      var res = await fetchScreens(pid);
+      state.screens = res.data;
+      renderScreens();
+    }
+
+    /* 分类 chips 单选过滤 */
+    document.getElementById('catChips').addEventListener('click', function (e) {
+      var chip = e.target.closest('.chip');
+      if (!chip) return;
+      state.cat = chip.getAttribute('data-cat');
+      renderCatChips();
+      renderScreens();
+    });
+
+    function refreshList() {
+      state.screens = DB.screens.filter(function (s) { return s.projectId === pid; });
+      syncCount();
+      renderScreens();
+    }
+
+    /* 复制：克隆 DB 项（名称加「副本」，投放/使用状态清零，新 id） */
+    function copyScreen(id) {
+      var src = DB.screens.find(function (s) { return s.id === id; });
+      if (!src) return;
+      var copy = Object.assign({}, src, {
+        id: 's' + Date.now().toString(36),
+        name: src.name + ' 副本',
+        deployed: false,
+        inUse: false,
+        updatedAt: '刚刚'
+      });
+      DB.screens.splice(DB.screens.indexOf(src) + 1, 0, copy);
+      refreshList();
+      toast('已复制大屏', 'ok');
+    }
+
+    /* 删除：已投放时警示文案，二次确认 */
+    async function delScreen(id) {
+      var s = DB.screens.find(function (x) { return x.id === id; });
+      if (!s) return;
+      var content = s.deployed
+        ? '该大屏已投放，删除后展示页将不可用。确定删除「' + s.name + '」吗？'
+        : '确定删除大屏「' + s.name + '」吗？';
+      var ok = await confirmDialog({ title: '删除大屏', content: content, danger: true, okText: '删除' });
+      if (!ok) return;
+      DB.screens = DB.screens.filter(function (x) { return x.id !== id; });
+      refreshList();
+      toast('大屏已删除', 'ok');
+    }
+
+    /* 卡片菜单事件委托 */
+    screenGrid.addEventListener('click', function (e) {
+      var menuBtn = e.target.closest('[data-act="menu"]');
+      if (menuBtn) {
+        e.stopPropagation();
+        var menu = menuBtn.parentElement.querySelector('.dropdown-menu');
+        var wasOpen = menu.classList.contains('show');
+        closeDropdowns();
+        if (!wasOpen) menu.classList.add('show');
+        return;
+      }
+      var actBtn = e.target.closest('[data-act]');
+      if (!actBtn) return; /* 编辑/展示为普通链接，走默认跳转 */
+      var card = e.target.closest('.screen-card');
+      if (!card) return;
+      closeDropdowns();
+      var id = card.getAttribute('data-id');
+      var act = actBtn.getAttribute('data-act');
+      if (act === 'copy') copyScreen(id);
+      else if (act === 'del') delScreen(id);
+    });
+
+    /* ================= 页签二：模板库 ================= */
+    var tplGrid = document.getElementById('tplGrid');
+
+    function renderTplChips() {
+      document.getElementById('tplCats').innerHTML = DB.categories.map(function (c) {
+        return '<button class="chip' + (c === state.tplCat ? ' active' : '') + '" data-cat="' + c + '">' + c + '</button>';
+      }).join('');
+    }
+
+    function tplCard(t) {
+      var scopeTag = t.scope === 'public' ? '<span class="tag tag-info">公共</span>' : '<span class="tag tag-acc">个人</span>';
+      return '<div class="card card-hover tpl-card" data-id="' + t.id + '">' +
+        '<div class="scr-thumb">' + thumbSVG(t.thumbSeed) +
+          '<div class="scr-acts"><button class="btn btn-sm btn-pri" data-act="use">' + icon('layout-template', 13) + '使用模板</button></div>' +
+        '</div>' +
+        '<div class="scr-body">' +
+          '<div class="tpl-head"><span class="scr-name" title="' + esc(t.name) + '">' + esc(t.name) + '</span>' + scopeTag + '</div>' +
+          '<div class="muted tpl-cat">' + t.category + '</div>' +
+        '</div>' +
+      '</div>';
+    }
+
+    function renderTpls() {
+      var list = state.tplCat === '全部' ? state.tpls : state.tpls.filter(function (t) { return t.category === state.tplCat; });
+      if (!list.length) {
+        tplGrid.innerHTML = '<div class="empty">' + icon('layout-template', 28) + '<div>暂无符合条件的模板</div></div>';
+        return;
+      }
+      tplGrid.innerHTML = list.map(tplCard).join('');
+    }
+
+    function renderTplSkeleton() {
+      var html = '';
+      for (var i = 0; i < 4; i++) {
+        html += '<div class="card sk-screen"><div class="skeleton sk-thumb"></div>' +
+          '<div class="scr-body"><div class="skeleton sk-l1"></div><div class="skeleton sk-l2"></div></div></div>';
+      }
+      tplGrid.innerHTML = html;
+    }
+
+    async function fetchTpl() {
+      renderTplSkeleton();
+      var res = await fetchTemplates(state.tplScope);
+      state.tpls = res.data;
+      state.tplLoaded = true;
+      renderTpls();
+    }
+
+    /* 范围切换（seg） */
+    document.getElementById('tplScope').addEventListener('click', function (e) {
+      var item = e.target.closest('.seg-item');
+      if (!item) return;
+      state.tplScope = item.getAttribute('data-scope');
+      this.querySelectorAll('.seg-item').forEach(function (i) { i.classList.toggle('active', i === item); });
+      fetchTpl();
+    });
+
+    /* 分类 chips */
+    document.getElementById('tplCats').addEventListener('click', function (e) {
+      var chip = e.target.closest('.chip');
+      if (!chip) return;
+      state.tplCat = chip.getAttribute('data-cat');
+      renderTplChips();
+      if (state.tplLoaded) renderTpls();
+    });
+
+    /* 使用模板 */
+    tplGrid.addEventListener('click', function (e) {
+      var card = e.target.closest('.tpl-card');
+      if (!card) return;
+      toast('已基于模板创建大屏', 'ok');
+      location.href = 'editor.html?from=template';
+    });
+
+    /* ================= 新建大屏弹窗 ================= */
+    document.getElementById('btnNewScreen').addEventListener('click', function () {
+      var input = document.getElementById('scrName');
+      input.value = '';
+      clearErr(input, 'scrNameErr');
+      renderTplPick();
+      openModal('#mNewScreen');
+      setTimeout(function () { input.focus(); }, 120);
+    });
+
+    /* 模板缩略小卡单选网格，默认选中第一个 */
+    function renderTplPick() {
+      state.selTpl = DB.templates[0].id;
+      document.getElementById('tplPick').innerHTML = DB.templates.map(function (t) {
+        return '<div class="tpl-pick-item' + (t.id === state.selTpl ? ' active' : '') + '" data-id="' + t.id + '" title="' + esc(t.name) + '">' +
+          '<div class="tpl-pick-thumb">' + thumbSVG(t.thumbSeed) + '</div>' +
+          '<div class="tpl-pick-name">' + esc(t.name) + '</div>' +
+        '</div>';
+      }).join('');
+    }
+
+    document.getElementById('tplPick').addEventListener('click', function (e) {
+      var item = e.target.closest('.tpl-pick-item');
+      if (!item) return;
+      state.selTpl = item.getAttribute('data-id');
+      this.querySelectorAll('.tpl-pick-item').forEach(function (i) { i.classList.toggle('active', i === item); });
+    });
+
+    function submitNewScreen() {
+      var input = document.getElementById('scrName');
+      var name = input.value.trim();
+      if (!name) { setErr(input, 'scrNameErr', '请输入大屏名称'); return; }
+      var tpl = DB.templates.find(function (t) { return t.id === state.selTpl; });
+      // TODO: POST /projects/:pid/screens
+      DB.screens.push({
+        id: 's' + Date.now().toString(36),
+        projectId: pid,
+        name: name,
+        category: tpl ? tpl.category : '通用',
+        deployed: false,
+        inUse: false,
+        updatedAt: '刚刚',
+        thumbSeed: tpl ? tpl.thumbSeed : 1
+      });
+      closeModal('#mNewScreen');
+      toast('大屏已创建', 'ok');
+      setTimeout(function () { location.href = 'editor.html'; }, 800);
+    }
+    document.getElementById('btnCreateScr').addEventListener('click', submitNewScreen);
+    document.getElementById('scrName').addEventListener('keydown', function (e) { if (e.key === 'Enter') submitNewScreen(); });
+    document.getElementById('scrName').addEventListener('input', function () { clearErr(this, 'scrNameErr'); });
+
+    /* ---------- 公共：空白关闭下拉 / 弹窗关闭 ---------- */
+    document.addEventListener('click', function (e) {
+      if (!e.target.closest('.dropdown')) closeDropdowns();
+    });
+    document.addEventListener('click', function (e) {
+      var closer = e.target.closest('[data-close]');
+      if (closer) { closeModal(closer.getAttribute('data-close')); return; }
+      if (e.target.classList && e.target.classList.contains('modal-wrap')) e.target.classList.remove('show');
+    });
+
+    /* ---------- 初始化 ---------- */
+    renderCatChips();
+    renderTplChips();
+    loadScreens();
+  })();
+  </script>
+</body>
+</html>

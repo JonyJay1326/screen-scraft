@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>展示 · 智慧水务运营驾驶舱 · ScreenCraft</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  .stage-inner { background:
+    radial-gradient(ellipse at 50% 0%, rgba(47,127,247,.12), transparent 55%),
+    linear-gradient(180deg, #0A1428, #060B18); }
+  .stage-inner::before { content: ""; position: absolute; inset: 0;
+    background-image: radial-gradient(rgba(159,179,209,.07) 1px, transparent 1px);
+    background-size: 28px 28px; pointer-events: none; }
+
+  /* 顶部标题区 */
+  .d-header-title { position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .d-header-title h1 { font-size: 38px; font-weight: 700; letter-spacing: 10px;
+    background: linear-gradient(90deg, #35E0FF, #8FC7FF 50%, #2F7FF7); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .d-header-title .deco { margin-top: 8px; width: 460px; height: 3px;
+    background: linear-gradient(90deg, transparent, var(--acc), transparent); border-radius: 2px; }
+
+  .d-clock { position: absolute; display: flex; flex-direction: column; justify-content: center; gap: 2px; padding-left: 6px; }
+  .d-clock .t { font-family: var(--font-num); font-size: 30px; color: var(--t1); letter-spacing: .04em; line-height: 1; }
+  .d-clock .d { font-size: 12px; color: var(--t2); letter-spacing: .08em; }
+
+  .d-weather { position: absolute; display: flex; align-items: center; justify-content: flex-end; gap: 12px; color: var(--acc); }
+  .d-weather .w-main { text-align: right; }
+  .d-weather .w-main b { display: block; font-size: 17px; color: var(--t1); font-weight: 600; }
+  .d-weather .w-main span { font-size: 11.5px; color: var(--t2); }
+
+  /* KPI */
+  .d-kpi { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 10px; height: calc(100% - 34px); }
+  .d-kpi-cell { position: relative; background: rgba(13,23,48,.5); border: 1px solid rgba(53,114,200,.25); border-radius: var(--r-md); padding: 12px 14px; display: flex; flex-direction: column; justify-content: center; gap: 5px; overflow: hidden; }
+  .d-kpi-cell::after { content: ""; position: absolute; left: 0; top: 12%; bottom: 12%; width: 3px; border-radius: 2px; background: var(--kc, var(--pri)); }
+  .d-kpi-cell .k-label { font-size: 12.5px; color: var(--t2); }
+  .d-kpi-cell .k-val { font-family: var(--font-num); font-size: 30px; color: var(--t1); line-height: 1.05; }
+  .d-kpi-cell .k-val small { font-size: 12px; color: var(--t2); margin-left: 5px; font-family: var(--font-body); }
+  .d-kpi-cell .k-trend { font-size: 11.5px; display: flex; align-items: center; gap: 3px; font-family: var(--font-num); }
+  .k-trend.up { color: var(--ok); } .k-trend.down { color: var(--err); }
+
+  /* 告警表 */
+  .d-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .d-table th { text-align: left; padding: 7px 10px; color: var(--t2); font-weight: 500; background: rgba(47,127,247,.1); border-bottom: 1px solid rgba(53,114,200,.35); }
+  .d-table td { padding: 8px 10px; border-bottom: 1px solid rgba(30,58,102,.45); color: var(--t1); }
+  .d-table td.num { font-family: var(--font-num); color: var(--acc); }
+
+  /* 视频 */
+  .d-video { position: relative; height: calc(100% - 34px); border-radius: var(--r-md); overflow: hidden;
+    background: repeating-linear-gradient(0deg, rgba(53,224,255,.03) 0 2px, transparent 2px 6px), linear-gradient(160deg, #081124, #0E1D3C);
+    border: 1px solid rgba(53,114,200,.35); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--t2); }
+  .d-video .play { width: 62px; height: 62px; border-radius: 50%; border: 2px solid rgba(53,224,255,.55); display: grid; place-items: center; color: var(--acc); background: rgba(6,11,24,.4); }
+  .d-video .live { position: absolute; top: 12px; left: 14px; display: flex; align-items: center; gap: 6px; font-size: 12px; color: #fff; }
+  .d-video .live i { width: 8px; height: 8px; border-radius: 50%; background: var(--err); animation: blink 1.2s infinite; }
+  @keyframes blink { 50% { opacity: .25; } }
+
+  /* 公告 */
+  .d-notice { list-style: none; display: flex; flex-direction: column; gap: 12px; height: calc(100% - 34px); overflow: hidden; }
+  .d-notice li { display: flex; gap: 9px; font-size: 12.5px; color: var(--t2); line-height: 1.6; }
+  .d-notice svg { flex: none; margin-top: 2px; color: var(--acc); }
+  .d-notice b { display: block; color: var(--t1); font-weight: 500; font-size: 13px; }
+
+  .d-chart-box { display: flex; justify-content: center; height: calc(100% - 34px); align-items: center; }
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="stage-inner" id="stageInner"></div>
+</div>
+
+<!-- 控制条：展示模式可见，预览模式（?preview=1）隐藏 -->
+<div class="ctrl-bar" id="ctrlBar">
+  <button class="ctrl-btn" id="btnShot"><i data-icon="camera" data-size="15"></i>截图</button>
+  <a class="ctrl-btn" href="editor.html"><i data-icon="settings" data-size="15"></i>大屏配置</a>
+  <button class="ctrl-btn" id="btnFull"><i data-icon="maximize" data-size="15"></i>全屏</button>
+</div>
+
+<!-- AI 客服（展示模式） -->
+<div class="ai-fab" id="aiFab" title="AI 客服"><i data-icon="bot" data-size="22"></i></div>
+<div class="ai-drawer" id="aiDrawer">
+  <div class="ai-head"><span class="dot"></span>AI 客服
+    <button class="x" id="aiClose" style="margin-left:auto;color:var(--t2)"><i data-icon="x" data-size="15"></i></button>
+  </div>
+  <div class="ai-msgs" id="aiMsgs">
+    <div class="ai-msg bot">你好，我是 ScreenCraft 智能客服，可以回答大屏使用与配置相关的问题。</div>
+  </div>
+  <div class="ai-input">
+    <input class="input input-sm" id="aiInput" placeholder="输入问题，Enter 发送">
+    <button class="btn btn-pri btn-sm" id="aiSend"><i data-icon="send" data-size="14"></i></button>
+  </div>
+</div>
+
+<div class="toast-wrap"></div>
+<script src="icons.js"></script>
+<script src="mock.js"></script>
+<script src="api.js"></script>
+<script src="charts.js"></script>
+<script>
+  var qs = new URLSearchParams(location.search);
+  var isPreview = qs.get('preview') === '1';
+  if (isPreview) {
+    document.getElementById('ctrlBar').style.display = 'none';
+    document.getElementById('aiFab').style.display = 'none';
+    document.title = '预览 · 智慧水务运营驾驶舱';
+  }
+
+  /* ================= 自适应缩放 ================= */
+  var stageInner = document.getElementById('stageInner');
+  function fit() {
+    var s = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+    stageInner.style.setProperty('--scale', s.toFixed(4));
+  }
+  window.addEventListener('resize', fit);
+
+  /* ================= 组件内容 ================= */
+  var KPIS = [
+    { label: '累计供水', val: '12,842', unit: 'm³', trend: '+4.2%', up: true, c: '#2F7FF7' },
+    { label: '管网压力', val: '0.38', unit: 'MPa', trend: '-1.1%', up: false, c: '#35E0FF' },
+    { label: '设备在线率', val: '96.4', unit: '%', trend: '+0.8%', up: true, c: '#22C55E' },
+    { label: '今日告警', val: '7', unit: '条', trend: '-22.0%', up: false, c: '#F59E0B' }
+  ];
+  var ALERTS = [
+    ['10:02', '滨江泵站 2# 泵', '高温告警', 'err'],
+    ['09:48', '城北加压站', '低压预警', 'warn'],
+    ['09:31', '高新供水站', '流量波动', 'warn'],
+    ['09:12', '西湖泵站', '电力恢复', 'ok'],
+    ['08:57', '管网监测点 A12', '数据恢复', 'ok']
+  ];
+  var NOTICES = [
+    { t: '调度通知', d: '今晚 22:00 对城北加压站进行例行检修，预计 2 小时。' },
+    { t: '数据公告', d: '营收分析数据源已切换至新口径，历史数据完成回刷。' },
+    { t: '运维提醒', d: '本周完成 3 个泵站流量计校准，误差 < 1%。' }
+  ];
+
+  function panelContent(c) {
+    var w = c.w, h = c.h;
+    switch (c.type) {
+      case 'kpi': return '<div class="d-kpi">' + KPIS.map(function (k) {
+        return '<div class="d-kpi-cell" style="--kc:' + k.c + '"><span class="k-label">' + k.label + '</span>' +
+          '<span class="k-val">' + k.val + '<small>' + k.unit + '</small></span>' +
+          '<span class="k-trend ' + (k.up ? 'up' : 'down') + '"><i data-icon="arrow-' + (k.up ? 'up' : 'down') + '" data-size="11"></i>' + k.trend + ' 较昨日</span></div>';
+      }).join('') + '</div>';
+      case 'line': return '<div class="d-chart-box">' + cLine([28, 34, 31, 40, 38, 47, 44, 52, 49, 58, 54, 62, 60, 66], { w: w - 40, h: h - 56 }) + '</div>';
+      case 'pie': var size = Math.min(w, h) - 90;
+        return '<div class="d-chart-box">' + cDonut([{ value: 46 }, { value: 28 }, { value: 16 }, { value: 10 }], { size: size, thick: size / 8.5, center: '2.4万', sub: '日供水 m³', centerSize: 22 }) + '</div>';
+      case 'gauge': return '<div class="d-chart-box">' + cGauge(96, { w: w - 70, h: h - 90, fs: 30 }) + '</div>';
+      case 'bar': return '<div class="d-chart-box">' + cBars([42, 58, 50, 72, 64, 80], { w: w - 40, h: h - 56, data2: [30, 44, 38, 55, 48, 62] }) + '</div>';
+      case 'combo': return '<div class="d-chart-box">' + cBars([52, 64, 58, 76, 68, 84], { w: w - 40, h: h - 56, data2: [36, 48, 42, 58, 50, 66] }) + '</div>';
+      case 'radar': return '<div class="d-chart-box">' + cRadar([0.86, 0.72, 0.9, 0.64, 0.78, 0.82], { size: Math.min(w, h) - 80 }) + '</div>';
+      case 'funnel': return '<div class="d-chart-box">' + cFunnel([{ name: '受理 128', value: 100 }, { name: '派单 102', value: 80 }, { name: '处理 86', value: 64 }, { name: '完结 79', value: 50 }], { w: w - 60, h: h - 52 }) + '</div>';
+      case 'table': return '<table class="d-table"><tr><th>时间</th><th>对象</th><th>事件</th><th>级别</th></tr>' +
+        ALERTS.map(function (a) {
+          var tag = a[3] === 'err' ? 'tag-err' : (a[3] === 'warn' ? 'tag-warn' : 'tag-ok');
+          var txt = a[3] === 'err' ? '告警' : (a[3] === 'warn' ? '预警' : '恢复');
+          return '<tr><td class="num">' + a[0] + '</td><td>' + a[1] + '</td><td>' + a[2] + '</td><td><span class="tag ' + tag + '">' + txt + '</span></td></tr>';
+        }).join('') + '</table>';
+      case 'video': return '<div class="d-video"><span class="live"><i></i>LIVE · 滨江泵站 1080P</span><span class="play"><i data-icon="play" data-size="24"></i></span><span style="font-size:13px">点击播放实时视频流（原型占位）</span></div>';
+      case 'text': return '<ul class="d-notice">' + NOTICES.map(function (n) {
+        return '<li><i data-icon="clock" data-size="14"></i><span><b>' + n.t + '</b>' + n.d + '</span></li>';
+      }).join('') + '</ul>';
+      default: return '';
+    }
+  }
+
+  function render() {
+    var html = '';
+    DB.displayLayout.forEach(function (c) {
+      var pos = 'left:' + c.x + 'px;top:' + c.y + 'px;width:' + c.w + 'px;height:' + c.h + 'px;';
+      if (c.type === 'title') {
+        html += '<div class="d-header-title" style="' + pos + '"><h1>' + c.name + '</h1><div class="deco"></div></div>';
+      } else if (c.type === 'time') {
+        html += '<div class="d-clock" style="' + pos + '"><span class="t" id="clockTime">--:--:--</span><span class="d" id="clockDate">加载中</span></div>';
+      } else if (c.type === 'weather') {
+        html += '<div class="d-weather" style="' + pos + '" id="weatherBox"><i data-icon="cloud-sun" data-size="30"></i><div class="w-main"><b>加载中...</b><span>获取天气中</span></div></div>';
+      } else {
+        html += '<div class="d-panel" style="' + pos + '"><div class="d-title"><b>' + c.name + '</b><i data-icon="more-horizontal" data-size="14" class="d-more"></i></div>' + panelContent(c) + '</div>';
+      }
+    });
+    stageInner.innerHTML = html;
+    mountIcons(stageInner);
+  }
+
+  /* ================= 时钟（前端本地时间） ================= */
+  var WEEK = ['日', '一', '二', '三', '四', '五', '六'];
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+  function tick() {
+    var now = new Date();
+    var t = document.getElementById('clockTime');
+    var d = document.getElementById('clockDate');
+    if (t) t.textContent = pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds());
+    if (d) d.textContent = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate()) + ' 星期' + WEEK[now.getDay()];
+  }
+
+  /* ================= 天气（内置腾讯云 LBS，后端代理） ================= */
+  function loadWeather() {
+    fetchWeather('330106').then(function (res) {
+      var w = res.data;
+      var box = document.getElementById('weatherBox');
+      if (!box) return;
+      box.innerHTML = '<i data-icon="cloud-sun" data-size="30"></i><div class="w-main"><b>' + w.city + ' · ' + w.weather + ' ' + w.temperature + '°C</b>' +
+        '<span>' + w.district + ' · 湿度 ' + w.humidity + '% · AQI ' + w.aqi + '（优）</span></div>';
+      mountIcons(box);
+    });
+  }
+
+  /* ================= 控制条 ================= */
+  document.getElementById('btnShot').addEventListener('click', function () {
+    toast('截图已保存（原型演示：实际使用 html2canvas 导出 PNG）', 'ok');
+  });
+  document.getElementById('btnFull').addEventListener('click', function () {
+    if (document.fullscreenElement) { document.exitFullscreen(); return; }
+    document.documentElement.requestFullscreen().catch(function () { toast('当前环境不支持全屏', 'warn'); });
+  });
+
+  /* 展示模式下控制条常驻渐显：鼠标移动即显示，静止 3 秒淡出 */
+  var ctrlBar = document.getElementById('ctrlBar');
+  var hideTimer = null;
+  if (!isPreview) {
+    ctrlBar.classList.add('show');
+    document.addEventListener('mousemove', function () {
+      ctrlBar.classList.add('show');
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(function () { ctrlBar.classList.remove('show'); }, 3000);
+    });
+  }
+
+  /* ================= AI 客服 ================= */
+  var aiDrawer = document.getElementById('aiDrawer');
+  document.getElementById('aiFab').addEventListener('click', function () { aiDrawer.classList.toggle('show'); });
+  document.getElementById('aiClose').addEventListener('click', function () { aiDrawer.classList.remove('show'); });
+  function aiAppend(role, text) {
+    var box = document.getElementById('aiMsgs');
+    var div = document.createElement('div');
+    div.className = 'ai-msg ' + role;
+    div.textContent = text;
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+    return div;
+  }
+  function aiAsk(q) {
+    if (!q) return;
+    aiAppend('me', q);
+    var loading = aiAppend('bot', '正在检索知识库...');
+    aiChat(q).then(function (res) { loading.textContent = res.data.answer; });
+  }
+  document.getElementById('aiSend').addEventListener('click', function () {
+    var inp = document.getElementById('aiInput'); aiAsk(inp.value.trim()); inp.value = '';
+  });
+  document.getElementById('aiInput').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { aiAsk(this.value.trim()); this.value = ''; }
+  });
+
+  /* ================= 初始化 ================= */
+  render();
+  fit();
+  tick();
+  setInterval(tick, 1000);
+  loadWeather();
+  if (isPreview) {
+    setTimeout(function () { toast('预览模式：展示最近保存的版本', 'info'); }, 600);
+  }
+</script>
+</body>
+</html>

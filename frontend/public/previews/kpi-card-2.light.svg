@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="160" viewBox="0 0 320 160">
+  <rect width="320" height="160" rx="8" fill="#F4F7FB"/>
+  <rect x="6" y="6" width="308" height="148" rx="8" fill="#FFFFFF" stroke="#E4E7ED"/>
+       <text x="16" y="24" fill="#6B7280" font-size="11" font-family="sans-serif">关键指标</text>
+  <g transform="translate(0 36)">
+        <rect x="16" y="6" width="139" height="100" rx="6" fill="#FAFBFC" stroke="#E4E7ED"/>
+        <text x="28" y="28" fill="#6B7280" font-size="11" font-family="sans-serif">管网压力</text>
+        <text x="28" y="56" fill="#303133" font-size="24" font-weight="700" font-family="sans-serif">0.38<tspan font-size="11" font-weight="400" fill="#6B7280">MPa</tspan></text>
+        <rect x="26" y="78" width="119" height="4" rx="2" fill="#E4E7ED"/>
+<rect x="26" y="78" width="90.44" height="4" rx="2" fill="#2F7FF7"/>
+        <rect x="165" y="6" width="139" height="100" rx="6" fill="#FAFBFC" stroke="#E4E7ED"/>
+        <text x="177" y="28" fill="#6B7280" font-size="11" font-family="sans-serif">今日告警</text>
+        <text x="177" y="56" fill="#303133" font-size="24" font-weight="700" font-family="sans-serif">7<tspan font-size="11" font-weight="400" fill="#6B7280">条</tspan></text>
+        <rect x="175" y="78" width="119" height="4" rx="2" fill="#E4E7ED"/>
+<rect x="175" y="78" width="26.18" height="4" rx="2" fill="#2F7FF7"/></g>
+</svg>

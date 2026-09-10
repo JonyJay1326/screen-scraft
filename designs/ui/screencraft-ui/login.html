@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>登录 · ScreenCraft 大屏配置平台</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  .login-brand { display: flex; align-items: center; gap: 10px; position: relative; z-index: 1; }
+  .login-brand .brand-mark { width: 34px; height: 34px; font-size: 19px; border-radius: var(--r-lg); }
+  .login-brand b { font-size: 18px; color: #303133; }
+  .login-brand span { font-size: 12px; color: #909399; padding-left: 10px; border-left: 1px solid #E4E7ED; }
+
+  .login-copy { position: relative; z-index: 1; margin-top: 56px; }
+  .login-copy h1 { font-size: 32px; font-weight: 700; color: #1F2A44; line-height: 1.4; letter-spacing: .01em; }
+  .login-copy h1 em { font-style: normal; color: var(--pri); }
+  .login-copy p { margin-top: 14px; font-size: 14px; color: #606266; line-height: 1.8; max-width: 440px; }
+  .login-feats { margin-top: 28px; display: flex; flex-direction: column; gap: 14px; }
+  .login-feats li { display: flex; align-items: center; gap: 10px; font-size: 13.5px; color: #303133; list-style: none; }
+  .login-feats .fi { width: 30px; height: 30px; border-radius: var(--r-md); background: var(--pri-bg); color: var(--pri); display: grid; place-items: center; flex: none; }
+  .login-illu { position: relative; z-index: 1; margin-top: 44px; width: 86%; max-width: 520px; border-radius: var(--r-xl); overflow: hidden; box-shadow: 0 16px 44px rgba(47,127,247,.18); border: 1px solid #E4E7ED; }
+  .login-illu img { display: block; width: 100%; }
+
+  .login-card { width: 380px; }
+  .login-card h2 { font-size: 22px; font-weight: 700; color: #303133; }
+  .login-card .sub { font-size: 13px; color: #909399; margin: 8px 0 28px; }
+  .login-card .form-row { margin-bottom: 18px; }
+  .login-card .form-label { display: block; font-size: 13px; color: #606266; margin-bottom: 7px; text-align: left; width: auto; }
+  .login-card .input { height: 40px; }
+  .pwd-toggle { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--t2); display: grid; place-items: center; padding: 3px; border-radius: var(--r-sm); }
+  .pwd-toggle:hover { color: var(--pri); }
+  .login-line { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 22px; }
+  .login-line a { font-size: 13px; color: var(--pri); }
+  .login-line a:hover { text-decoration: underline; }
+  .btn-login { width: 100%; height: 42px; font-size: 15px; }
+  .demo-tip { margin-top: 22px; display: flex; gap: 8px; align-items: flex-start; background: var(--pri-bg); border-radius: var(--r-md); padding: 10px 12px; font-size: 12px; color: var(--pri); line-height: 1.7; }
+  .demo-tip svg { margin-top: 2px; flex: none; }
+  .demo-tip b { font-family: var(--font-num); font-weight: 600; }
+  .login-foot { position: absolute; bottom: 22px; font-size: 12px; color: #B6BCC6; }
+</style>
+</head>
+<body>
+<div class="login-shell">
+
+  <div class="login-left">
+    <div class="login-brand">
+      <span class="brand-mark">S</span><b>ScreenCraft</b><span>大屏配置平台</span>
+    </div>
+    <div class="login-copy">
+      <h1>拖拽之间<br>让数据<em>点亮大屏</em></h1>
+      <p>面向运营与技术人员的一站式大屏搭建平台：组件化编辑、API 数据接入、模板复用、一键投放展示。</p>
+      <ul class="login-feats">
+        <li><span class="fi"><i data-icon="layers" data-size="16"></i></span>63 个组件模板 · 图表 / 装饰 / 媒体 / 控件四大类</li>
+        <li><span class="fi"><i data-icon="plug" data-size="16"></i></span>SQL 生成与外部接口双通道数据接入</li>
+        <li><span class="fi"><i data-icon="bot" data-size="16"></i></span>内置 AI 客服，配置问题随问随答</li>
+      </ul>
+    </div>
+    <div class="login-illu"><img src="assets/login_illustration.jpg" alt="ScreenCraft 大屏示意"></div>
+  </div>
+
+  <div class="login-right" style="position:relative">
+    <div class="login-card">
+      <h2>欢迎登录</h2>
+      <p class="sub">ScreenCraft 大屏配置平台 · 请使用管理员分配的账号</p>
+
+      <div class="form-row" style="display:block">
+        <label class="form-label" for="username">用户名</label>
+        <div class="input-wrap">
+          <i data-icon="user" data-size="15"></i>
+          <input class="input" id="username" placeholder="请输入用户名" autocomplete="username">
+        </div>
+        <p class="form-err" id="errUser">请输入用户名</p>
+      </div>
+
+      <div class="form-row" style="display:block">
+        <label class="form-label" for="password">密码</label>
+        <div class="input-wrap">
+          <i data-icon="lock" data-size="15"></i>
+          <input class="input" id="password" type="password" placeholder="请输入密码" autocomplete="current-password">
+          <button class="pwd-toggle" id="pwdToggle" type="button" title="显示/隐藏密码"><i data-icon="eye" data-size="15"></i></button>
+        </div>
+        <p class="form-err" id="errPwd">请输入密码</p>
+      </div>
+
+      <div class="login-line">
+        <label class="checkbox"><input type="checkbox" id="remember" checked>记住我</label>
+        <a href="javascript:void(0)" id="forgot">忘记密码？</a>
+      </div>
+
+      <button class="btn btn-pri btn-login" id="btnLogin">登 录</button>
+
+      <div class="demo-tip">
+        <i data-icon="info" data-size="14"></i>
+        <span>演示账号：<b>admin</b> / <b>ScreenCraft@2026</b>（首次登录需强制修改密码，原型中已跳过）</span>
+      </div>
+    </div>
+    <div class="login-foot">ScreenCraft v1.0 · 账号由管理员统一创建，不支持自助注册</div>
+  </div>
+</div>
+
+<div class="toast-wrap"></div>
+<script src="icons.js"></script>
+<script src="mock.js"></script>
+<script src="api.js"></script>
+<script>
+  var userEl = document.getElementById('username');
+  var pwdEl = document.getElementById('password');
+  var btn = document.getElementById('btnLogin');
+
+  document.getElementById('forgot').addEventListener('click', function () {
+    toast('请联系系统管理员重置密码（原型演示）', 'info');
+  });
+
+  document.getElementById('pwdToggle').addEventListener('click', function () {
+    var show = pwdEl.type === 'password';
+    pwdEl.type = show ? 'text' : 'password';
+    this.innerHTML = icon(show ? 'eye-off' : 'eye', 15);
+  });
+
+  function validate() {
+    var ok = true;
+    document.getElementById('errUser').style.display = userEl.value.trim() ? 'none' : 'block';
+    userEl.classList.toggle('is-err', !userEl.value.trim());
+    if (!userEl.value.trim()) ok = false;
+    document.getElementById('errPwd').style.display = pwdEl.value ? 'none' : 'block';
+    pwdEl.classList.toggle('is-err', !pwdEl.value);
+    if (!pwdEl.value) ok = false;
+    return ok;
+  }
+  userEl.addEventListener('input', function () { userEl.classList.remove('is-err'); document.getElementById('errUser').style.display = 'none'; });
+  pwdEl.addEventListener('input', function () { pwdEl.classList.remove('is-err'); document.getElementById('errPwd').style.display = 'none'; });
+
+  function doLogin() {
+    if (!validate()) return;
+    btn.disabled = true;
+    btn.innerHTML = '登录中...';
+    // TODO: 替换为 request.post('/auth/login', {username, password})
+    setTimeout(function () {
+      if (userEl.value.trim() === 'admin' && pwdEl.value === 'ScreenCraft@2026') {
+        toast('登录成功，正在进入工作台', 'ok');
+        setTimeout(function () { location.href = 'projects.html'; }, 700);
+      } else {
+        btn.disabled = false;
+        btn.textContent = '登 录';
+        toast('用户名或密码错误', 'err');
+        pwdEl.classList.add('is-err');
+      }
+    }, 800);
+  }
+  btn.addEventListener('click', doLogin);
+  [userEl, pwdEl].forEach(function (el) {
+    el.addEventListener('keydown', function (e) { if (e.key === 'Enter') doLogin(); });
+  });
+</script>
+</body>
+</html>

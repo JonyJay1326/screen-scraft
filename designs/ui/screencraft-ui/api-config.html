@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ScreenCraft · API 配置</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  /* api-config 页面局部布局样式（仅引用 styles.css 已有变量） */
+  .head-ops { flex: none; }
+  .search-box { width: 250px; }
+  .card { overflow: hidden; }
+  .table tbody tr:last-child td { border-bottom: none; }
+  .api-path { display: inline-block; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
+  .sql-area { font-family: var(--font-num); min-height: 140px; }
+  .params-head { display: flex; align-items: center; justify-content: space-between; margin: 18px 0 10px; }
+  .params-head h4 { font-size: 13px; font-weight: 600; }
+  .mini-table .select { height: 26px; padding: 0 22px 0 8px; font-size: 12px; border-radius: var(--r-sm); background-color: var(--panel); }
+  .mini-table .row-del { height: 24px; padding: 0 6px; }
+  .test-run-bar { display: flex; justify-content: flex-end; margin-top: 2px; }
+  .test-box { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
+  .test-table { border: 1px solid var(--border); border-radius: var(--r-md); overflow: auto; max-height: 264px; }
+  .test-table .table th { position: sticky; top: 0; z-index: 1; }
+  .test-meta { margin-top: 10px; font-size: 12px; }
+</style>
+</head>
+<body data-page="api-config">
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="projects.html"><span class="brand-mark">S</span><span class="brand-name">ScreenCraft</span><span class="brand-sub">大屏配置平台</span></a>
+      <nav class="topnav">
+        <a data-nav="projects" href="projects.html"><i data-icon="folder"></i>项目</a>
+        <a data-nav="api-config" href="api-config.html"><i data-icon="plug"></i>API 配置</a>
+        <a data-nav="admin" href="admin.html"><i data-icon="settings"></i>管理后台</a>
+      </nav>
+      <div class="topbar-right">
+        <div class="user-chip" id="userChip">
+          <span class="avatar">管</span><span class="user-name">管理员</span><i data-icon="chevron-down" data-size="14"></i>
+          <div class="dropdown-menu" id="userMenu">
+            <a href="admin.html"><i data-icon="settings" data-size="14"></i>管理后台</a>
+            <a href="login.html"><i data-icon="log-out" data-size="14"></i>退出登录</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+  <main class="app-content">
+    <div class="page-head">
+      <div>
+        <h1>API 配置</h1>
+        <div class="desc">组件的数据接入统一在这里管理：SQL 生成（内置业务库）或外部接口</div>
+      </div>
+      <div class="flex gap-8 head-ops">
+        <div class="input-wrap search-box">
+          <i data-icon="search" data-size="15"></i>
+          <input class="input" id="searchInput" placeholder="按名称 / 接口路径搜索">
+        </div>
+        <button class="btn btn-pri" id="btnNewApi"><i data-icon="plus" data-size="15"></i>新建 API</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <table class="table" id="apiTable">
+        <thead>
+          <tr>
+            <th>名称</th><th>类型</th><th>请求方式</th><th>接口路径</th><th>更新时间</th><th>引用</th><th>状态</th><th>操作</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </main>
+
+  <!-- 试运行弹窗 -->
+  <div class="modal-wrap" id="mTest">
+    <div class="modal modal-lg">
+      <div class="modal-head"><span id="mTestTitle">试运行</span><button class="x" data-close="#mTest"><i data-icon="x" data-size="16"></i></button></div>
+      <div class="modal-body">
+        <div id="testParams"></div>
+        <div class="test-run-bar">
+          <button class="btn btn-pri" id="btnRun"><i data-icon="play" data-size="14"></i>运行</button>
+        </div>
+        <div class="test-box" id="testResult"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 编辑 / 新建弹窗 -->
+  <div class="modal-wrap" id="mEdit">
+    <div class="modal modal-lg">
+      <div class="modal-head"><span id="mEditTitle">新建 API</span><button class="x" data-close="#mEdit"><i data-icon="x" data-size="16"></i></button></div>
+      <div class="modal-body">
+        <div class="form-row">
+          <label class="form-label">API 名称</label>
+          <div class="form-ctrl">
+            <input class="input" id="fName" placeholder="例如：水务-管网压力实时" maxlength="30">
+            <div class="form-err" id="fNameErr">请输入 API 名称</div>
+          </div>
+        </div>
+        <div class="form-row">
+          <label class="form-label">类型</label>
+          <div class="form-ctrl">
+            <div class="seg" id="fType">
+              <span class="seg-item active" data-type="sql">SQL 生成</span>
+              <span class="seg-item" data-type="external">外部接口</span>
+            </div>
+          </div>
+        </div>
+        <div class="form-row">
+          <label class="form-label">请求方式</label>
+          <div class="form-ctrl">
+            <select class="select" id="fMethod" style="width:140px">
+              <option value="GET">GET</option>
+              <option value="POST">POST</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row" id="rowSql">
+          <label class="form-label">SQL 语句</label>
+          <div class="form-ctrl">
+            <textarea class="textarea sql-area" id="fSql" placeholder="SELECT ..."></textarea>
+            <div class="form-err" id="fSqlErr">请输入 SQL 语句</div>
+            <div class="form-tip">占位符 {{参数名}} 作为入参，仅支持 SELECT 只读语句</div>
+          </div>
+        </div>
+        <div class="form-row" id="rowUrl" style="display:none">
+          <label class="form-label">接口地址</label>
+          <div class="form-ctrl">
+            <input class="input" id="fUrl" placeholder="http://...">
+            <div class="form-err" id="fUrlErr">请输入接口地址</div>
+          </div>
+        </div>
+        <div class="params-head">
+          <h4>参数设置</h4>
+          <button class="btn btn-sm" id="btnAddParam"><i data-icon="plus" data-size="13"></i>添加参数</button>
+        </div>
+        <table class="mini-table" id="paramTable">
+          <thead>
+            <tr><th style="width:32%">参数名</th><th style="width:22%">类型</th><th>默认值</th><th style="width:44px"></th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" data-close="#mEdit">取消</button>
+        <button class="btn" id="btnEditTest"><i data-icon="play" data-size="14"></i>试运行</button>
+        <button class="btn btn-pri" id="btnSave"><i data-icon="save" data-size="14"></i>保存</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-wrap"></div>
+  <script src="icons.js"></script><script src="mock.js"></script><script src="api.js"></script><script src="nav-active.js"></script>
+  <script>
+  (function () {
+    var state = { list: [], keyword: '', editing: null };
+    var editType = 'sql';
+    var testApiId = null;
+    var tbody = document.querySelector('#apiTable tbody');
+
+    function esc(s) {
+      return String(s).replace(/[&<>"]/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+      });
+    }
+    function nowStr() {
+      var d = new Date();
+      function p(n) { return n < 10 ? '0' + n : '' + n; }
+      return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+    }
+    function findById(id) {
+      for (var i = 0; i < state.list.length; i++) if (state.list[i].id === id) return state.list[i];
+      return null;
+    }
+
+    /* ---------- 列表渲染 ---------- */
+    function skeletonRows(n) {
+      var ws = ['62%', '72px', '40px', '85%', '96px', '64px', '48px', '84px'];
+      var html = '';
+      for (var i = 0; i < n; i++) {
+        html += '<tr>' + ws.map(function (w) {
+          return '<td><div class="skeleton" style="height:14px;width:' + w + '"></div></td>';
+        }).join('') + '</tr>';
+      }
+      return html;
+    }
+
+    function renderTable() {
+      var kw = state.keyword.trim().toLowerCase();
+      var list = state.list.filter(function (a) {
+        return !kw || a.name.toLowerCase().indexOf(kw) > -1 || a.path.toLowerCase().indexOf(kw) > -1;
+      });
+      if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="8"><div class="empty">' + icon('search', 28) +
+          '<div>' + (kw ? '没有匹配的 API，换个关键词试试' : '暂无 API，点击右上角「新建 API」创建') + '</div></div></td></tr>';
+        return;
+      }
+      tbody.innerHTML = list.map(function (a) {
+        var typeTag = a.type === 'sql' ? '<span class="tag">SQL 生成</span>' : '<span class="tag tag-info">外部接口</span>';
+        var ref = a.refCount > 0 ? '<span class="tag tag-acc">' + a.refCount + ' 个组件</span>' : '<span class="muted">-</span>';
+        var status = a.status === 'ok' ? '<span class="tag tag-ok">正常</span>' : '<span class="tag tag-warn">异常</span>';
+        return '<tr>' +
+          '<td>' + esc(a.name) + '</td>' +
+          '<td>' + typeTag + '</td>' +
+          '<td class="num">' + esc(a.method) + '</td>' +
+          '<td><span class="api-path muted num" title="' + esc(a.path) + '">' + esc(a.path) + '</span></td>' +
+          '<td class="num">' + esc(a.updatedAt) + '</td>' +
+          '<td>' + ref + '</td>' +
+          '<td>' + status + '</td>' +
+          '<td><div class="row-ops">' +
+            '<button class="btn btn-ghost btn-sm" data-op="edit" data-id="' + a.id + '" title="编辑">' + icon('pencil', 14) + '</button>' +
+            '<button class="btn btn-ghost btn-sm" data-op="test" data-id="' + a.id + '" title="试运行">' + icon('play', 14) + '</button>' +
+            '<button class="btn btn-ghost btn-sm" data-op="del" data-id="' + a.id + '" title="删除">' + icon('trash-2', 14) + '</button>' +
+          '</div></td>' +
+        '</tr>';
+      }).join('');
+    }
+
+    /* ---------- 加载 ---------- */
+    tbody.innerHTML = skeletonRows(6);
+    fetchApiConfigs().then(function (res) {
+      state.list = res.data;
+      renderTable();
+    });
+
+    /* ---------- 搜索 ---------- */
+    document.getElementById('searchInput').addEventListener('input', function () {
+      state.keyword = this.value;
+      renderTable();
+    });
+
+    /* ---------- 行操作 ---------- */
+    tbody.addEventListener('click', function (e) {
+      var btn = e.target.closest('button[data-op]');
+      if (!btn) return;
+      var api = findById(btn.getAttribute('data-id'));
+      if (!api) return;
+      var op = btn.getAttribute('data-op');
+      if (op === 'edit') openEdit(api);
+      if (op === 'test') openTest(api.name, DB.apiDetail.params, api.id);
+      if (op === 'del') delApi(api);
+    });
+
+    function delApi(a) {
+      /* 删除保护：被组件引用时禁止删除 */
+      if (a.refCount > 0) {
+        toast('该 API 被 ' + a.refCount + ' 个组件引用，无法删除', 'err');
+        return;
+      }
+      confirmDialog({
+        title: '删除 API',
+        content: '确定删除「' + esc(a.name) + '」吗？删除后不可恢复。',
+        danger: true,
+        okText: '删除'
+      }).then(function (yes) {
+        if (!yes) return;
+        for (var i = 0; i < DB.apiConfigs.length; i++) {
+          if (DB.apiConfigs[i].id === a.id) { DB.apiConfigs.splice(i, 1); break; }
+        }
+        // TODO: DELETE /api-configs/:id
+        state.list = DB.apiConfigs.slice();
+        renderTable();
+        toast('已删除「' + a.name + '」', 'ok');
+      });
+    }
+
+    /* ---------- 试运行弹窗 ---------- */
+    var btnRun = document.getElementById('btnRun');
+
+    function openTest(name, params, id) {
+      testApiId = id || null;
+      document.getElementById('mTestTitle').textContent = '试运行 · ' + name;
+      document.getElementById('testParams').innerHTML = params.map(function (p) {
+        return '<div class="form-row"><label class="form-label">' + esc(p.name) + '</label>' +
+          '<div class="form-ctrl"><input class="input" data-param="' + esc(p.name) + '" value="' + esc(p.defaultValue) + '"></div></div>';
+      }).join('');
+      document.getElementById('testResult').innerHTML =
+        '<div class="empty">' + icon('database', 26) + '<div>点击「运行」查看返回结果</div></div>';
+      btnRun.disabled = false;
+      btnRun.innerHTML = icon('play', 14) + '<span>运行</span>';
+      openModal('#mTest');
+    }
+
+    btnRun.addEventListener('click', function () {
+      var params = {};
+      document.querySelectorAll('#testParams [data-param]').forEach(function (inp) {
+        params[inp.getAttribute('data-param')] = inp.value;
+      });
+      btnRun.disabled = true;
+      btnRun.innerHTML = icon('refresh-cw', 14) + '<span>运行中…</span>';
+      testRunApi(testApiId, params).then(function (res) {
+        btnRun.disabled = false;
+        btnRun.innerHTML = icon('play', 14) + '<span>运行</span>';
+        var r = res.data;
+        var ms = 200 + Math.floor(Math.random() * 401); /* 耗时随机 200-600ms */
+        document.getElementById('testResult').innerHTML =
+          '<div class="test-table"><table class="table"><thead><tr>' +
+          r.columns.map(function (c) { return '<th>' + esc(c) + '</th>'; }).join('') +
+          '</tr></thead><tbody>' +
+          r.rows.map(function (row) {
+            return '<tr>' + row.map(function (cell) { return '<td class="num">' + esc(cell) + '</td>'; }).join('') + '</tr>';
+          }).join('') +
+          '</tbody></table></div>' +
+          '<div class="test-meta muted">返回 ' + r.rows.length + ' 行 · 耗时 ' + ms + ' ms</div>';
+      });
+    });
+
+    /* ---------- 编辑 / 新建弹窗 ---------- */
+    var fName = document.getElementById('fName'), fNameErr = document.getElementById('fNameErr');
+    var fMethod = document.getElementById('fMethod');
+    var fSql = document.getElementById('fSql'), fSqlErr = document.getElementById('fSqlErr');
+    var fUrl = document.getElementById('fUrl'), fUrlErr = document.getElementById('fUrlErr');
+    var paramTbody = document.querySelector('#paramTable tbody');
+
+    function setErr(input, errEl, msg) {
+      input.classList.add('is-err');
+      if (msg) errEl.textContent = msg;
+      errEl.style.display = 'block';
+    }
+    function clearErr(input, errEl) {
+      input.classList.remove('is-err');
+      errEl.style.display = 'none';
+    }
+    fName.addEventListener('input', function () { clearErr(fName, fNameErr); });
+    fSql.addEventListener('input', function () { clearErr(fSql, fSqlErr); });
+    fUrl.addEventListener('input', function () { clearErr(fUrl, fUrlErr); });
+
+    function setType(t) {
+      editType = t;
+      document.querySelectorAll('#fType .seg-item').forEach(function (s) {
+        s.classList.toggle('active', s.getAttribute('data-type') === t);
+      });
+      document.getElementById('rowSql').style.display = t === 'sql' ? '' : 'none';
+      document.getElementById('rowUrl').style.display = t === 'external' ? '' : 'none';
+    }
+    document.getElementById('fType').addEventListener('click', function (e) {
+      var item = e.target.closest('.seg-item');
+      if (item) setType(item.getAttribute('data-type'));
+    });
+
+    function paramRow(p) {
+      p = p || { name: '', type: 'string', defaultValue: '' };
+      return '<tr>' +
+        '<td><input data-k="name" value="' + esc(p.name) + '" placeholder="参数名"></td>' +
+        '<td><select class="select" data-k="type">' +
+          '<option value="string"' + (p.type === 'string' ? ' selected' : '') + '>string</option>' +
+          '<option value="number"' + (p.type === 'number' ? ' selected' : '') + '>number</option>' +
+        '</select></td>' +
+        '<td><input data-k="defaultValue" value="' + esc(p.defaultValue) + '" placeholder="默认值"></td>' +
+        '<td><button class="btn btn-ghost btn-sm row-del" data-del title="删除行">' + icon('trash-2', 13) + '</button></td>' +
+      '</tr>';
+    }
+    function renderParams(params) {
+      paramTbody.innerHTML = params.length
+        ? params.map(paramRow).join('')
+        : '<tr><td colspan="4" class="muted" style="text-align:center">暂无参数，点击「添加参数」添加</td></tr>';
+    }
+    function readParamRows() {
+      var rows = [];
+      paramTbody.querySelectorAll('tr').forEach(function (tr) {
+        var nameEl = tr.querySelector('[data-k="name"]');
+        if (!nameEl) return;
+        rows.push({
+          name: nameEl.value.trim(),
+          type: tr.querySelector('[data-k="type"]').value,
+          defaultValue: tr.querySelector('[data-k="defaultValue"]').value.trim()
+        });
+      });
+      return rows.filter(function (p) { return p.name; });
+    }
+    document.getElementById('btnAddParam').addEventListener('click', function () {
+      if (paramTbody.querySelector('[data-del]') === null) paramTbody.innerHTML = '';
+      paramTbody.insertAdjacentHTML('beforeend', paramRow(null));
+    });
+    document.getElementById('paramTable').addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-del]');
+      if (!btn) return;
+      btn.closest('tr').remove();
+      if (!paramTbody.querySelector('[data-del]')) renderParams([]);
+    });
+
+    function openEdit(api) {
+      state.editing = api ? api.id : null;
+      document.getElementById('mEditTitle').textContent = api ? '编辑 API' : '新建 API';
+      fName.value = api ? api.name : '';
+      fMethod.value = api ? api.method : 'GET';
+      setType(api ? api.type : 'sql');
+      fSql.value = DB.apiDetail.sql;
+      fUrl.value = (api && api.type === 'external') ? api.path : '';
+      clearErr(fName, fNameErr); clearErr(fSql, fSqlErr); clearErr(fUrl, fUrlErr);
+      renderParams(JSON.parse(JSON.stringify(DB.apiDetail.params)));
+      openModal('#mEdit');
+    }
+
+    document.getElementById('btnNewApi').addEventListener('click', function () { openEdit(null); });
+
+    document.getElementById('btnSave').addEventListener('click', function () {
+      var name = fName.value.trim();
+      var valid = true;
+      if (!name) { setErr(fName, fNameErr, '请输入 API 名称'); valid = false; }
+      if (editType === 'sql' && !fSql.value.trim()) { setErr(fSql, fSqlErr, '请输入 SQL 语句'); valid = false; }
+      if (editType === 'external' && !fUrl.value.trim()) { setErr(fUrl, fUrlErr, '请输入接口地址'); valid = false; }
+      if (!valid) return;
+
+      var method = fMethod.value;
+      var params = readParamRows();
+      if (state.editing) {
+        var a = null;
+        for (var i = 0; i < DB.apiConfigs.length; i++) if (DB.apiConfigs[i].id === state.editing) a = DB.apiConfigs[i];
+        if (a) {
+          a.name = name;
+          a.type = editType;
+          a.method = method;
+          a.path = editType === 'sql' ? a.path : fUrl.value.trim();
+          a.updatedAt = nowStr();
+        }
+        // TODO: POST /api-configs/update
+      } else {
+        var id = 'a' + Date.now();
+        DB.apiConfigs.unshift({
+          id: id, name: name, type: editType, method: method,
+          path: editType === 'sql' ? '/data/' + id : fUrl.value.trim(),
+          updatedAt: nowStr(), refCount: 0, status: 'ok'
+        });
+        // TODO: POST /api-configs/create
+      }
+      void params; /* 参数随表单一并提交（原型内存态） */
+      state.list = DB.apiConfigs.slice();
+      renderTable();
+      closeModal('#mEdit');
+      toast('已保存', 'ok');
+    });
+
+    /* 编辑弹窗内的试运行：携带当前参数表 */
+    document.getElementById('btnEditTest').addEventListener('click', function () {
+      var params = readParamRows();
+      if (!params.length) params = DB.apiDetail.params;
+      var name = fName.value.trim() || '未命名 API';
+      closeModal('#mEdit');
+      openTest(name, params, state.editing);
+    });
+
+    /* ---------- 弹窗关闭（x / 取消 / 点遮罩） ---------- */
+    document.addEventListener('click', function (e) {
+      var c = e.target.closest('[data-close]');
+      if (c) closeModal(c.getAttribute('data-close'));
+    });
+    document.querySelectorAll('.modal-wrap').forEach(function (w) {
+      w.addEventListener('click', function (e) { if (e.target === w) closeModal('#' + w.id); });
+    });
+  })();
+  </script>
+</body>
+</html>

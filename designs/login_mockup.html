@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ScreenCraft - 登录</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #E9EFF8;
+    color: #1F2937;
+    overflow: hidden;
+    position: relative;
+  }
+  /* 背景装饰几何 */
+  .deco { position: absolute; border-radius: 6px; background: rgba(76, 132, 255, .06); transform: rotate(45deg); }
+  .deco-1 { width: 180px; height: 180px; left: -40px; top: 62%; }
+  .deco-2 { width: 90px; height: 90px; left: 12%; top: 78%; background: rgba(76, 132, 255, .08); }
+  .deco-3 { width: 120px; height: 120px; right: 6%; top: -30px; background: rgba(76, 132, 255, .05); }
+  /* 左上品牌弧形色块 */
+  .brand-arc {
+    position: absolute; left: 0; top: 0; width: 420px; height: 150px;
+    background: linear-gradient(135deg, #6FA5FF 0%, #4C84FF 60%, #2F7FF7 100%);
+    border-bottom-right-radius: 100% 90%;
+    display: flex; align-items: flex-start; padding: 26px 0 0 36px;
+  }
+  .logo { display: flex; align-items: center; gap: 10px; }
+  .logo svg { width: 30px; height: 30px; }
+  .logo .wordmark {
+    color: #fff; font-size: 18px; font-weight: 700; letter-spacing: 3px;
+    font-family: "Segoe UI", "Arial", sans-serif;
+  }
+  /* 主体布局 */
+  .main { position: relative; height: 100%; display: flex; align-items: center; }
+  .left { width: 46%; padding-left: 12%; }
+  .welcome { margin-bottom: 34px; }
+  .welcome h1 { font-size: 30px; font-weight: 600; color: #26344A; line-height: 1.5; }
+  .welcome h2 { font-size: 26px; font-weight: 400; color: #26344A; font-family: "Segoe UI", Arial, sans-serif; }
+  .card {
+    width: 400px; background: #fff; border-radius: 8px;
+    box-shadow: 0 6px 24px rgba(38, 52, 74, .08);
+    padding: 30px 34px 34px;
+  }
+  .card .tip { text-align: center; font-size: 15px; color: #26344A; margin-bottom: 22px; }
+  .tabs { display: flex; gap: 28px; border-bottom: 1px solid #EDF0F5; margin-bottom: 24px; }
+  .tab { font-size: 14px; color: #9AA6B8; padding-bottom: 10px; cursor: pointer; position: relative; }
+  .tab.active { color: #4C84FF; font-weight: 600; }
+  .tab.active::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: -1px;
+    height: 2px; background: #4C84FF; border-radius: 2px;
+  }
+  .tab.disabled { color: #C6CEDA; cursor: not-allowed; }
+  .field {
+    display: flex; align-items: center; gap: 8px;
+    border: 1px solid #E1E7F0; border-radius: 4px;
+    height: 42px; padding: 0 12px; margin-bottom: 18px;
+    background: #fff;
+  }
+  .field svg { width: 16px; height: 16px; flex: none; stroke: #A8B4C6; }
+  .field input { border: none; outline: none; flex: 1; font-size: 14px; color: #26344A; }
+  .field input::placeholder { color: #B9C3D2; }
+  .btn-login {
+    width: 100%; height: 42px; border: none; border-radius: 4px;
+    background: #4C84FF; color: #fff; font-size: 15px; cursor: pointer;
+    transition: background .2s;
+  }
+  .btn-login:hover { background: #2F7FF7; }
+  .right { flex: 1; height: 100%; display: flex; align-items: center; justify-content: center; }
+  .right img { width: 92%; max-height: 86%; object-fit: contain; }
+  .footer {
+    position: absolute; left: 0; right: 0; bottom: 14px; text-align: center;
+    font-size: 12px; color: #A8B4C6;
+  }
+</style>
+</head>
+<body>
+  <div class="deco deco-1"></div>
+  <div class="deco deco-2"></div>
+  <div class="deco deco-3"></div>
+
+  <div class="brand-arc">
+    <div class="logo">
+      <svg viewBox="0 0 32 32" fill="none">
+        <rect x="3" y="3" width="12" height="12" rx="2" fill="#fff" opacity=".95"/>
+        <rect x="17" y="3" width="12" height="7" rx="2" fill="#fff" opacity=".7"/>
+        <rect x="17" y="12" width="12" height="17" rx="2" fill="#fff" opacity=".9"/>
+        <rect x="3" y="17" width="12" height="12" rx="2" fill="#fff" opacity=".7"/>
+      </svg>
+      <span class="wordmark">SCREENCRAFT</span>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="left">
+      <div class="welcome">
+        <h1>欢迎来到</h1>
+        <h2>ScreenCraft 大屏配置系统</h2>
+      </div>
+      <div class="card">
+        <div class="tip">登录账号，开始使用吧！</div>
+        <div class="tabs">
+          <div class="tab active">账号登录</div>
+          <div class="tab disabled" title="v1 预留，不实现">短信登录</div>
+        </div>
+        <div class="field">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
+          <input type="text" placeholder="请输入用户名">
+        </div>
+        <div class="field">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+          <input type="password" placeholder="请输入登录密码">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" style="cursor:pointer"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="2.5"/></svg>
+        </div>
+        <button class="btn-login">登 录</button>
+      </div>
+    </div>
+    <div class="right">
+      <img src="assets/login_illustration.jpg" alt="ScreenCraft 数据大屏插画">
+    </div>
+  </div>
+
+  <div class="footer">Copyright © 2026 ScreenCraft. All rights reserved.</div>
+</body>
+</html>

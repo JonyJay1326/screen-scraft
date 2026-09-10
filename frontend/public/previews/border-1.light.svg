@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="160" viewBox="0 0 320 160">
+  <rect width="320" height="160" rx="8" fill="#F4F7FB"/>
+  <rect x="18" y="16" width="284" height="128" rx="6" fill="rgba(14,26,51,.35)"/>
+  <rect x="18" y="16" width="284" height="128" rx="6" fill="none" stroke="rgba(53,114,200,.7)" stroke-width="1.5"/>
+  <path d="M18 26V16H28" fill="none" stroke="#5B9CFF" stroke-width="2"/>
+  <path d="M292 16H302V26" fill="none" stroke="#5B9CFF" stroke-width="2"/>
+  <path d="M18 134V144H28" fill="none" stroke="#5B9CFF" stroke-width="2"/>
+  <path d="M292 144H302V134" fill="none" stroke="#5B9CFF" stroke-width="2"/>
+  <text x="32" y="38" fill="#303133" font-size="12" font-family="sans-serif" letter-spacing="1">默认深蓝</text>
+</svg>

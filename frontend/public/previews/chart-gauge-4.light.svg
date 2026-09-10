@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg rx="8" ry="8" width="320" height="160" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" baseProfile="full" viewBox="0 0 320 160">
+<rect width="320" height="160" x="0" y="0" fill="#F4F7FB"></rect>
+<path d="M89.6 92.8A70.4 70.4 0 1 1 230.4 92.8L210.4 92.8A50.4 50.4 0 0 0 109.6 92.8Z" fill="rgb(228,231,237)" fill-opacity="0.9" class="zr51-cls-194"></path>
+<path d="M100 89.7l120 0l0 40l-120 0Z" fill="rgb(0,0,0)" fill-opacity="0" class="zr51-cls-194"></path>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:16px;font-family:Microsoft YaHei;font-weight:bold;" x="160" y="109.696" fill="#6B7280">78</text>
+<path d="M89.6 92.8A70.4 70.4 0 0 1 214.2 47.9L198.8 60.7A50.4 50.4 0 0 0 109.6 92.8Z" fill="#35E0FF" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart" class="zr51-cls-195"></path>
+<style ><![CDATA[
+.zr51-cls-194:hover {
+pointer-events:none;
+}
+.zr51-cls-195:hover {
+cursor:pointer;
+fill:rgba(58,246,255,1);
+}
+
+]]>
+
+</style>
+</svg>
