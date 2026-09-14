@@ -35,6 +35,7 @@ import {
 } from '../../api/ai';
 import { getTemplate } from '../../registry';
 import { useScreenStore } from '../../stores/screen';
+import { buildAiScreenPageSkeleton, type AiScreenPageSkeleton } from './ai-screen-page';
 
 interface ChangeRow {
   targetKey: string;
@@ -79,6 +80,7 @@ const screenAnalysis = ref<AiScreenAnalysisTestResponse | null>(null);
 const structureDraft = ref<AiScreenStructureDraft | null>(null);
 const activeDraftComponentId = ref('');
 const structureConfirmed = ref(false);
+const pageSkeletonPreview = ref<AiScreenPageSkeleton | null>(null);
 let requestController: AbortController | null = null;
 let requestSerial = 0;
 let referenceSerial = 0;
@@ -609,6 +611,7 @@ function clearStructureDraft(): void {
   structureDraft.value = null;
   activeDraftComponentId.value = '';
   structureConfirmed.value = false;
+  pageSkeletonPreview.value = null;
 }
 
 function selectDraftComponent(component: AiScreenDraftComponent): void {
@@ -658,6 +661,42 @@ function confirmStructureDraft(): void {
   }
   structureConfirmed.value = true;
   ElMessage.success(`已确认 ${includedDraftCount.value} 个结构组件`);
+}
+
+function previewGeneratedPage(): void {
+  if (!structureDraft.value || !structureConfirmed.value || structureDraftIssues.value.length || !store.screen) {
+    return;
+  }
+  pageSkeletonPreview.value = buildAiScreenPageSkeleton(
+    structureDraft.value,
+    store.screen.canvas,
+    `AI 生成页面 ${store.screen.pages.length + 1}`,
+  );
+  if (!pageSkeletonPreview.value.page.components.length) {
+    ElMessage.warning('没有可自动映射的组件，请先修改待人工匹配项的类型');
+  }
+}
+
+function addGeneratedPage(): void {
+  const preview = pageSkeletonPreview.value;
+  if (!preview?.page.components.length) {
+    return;
+  }
+  const componentCount = preview.page.components.length;
+  const skippedCount = preview.skipped.length;
+  const created = store.addGeneratedPage(preview.page);
+  if (!created) {
+    errorMessage.value = '新页面添加失败，请重新生成预览';
+    return;
+  }
+  screenAnalysis.value = null;
+  clearStructureDraft();
+  errorMessage.value = '';
+  ElMessage.success(`已添加新页面“${created.name}”及 ${componentCount} 个组件${skippedCount ? `，跳过 ${skippedCount} 项` : ''}；未自动保存，可撤销`);
+}
+
+function formatScreenComponentType(type: AiScreenComponentType): string {
+  return screenComponentTypeOptions.find((option) => option.value === type)?.label ?? type;
 }
 
 function retryLastAction(): void {
@@ -789,6 +828,7 @@ watch(() => store.editorRevision, () => {
 
 watch(structureDraft, () => {
   structureConfirmed.value = false;
+  pageSkeletonPreview.value = null;
 }, { deep: true });
 </script>
 
@@ -1050,7 +1090,52 @@ watch(structureDraft, () => {
         >
           <Check :size="14" />{{ structureConfirmed ? '结构草稿已确认' : '确认结构草稿' }}
         </button>
-        <p class="ai-tip">确认状态仅保存在当前面板，不会新增组件、修改画布或写入数据库。</p>
+        <p class="ai-tip">确认状态仅保存在当前面板；生成时会先预览模板映射，不会覆盖当前页面。</p>
+        <button
+          v-if="structureConfirmed"
+          class="btn btn-ghost ai-preview-page"
+          type="button"
+          @click="previewGeneratedPage"
+        >
+          <Eye :size="14" />{{ pageSkeletonPreview ? '重新生成新页面预览' : '生成新页面预览' }}
+        </button>
+
+        <section v-if="pageSkeletonPreview" class="ai-page-skeleton">
+          <div class="ai-structure-head">
+            <div>
+              <strong>{{ pageSkeletonPreview.page.name }}</strong>
+              <small>{{ pageSkeletonPreview.mappings.length }} 个组件可生成，{{ pageSkeletonPreview.skipped.length }} 个跳过</small>
+            </div>
+            <em :class="pageSkeletonPreview.page.components.length ? 'confirmed' : 'pending'">
+              {{ pageSkeletonPreview.page.components.length ? '可添加' : '无可用组件' }}
+            </em>
+          </div>
+          <div class="ai-page-mappings">
+            <p v-for="item in pageSkeletonPreview.mappings" :key="item.draftId">
+              <span>{{ item.componentName }}</span>
+              <small>{{ formatScreenComponentType(item.componentType) }} → {{ item.templateLabel }}</small>
+            </p>
+          </div>
+          <div v-if="pageSkeletonPreview.skipped.length" class="ai-note unsupported">
+            <b>跳过项</b>
+            <p v-for="item in pageSkeletonPreview.skipped" :key="item.draftId">
+              {{ item.componentName }}（{{ formatScreenComponentType(item.componentType) }}）：{{ item.reason }}
+            </p>
+          </div>
+          <div v-if="pageSkeletonPreview.warnings.length" class="ai-note warning">
+            <b>生成说明</b>
+            <p v-for="item in pageSkeletonPreview.warnings" :key="item">{{ item }}</p>
+          </div>
+          <button
+            class="btn btn-pri ai-add-page"
+            type="button"
+            :disabled="!pageSkeletonPreview.page.components.length"
+            @click="addGeneratedPage"
+          >
+            <Check :size="14" />添加为新页面
+          </button>
+          <p class="ai-tip">使用内置模板默认样式和模拟数据；添加后切换到新页面，不自动保存，可一次撤销。</p>
+        </section>
       </section>
 
       <section v-if="generatedFeedback" class="ai-generated-feedback">
@@ -1233,6 +1318,12 @@ watch(structureDraft, () => {
 .ai-draft-bounds input { height: 24px; padding: 0 3px; font-family: var(--font-num); }
 .ai-draft-unsupported { margin: 8px 0 0; color: var(--warn); font-size: 11px; line-height: 1.5; }
 .ai-confirm-structure { width: 100%; margin-top: 10px; justify-content: center; }
+.ai-preview-page, .ai-add-page { width: 100%; margin-top: 8px; justify-content: center; }
+.ai-page-skeleton { margin-top: 10px; padding: 9px; border: 1px solid color-mix(in srgb, var(--ok) 42%, var(--border)); border-radius: 6px; background: color-mix(in srgb, var(--ok) 5%, var(--panel)); }
+.ai-page-mappings { max-height: 220px; margin-top: 8px; overflow: auto; display: flex; flex-direction: column; gap: 5px; }
+.ai-page-mappings p { display: grid; gap: 2px; margin: 0; padding: 6px; border-radius: 4px; background: var(--panel2); }
+.ai-page-mappings span { overflow: hidden; color: var(--t1); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.ai-page-mappings small { color: var(--t3); font: 10px var(--font-num); }
 .ai-plan { padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel2); }
 .ai-plan.stale > :not(.ai-stale, .ai-actions) { opacity: .45; }
 .ai-plan-title { display: flex; align-items: flex-start; gap: 7px; color: var(--ok); }

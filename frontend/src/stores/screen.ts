@@ -115,6 +115,7 @@ export const useScreenStore = defineStore('screen', () => {
     future.value = [cloneScreen(screen.value), ...future.value];
     past.value = past.value.slice(0, -1);
     screen.value = prev;
+    reconcileCurrentPage();
     dirty.value = true;
     editorRevision.value += 1;
     previewDraft.value = null;
@@ -129,6 +130,7 @@ export const useScreenStore = defineStore('screen', () => {
     past.value = [...past.value, cloneScreen(screen.value)];
     future.value = future.value.slice(1);
     screen.value = next;
+    reconcileCurrentPage();
     dirty.value = true;
     editorRevision.value += 1;
     previewDraft.value = null;
@@ -385,6 +387,39 @@ export const useScreenStore = defineStore('screen', () => {
     dirty.value = true;
   }
 
+  /** 一次性追加完整页面骨架，整次操作只产生一条历史记录。 */
+  function addGeneratedPage(input: Omit<PageDoc, 'id'>): PageDoc | null {
+    if (!screen.value || !input.components.length) {
+      return null;
+    }
+    pushHistory();
+    const page: PageDoc = {
+      ...cloneJson(input),
+      id: uid(),
+      components: input.components.map((component, index) => ({
+        ...cloneJson(component),
+        id: uid(),
+        zIndex: index + 1,
+        groupId: null,
+        events: cloneJson(component.events ?? []),
+      })),
+    };
+    screen.value = { ...screen.value, pages: [...screen.value.pages, page] };
+    currentPageId.value = page.id;
+    selectedIds.value = [];
+    inGroupId.value = null;
+    dirty.value = true;
+    return page;
+  }
+
+  function reconcileCurrentPage(): void {
+    if (!screen.value?.pages.some((page) => page.id === currentPageId.value)) {
+      currentPageId.value = screen.value?.pages[0]?.id ?? '';
+      selectedIds.value = [];
+      inGroupId.value = null;
+    }
+  }
+
   /** 删除页面 */
   function removePage(pageId: string): void {
     if (!screen.value || screen.value.pages.length <= 1) {
@@ -511,6 +546,7 @@ export const useScreenStore = defineStore('screen', () => {
     changeLayer,
     clearCanvas,
     addPage,
+    addGeneratedPage,
     removePage,
     renamePage,
     nudge,
