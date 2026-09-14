@@ -2,13 +2,22 @@
 import { computed, onUnmounted, ref, watch } from 'vue';
 import {
   AI_PAGE_COMPONENT_LIMIT,
+  AI_SCREEN_ANALYSIS_RECOMMENDED_COMPONENT_LIMIT,
   AI_SCREEN_COMPONENT_LIMIT,
+  buildAiScreenStructureDraft,
   getBuiltinComponentMetadata,
   isProtocolValid,
+  validateAiScreenStructureDraft,
   validateComponentDefinitionSnapshot,
   validateAiEditorPlanResponse,
   type AiGeneratedComponent,
   type AiReferenceAsset,
+  type AiScreenBackgroundLayerKind,
+  type AiScreenBounds,
+  type AiScreenComponentType,
+  type AiScreenDraftComponent,
+  type AiScreenAnalysisTestResponse,
+  type AiScreenStructureDraft,
   type AiEditorPlanRequest,
   type AiEditorPlanResponse,
   type ComponentDoc,
@@ -17,6 +26,7 @@ import {
 import { AlertTriangle, Check, Eye, Frame, ImagePlus, RotateCcw, Send, Sparkles, Trash2, WandSparkles, X } from 'lucide-vue-next';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import {
+  analyzeAiScreen,
   createAiEditorPlan,
   deleteAiReferenceAsset,
   getAiEditorCapabilities,
@@ -38,6 +48,13 @@ interface ChangeRow {
 
 type EditorScope = AiEditorPlanRequest['scope'];
 
+const backgroundLayerLabels: Record<AiScreenBackgroundLayerKind, string> = {
+  image: '静态图片背景',
+  interactiveScene: '交互式三维/GIS 场景',
+  video: '视频背景',
+  unknown: '未确认背景层',
+};
+
 const store = useScreenStore();
 const screenScopeEnabled = import.meta.env.VITE_AI_SCREEN_SCOPE_ENABLED === 'true';
 const open = ref(false);
@@ -46,7 +63,7 @@ const instruction = ref('');
 const loading = ref(false);
 const stage = ref('');
 const errorMessage = ref('');
-const lastAction = ref<'plan' | 'chart' | 'border'>('plan');
+const lastAction = ref<'plan' | 'chart' | 'border' | 'screenTest'>('plan');
 const plan = ref<AiEditorPlanResponse | null>(null);
 const planRequest = ref<AiEditorPlanRequest | null>(null);
 const generatedFeedback = ref<Pick<AiGeneratedComponent, 'name' | 'fidelity' | 'warnings' | 'unsupportedFeatures'> | null>(null);
@@ -58,6 +75,10 @@ const referencePreviewUrl = ref('');
 const referenceBusy = ref(false);
 const referenceDragging = ref(false);
 const referenceInput = ref<HTMLInputElement | null>(null);
+const screenAnalysis = ref<AiScreenAnalysisTestResponse | null>(null);
+const structureDraft = ref<AiScreenStructureDraft | null>(null);
+const activeDraftComponentId = ref('');
+const structureConfirmed = ref(false);
 let requestController: AbortController | null = null;
 let requestSerial = 0;
 let referenceSerial = 0;
@@ -165,6 +186,28 @@ const canGenerate = computed(() => Boolean(
   && (scope.value !== 'selected' || selectedComponents.value.length),
 ));
 const canApply = computed(() => Boolean(plan.value?.operations.length && planRequest.value && !stale.value));
+const structureDraftIssues = computed(() => (
+  structureDraft.value ? validateAiScreenStructureDraft(structureDraft.value) : []
+));
+const includedDraftCount = computed(() => (
+  structureDraft.value?.components.filter((component) => component.included).length ?? 0
+));
+const unsupportedDraftCount = computed(() => (
+  structureDraft.value?.components.filter((component) => component.included && component.type === 'unsupported').length ?? 0
+));
+const screenComponentTypeOptions: Array<{ value: AiScreenComponentType; label: string }> = [
+  { value: 'text', label: '文本' },
+  { value: 'kpi', label: '单指标' },
+  { value: 'kpiList', label: '指标列表' },
+  { value: 'line', label: '折线图' },
+  { value: 'bar', label: '柱状图' },
+  { value: 'pie', label: '饼图/环图' },
+  { value: 'gauge', label: '仪表盘' },
+  { value: 'table', label: '表格' },
+  { value: 'border', label: '装饰边框' },
+  { value: 'unsupported', label: '待人工匹配' },
+];
+const draftBoundFields = ['x', 'y', 'w', 'h'] as const;
 
 function showPanel(): void {
   open.value = true;
@@ -177,6 +220,8 @@ function closePanel(): void {
   plan.value = null;
   planRequest.value = null;
   generatedFeedback.value = null;
+  screenAnalysis.value = null;
+  clearStructureDraft();
   errorMessage.value = '';
   open.value = false;
   void removeReference(true);
@@ -237,6 +282,8 @@ async function uploadReference(file: File): Promise<void> {
   const serial = ++referenceSerial;
   referenceBusy.value = true;
   errorMessage.value = '';
+  screenAnalysis.value = null;
+  clearStructureDraft();
   const previousId = referenceAsset.value?._id;
   try {
     const uploaded = await uploadAiReferenceAsset(file);
@@ -268,6 +315,8 @@ async function removeReference(bestEffort = false): Promise<void> {
   const id = referenceAsset.value?._id;
   clearReferencePreview();
   referenceAsset.value = null;
+  screenAnalysis.value = null;
+  clearStructureDraft();
   if (!id) {
     referenceBusy.value = false;
     return;
@@ -492,7 +541,130 @@ async function generateCustomComponent(kind: 'chart' | 'border'): Promise<void> 
   }
 }
 
+async function testScreenAnalysis(): Promise<void> {
+  if (!referenceAsset.value || !visionEnabled.value) {
+    return;
+  }
+  cancelRequest();
+  store.cancelAiPreview();
+  errorMessage.value = '';
+  generatedFeedback.value = null;
+  plan.value = null;
+  planRequest.value = null;
+  screenAnalysis.value = null;
+  clearStructureDraft();
+  lastAction.value = 'screenTest';
+  const controller = new AbortController();
+  const serial = ++requestSerial;
+  requestController = controller;
+  loading.value = true;
+  stage.value = 'DeepSeek 正在拆分整屏截图…';
+  try {
+    const result = await analyzeAiScreen(
+      { referenceAssetId: referenceAsset.value._id },
+      controller.signal,
+    );
+    if (serial !== requestSerial) {
+      return;
+    }
+    screenAnalysis.value = result;
+    const draft = buildAiScreenStructureDraft(result.parsedContent);
+    if (draft) {
+      structureDraft.value = draft;
+      activeDraftComponentId.value = draft.components[0]?.id ?? '';
+    }
+    if (result.validationIssues.length) {
+      ElMessage.warning(`模型已返回结果，但发现 ${result.validationIssues.length} 个契约问题`);
+    } else if (!draft) {
+      ElMessage.warning('模型结果无法转换为结构草稿，请查看原始 JSON');
+    } else {
+      ElMessage.success('整屏识别结果通过基础契约检查');
+    }
+  } catch (error) {
+    if (serial === requestSerial && !isCanceled(error)) {
+      errorMessage.value = getErrorMessage(error);
+    }
+  } finally {
+    if (serial === requestSerial && requestController === controller) {
+      requestController = null;
+      loading.value = false;
+      stage.value = '';
+    }
+  }
+}
+
+async function copyScreenAnalysis(): Promise<void> {
+  if (!screenAnalysis.value?.rawContent) {
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(screenAnalysis.value.rawContent);
+    ElMessage.success('模型原始 JSON 已复制');
+  } catch (error) {
+    errorMessage.value = getErrorMessage(error);
+  }
+}
+
+function clearStructureDraft(): void {
+  structureDraft.value = null;
+  activeDraftComponentId.value = '';
+  structureConfirmed.value = false;
+}
+
+function selectDraftComponent(component: AiScreenDraftComponent): void {
+  activeDraftComponentId.value = component.id;
+}
+
+function draftBoundsStyle(bounds: AiScreenBounds): Record<string, string> {
+  const canvas = structureDraft.value?.canvas;
+  if (!canvas) {
+    return {};
+  }
+  return {
+    left: `${bounds.x / canvas.width * 100}%`,
+    top: `${bounds.y / canvas.height * 100}%`,
+    width: `${bounds.w / canvas.width * 100}%`,
+    height: `${bounds.h / canvas.height * 100}%`,
+  };
+}
+
+function draftBoxStyle(component: AiScreenDraftComponent): Record<string, string> {
+  return draftBoundsStyle(component.bounds);
+}
+
+function normalizeDraftBounds(component: AiScreenDraftComponent): void {
+  const canvas = structureDraft.value?.canvas;
+  if (!canvas) {
+    return;
+  }
+  const x = clampInteger(Number(component.bounds.x), 0, canvas.width - 1);
+  const y = clampInteger(Number(component.bounds.y), 0, canvas.height - 1);
+  component.bounds.x = x;
+  component.bounds.y = y;
+  component.bounds.w = clampInteger(Number(component.bounds.w), 1, canvas.width - x);
+  component.bounds.h = clampInteger(Number(component.bounds.h), 1, canvas.height - y);
+}
+
+function clampInteger(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) {
+    return min;
+  }
+  return Math.min(max, Math.max(min, Math.round(value)));
+}
+
+function confirmStructureDraft(): void {
+  if (!structureDraft.value || structureDraftIssues.value.length) {
+    return;
+  }
+  structureConfirmed.value = true;
+  ElMessage.success(`已确认 ${includedDraftCount.value} 个结构组件`);
+}
+
 function retryLastAction(): void {
+  if (lastAction.value === 'screenTest') {
+    void testScreenAnalysis();
+    return;
+  }
   if (lastAction.value === 'plan') {
     void generatePlan();
     return;
@@ -614,6 +786,10 @@ watch(() => store.editorRevision, () => {
   cancelRequest();
   errorMessage.value = '画布已变化，请重新生成修改方案';
 });
+
+watch(structureDraft, () => {
+  structureConfirmed.value = false;
+}, { deep: true });
 </script>
 
 <template>
@@ -721,13 +897,160 @@ watch(() => store.editorRevision, () => {
         <button class="btn btn-ghost ai-generate ai-custom-generate" type="button" :disabled="!instruction.trim() || loading" @click="generateCustomComponent('border')">
           <Frame :size="14" />生成参数化边框
         </button>
+        <button
+          class="btn btn-ghost ai-generate ai-screen-test"
+          type="button"
+          :disabled="!referenceAsset || !visionEnabled || loading"
+          @click="testScreenAnalysis"
+        >
+          <ImagePlus :size="14" />{{ loading && lastAction === 'screenTest' ? stage : '测试整屏截图识别' }}
+        </button>
+        <p class="ai-tip">能力测试只返回模型 JSON，不会新增页面或修改画布。</p>
         <button v-if="loading" class="btn btn-ghost ai-cancel-request" type="button" @click="cancelRequest">取消请求</button>
       </section>
 
       <section v-if="errorMessage" class="ai-error">
         <AlertTriangle :size="16" />
         <span>{{ errorMessage }}</span>
-        <button v-if="!loading && instruction.trim()" type="button" @click="retryLastAction">重试</button>
+        <button
+          v-if="!loading && (lastAction === 'screenTest' ? referenceAsset : instruction.trim())"
+          type="button"
+          @click="retryLastAction"
+        >重试</button>
+      </section>
+
+      <section v-if="screenAnalysis" class="ai-screen-analysis">
+        <div class="ai-screen-analysis-head">
+          <div>
+            <strong>整屏识别原始 JSON</strong>
+            <small>{{ screenAnalysis.model }} · 模型原文，结构草稿会按坐标重新排序</small>
+          </div>
+          <em :class="screenAnalysis.validationIssues.length ? 'invalid' : 'valid'">
+            {{ screenAnalysis.validationIssues.length ? `${screenAnalysis.validationIssues.length} 个契约问题` : '基础校验通过' }}
+          </em>
+        </div>
+        <pre>{{ screenAnalysis.rawContent }}</pre>
+        <div v-if="screenAnalysis.validationIssues.length" class="ai-note warning">
+          <b>契约问题</b>
+          <p v-for="item in screenAnalysis.validationIssues" :key="item.path + item.message">
+            <code>{{ item.path }}</code>：{{ item.message }}
+          </p>
+        </div>
+        <button class="btn btn-pri ai-copy-json" type="button" @click="copyScreenAnalysis">复制原始 JSON</button>
+      </section>
+
+      <section v-if="structureDraft" class="ai-structure-draft">
+        <div class="ai-structure-head">
+          <div>
+            <strong>整屏结构草稿</strong>
+            <small>{{ includedDraftCount }} / {{ structureDraft.components.length }} 个组件参与确认</small>
+          </div>
+          <em :class="structureConfirmed ? 'confirmed' : 'pending'">
+            {{ structureConfirmed ? '已确认' : '待检查' }}
+          </em>
+        </div>
+
+        <div
+          class="ai-structure-canvas"
+          :style="{ aspectRatio: `${structureDraft.canvas.width} / ${structureDraft.canvas.height}` }"
+        >
+          <img :src="referencePreviewUrl" alt="整屏结构草稿参考图" />
+          <div
+            v-if="structureDraft.canvas.backgroundLayer"
+            class="ai-structure-background"
+            :style="draftBoundsStyle(structureDraft.canvas.backgroundLayer.bounds)"
+            :title="structureDraft.canvas.backgroundLayer.description"
+          >
+            <span>背景层</span>
+          </div>
+          <button
+            v-for="component in structureDraft.components"
+            :key="component.id"
+            class="ai-structure-box"
+            :class="{
+              active: activeDraftComponentId === component.id,
+              excluded: !component.included,
+            }"
+            :style="draftBoxStyle(component)"
+            type="button"
+            :title="`${component.order}. ${component.name}`"
+            @click="selectDraftComponent(component)"
+          >
+            <span>{{ component.order }}</span>
+          </button>
+        </div>
+
+        <p class="ai-tip">边界框使用原图 {{ structureDraft.canvas.width }}×{{ structureDraft.canvas.height }} 坐标；点击框或列表可定位组件。</p>
+        <div v-if="structureDraft.canvas.backgroundLayer" class="ai-background-summary">
+          <strong>{{ backgroundLayerLabels[structureDraft.canvas.backgroundLayer.kind] }}</strong>
+          <span>{{ structureDraft.canvas.backgroundLayer.description }}</span>
+          <small>
+            x={{ structureDraft.canvas.backgroundLayer.bounds.x }},
+            y={{ structureDraft.canvas.backgroundLayer.bounds.y }},
+            w={{ structureDraft.canvas.backgroundLayer.bounds.w }},
+            h={{ structureDraft.canvas.backgroundLayer.bounds.h }} ·
+            {{ Math.round(structureDraft.canvas.backgroundLayer.confidence * 100) }}%
+          </small>
+          <p v-if="structureDraft.canvas.backgroundLayer.notes">{{ structureDraft.canvas.backgroundLayer.notes }}</p>
+        </div>
+
+        <div class="ai-structure-list">
+          <article
+            v-for="component in structureDraft.components"
+            :key="component.id"
+            class="ai-structure-item"
+            :class="{ active: activeDraftComponentId === component.id, excluded: !component.included }"
+            @click="selectDraftComponent(component)"
+          >
+            <div class="ai-structure-item-head">
+              <label @click.stop>
+                <input v-model="component.included" type="checkbox" />
+                <span>{{ component.order }}</span>
+              </label>
+              <input v-model.trim="component.name" class="ai-draft-name" maxlength="128" aria-label="组件名称" />
+              <small>{{ Math.round(component.confidence * 100) }}%</small>
+            </div>
+            <select v-model="component.type" class="ai-draft-type" aria-label="组件类型" @click.stop>
+              <option v-for="option in screenComponentTypeOptions" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </select>
+            <div class="ai-draft-bounds" @click.stop>
+              <label v-for="field in draftBoundFields" :key="field">
+                <span>{{ field }}</span>
+                <input
+                  v-model.number="component.bounds[field]"
+                  type="number"
+                  step="1"
+                  @change="normalizeDraftBounds(component)"
+                />
+              </label>
+            </div>
+          </article>
+        </div>
+
+        <div v-if="structureDraftIssues.length" class="ai-note warning">
+          <b>草稿待修正</b>
+          <p v-for="item in structureDraftIssues" :key="item.path + item.message">{{ item.message }}</p>
+        </div>
+        <p v-if="unsupportedDraftCount" class="ai-draft-unsupported">
+          {{ unsupportedDraftCount }} 个组件待人工匹配模板；本阶段允许保留。
+        </p>
+        <p
+          v-if="includedDraftCount > AI_SCREEN_ANALYSIS_RECOMMENDED_COMPONENT_LIMIT"
+          class="ai-draft-unsupported"
+        >
+          当前保留 {{ includedDraftCount }} 个组件，建议检查是否有可合并或误识别项；该提示不阻止确认。
+        </p>
+        <button
+          class="btn btn-pri ai-confirm-structure"
+          type="button"
+          :disabled="Boolean(structureDraftIssues.length) || structureConfirmed"
+          @click="confirmStructureDraft"
+        >
+          <Check :size="14" />{{ structureConfirmed ? '结构草稿已确认' : '确认结构草稿' }}
+        </button>
+        <p class="ai-tip">确认状态仅保存在当前面板，不会新增组件、修改画布或写入数据库。</p>
       </section>
 
       <section v-if="generatedFeedback" class="ai-generated-feedback">
@@ -854,6 +1177,7 @@ watch(() => store.editorRevision, () => {
 .ai-reference-unavailable { margin: 6px 0 0; color: var(--warn); font-size: 10px; line-height: 1.5; }
 .ai-generate { width: 100%; margin-top: 10px; justify-content: center; }
 .ai-cancel-request { width: 100%; margin-top: 6px; justify-content: center; }
+.ai-screen-test { border-color: color-mix(in srgb, var(--ok) 45%, var(--border)); color: var(--ok); }
 .ai-error { display: flex; align-items: flex-start; gap: 7px; padding: 10px; margin-bottom: 10px; border: 1px solid color-mix(in srgb, var(--err) 42%, var(--border)); border-radius: 7px; color: var(--err); font-size: 12px; }
 .ai-error span { flex: 1; line-height: 1.5; }
 .ai-error button { border: 0; background: transparent; color: inherit; text-decoration: underline; }
@@ -863,6 +1187,52 @@ watch(() => store.editorRevision, () => {
 .ai-generated-feedback .ai-plan-title > em { padding: 2px 6px; border: 1px solid currentColor; border-radius: 4px; font-size: 10px; font-style: normal; }
 .ai-generated-feedback .ai-plan-title > em.exact { color: var(--ok); }
 .ai-generated-feedback .ai-plan-title > em.approximate { color: var(--warn); }
+.ai-screen-analysis { padding: 12px; margin-bottom: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel2); }
+.ai-screen-analysis-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.ai-screen-analysis-head > div { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.ai-screen-analysis-head strong { color: var(--t1); font-size: 13px; }
+.ai-screen-analysis-head small { overflow: hidden; color: var(--t3); font: 10px var(--font-num); text-overflow: ellipsis; white-space: nowrap; }
+.ai-screen-analysis-head em { flex: none; padding: 2px 6px; border: 1px solid currentColor; border-radius: 4px; font-size: 10px; font-style: normal; }
+.ai-screen-analysis-head em.valid { color: var(--ok); }
+.ai-screen-analysis-head em.invalid { color: var(--warn); }
+.ai-screen-analysis pre { max-height: 320px; margin: 10px 0 0; padding: 9px; overflow: auto; border: 1px solid var(--border); border-radius: 5px; color: var(--t2); background: var(--bg); font: 10px/1.55 var(--font-num); white-space: pre-wrap; word-break: break-all; }
+.ai-copy-json { width: 100%; margin-top: 10px; justify-content: center; }
+.ai-structure-draft { padding: 12px; margin-bottom: 10px; border: 1px solid color-mix(in srgb, var(--pri) 42%, var(--border)); border-radius: 8px; background: var(--panel2); }
+.ai-structure-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.ai-structure-head > div { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.ai-structure-head strong { color: var(--t1); font-size: 13px; }
+.ai-structure-head small { color: var(--t3); font-size: 10px; }
+.ai-structure-head em { flex: none; padding: 2px 6px; border: 1px solid currentColor; border-radius: 4px; font-size: 10px; font-style: normal; }
+.ai-structure-head em.pending { color: var(--warn); }
+.ai-structure-head em.confirmed { color: var(--ok); }
+.ai-structure-canvas { position: relative; width: 100%; margin-top: 10px; overflow: hidden; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); }
+.ai-structure-canvas > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; }
+.ai-structure-background { position: absolute; pointer-events: none; border: 1px dashed var(--warn); background: color-mix(in srgb, var(--warn) 6%, transparent); }
+.ai-structure-background > span { position: absolute; right: 2px; top: 2px; padding: 0 3px; border-radius: 2px; color: var(--bg); background: var(--warn); font: 9px/14px var(--font-num); }
+.ai-structure-box { position: absolute; min-width: 0; min-height: 0; padding: 0; border: 1px solid var(--pri); color: var(--t1); background: color-mix(in srgb, var(--pri) 15%, transparent); }
+.ai-structure-box:hover, .ai-structure-box.active { z-index: 2; border-width: 2px; border-color: var(--ok); background: color-mix(in srgb, var(--ok) 18%, transparent); }
+.ai-structure-box.excluded { border-style: dashed; border-color: var(--t3); background: color-mix(in srgb, var(--t3) 10%, transparent); opacity: .55; }
+.ai-structure-box > span { position: absolute; top: 1px; left: 1px; min-width: 14px; padding: 0 3px; border-radius: 2px; color: var(--bg); background: var(--pri); font: 9px/14px var(--font-num); }
+.ai-background-summary { display: grid; gap: 3px; margin-top: 8px; padding: 8px; border: 1px dashed color-mix(in srgb, var(--warn) 65%, var(--border)); border-radius: 6px; background: color-mix(in srgb, var(--warn) 7%, transparent); }
+.ai-background-summary strong { color: var(--warn); font-size: 11px; }
+.ai-background-summary span { color: var(--t1); font-size: 11px; }
+.ai-background-summary small, .ai-background-summary p { margin: 0; color: var(--t3); font: 10px/1.5 var(--font-num); }
+.ai-structure-list { max-height: 420px; margin-top: 10px; overflow: auto; display: flex; flex-direction: column; gap: 7px; }
+.ai-structure-item { padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); }
+.ai-structure-item.active { border-color: var(--pri); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pri) 45%, transparent); }
+.ai-structure-item.excluded { opacity: .55; }
+.ai-structure-item-head { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 7px; }
+.ai-structure-item-head > label { display: flex; align-items: center; gap: 4px; color: var(--pri); font: 600 11px var(--font-num); }
+.ai-structure-item-head small { color: var(--t3); font: 10px var(--font-num); }
+.ai-draft-name, .ai-draft-type, .ai-draft-bounds input { width: 100%; min-width: 0; height: 28px; border: 1px solid var(--border); border-radius: 4px; outline: none; color: var(--t1); background: var(--bg); font-size: 11px; }
+.ai-draft-name { height: 26px; padding: 0 6px; }
+.ai-draft-type { margin-top: 7px; padding: 0 5px; }
+.ai-draft-name:focus, .ai-draft-type:focus, .ai-draft-bounds input:focus { border-color: var(--pri); }
+.ai-draft-bounds { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; margin-top: 7px; }
+.ai-draft-bounds label { min-width: 0; display: grid; grid-template-columns: 12px minmax(0, 1fr); align-items: center; gap: 2px; color: var(--t3); font: 9px var(--font-num); }
+.ai-draft-bounds input { height: 24px; padding: 0 3px; font-family: var(--font-num); }
+.ai-draft-unsupported { margin: 8px 0 0; color: var(--warn); font-size: 11px; line-height: 1.5; }
+.ai-confirm-structure { width: 100%; margin-top: 10px; justify-content: center; }
 .ai-plan { padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel2); }
 .ai-plan.stale > :not(.ai-stale, .ai-actions) { opacity: .45; }
 .ai-plan-title { display: flex; align-items: flex-start; gap: 7px; color: var(--ok); }

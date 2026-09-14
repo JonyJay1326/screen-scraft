@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { isProtocolValid } from '@screencraft/shared';
 import { resolveComponentTemplate } from '../../registry';
 import { useScreenStore } from '../../stores/screen';
@@ -16,6 +16,7 @@ import {
   modelRows,
   resolveStaticTableModel,
   supportsStaticTable,
+  type TableRow,
   type StaticTableModel,
 } from './static-data-table';
 
@@ -24,10 +25,20 @@ const apis = ref<ApiConfigListItem[]>([]);
 const selected = computed(() => store.currentPage?.components.find((item) => item.id === store.selectedIds[0]));
 const tpl = computed(() => (selected.value ? resolveComponentTemplate(selected.value) : undefined));
 const protocol = computed(() => tpl.value?.dataProtocol);
+const source = computed(() => selected.value?.data?.source ?? 'static');
+const compatibleApis = computed(() =>
+  protocol.value ? apis.value.filter((item) => item.dataProtocol === protocol.value) : [],
+);
+const boundApi = computed(() => apis.value.find((item) => item._id === selected.value?.data?.apiId));
+const apiProtocolMismatch = computed(() => Boolean(
+  source.value === 'api'
+  && selected.value?.data?.apiId
+  && apis.value.length
+  && boundApi.value?.dataProtocol !== protocol.value,
+));
 const invalid = computed(() =>
   selected.value && protocol.value ? !isProtocolValid(protocol.value, selected.value.data?.staticData) : false,
 );
-const source = computed(() => selected.value?.data?.source ?? 'static');
 
 const tableModel = computed(() =>
   resolveStaticTableModel(protocol.value, selected.value?.data?.staticData),
@@ -61,13 +72,55 @@ function commitModel(next: unknown): void {
   patchData({ source: 'static', staticData: next });
 }
 
+let committingCellEdit = false;
+
+/** 单元格自身已由 vxe-table 更新，只写 Store，避免反向同步打断连续编辑 */
+function commitCellModel(next: unknown): void {
+  committingCellEdit = true;
+  try {
+    commitModel(next);
+  } finally {
+    committingCellEdit = false;
+  }
+}
+
 const mainColumns = computed(() => (tableModel.value ? modelColumns(tableModel.value, 'main') : []));
-const mainRows = computed(() => (tableModel.value ? modelRows(tableModel.value, 'main') : []));
+const mainRows = ref<TableRow[]>([]);
 const sideColumns = computed(() =>
   tableModel.value?.kind === 'kpi3' ? modelColumns(tableModel.value, 'sides') : [],
 );
-const sideRows = computed(() =>
-  tableModel.value?.kind === 'kpi3' ? modelRows(tableModel.value, 'sides') : [],
+const sideRows = ref<TableRow[]>([]);
+
+/** 保留表格行引用，避免写回 Store 时打断下一单元格的点击编辑 */
+function syncRows(target: TableRow[], next: TableRow[]): void {
+  const sharedLength = Math.min(target.length, next.length);
+  for (let index = 0; index < sharedLength; index += 1) {
+    const targetRow = target[index];
+    const nextRow = next[index];
+    for (const key of Object.keys(targetRow)) {
+      if (!(key in nextRow)) {
+        delete targetRow[key];
+      }
+    }
+    Object.assign(targetRow, nextRow);
+  }
+  if (target.length > next.length) {
+    target.splice(next.length);
+  } else if (next.length > target.length) {
+    target.push(...next.slice(target.length));
+  }
+}
+
+watch(
+  tableModel,
+  (model) => {
+    if (committingCellEdit) {
+      return;
+    }
+    syncRows(mainRows.value, model ? modelRows(model, 'main') : []);
+    syncRows(sideRows.value, model?.kind === 'kpi3' ? modelRows(model, 'sides') : []);
+  },
+  { immediate: true, flush: 'sync' },
 );
 const showAddCol = computed(() => (tableModel.value ? canAddColumn(tableModel.value, 'main') : false));
 const showAddRow = computed(() => (tableModel.value ? canAddRow(tableModel.value, 'main') : false));
@@ -110,7 +163,7 @@ function onEditClosed(section: 'main' | 'sides', params: VxeEditClosed): void {
   if (!tableModel.value) {
     return;
   }
-  commitModel(
+  commitCellModel(
     applyCellEdit(
       tableModel.value,
       params.rowIndex,
@@ -232,12 +285,14 @@ const isKpi3 = computed(() => tableModel.value?.kind === 'kpi3');
           style="width: 170px"
           @change="(v: string) => patchData({ source: 'api', apiId: v })"
         >
-          <el-option v-for="item in apis" :key="item._id" :label="item.name" :value="item._id" />
+          <el-option v-for="item in compatibleApis" :key="item._id" :label="item.name" :value="item._id" />
         </el-select>
       </div>
+      <p v-if="apiProtocolMismatch" class="warn">当前绑定的 API 未声明该数据协议或与组件不兼容，请重新选择。</p>
+      <p v-else-if="!compatibleApis.length" class="muted hint">暂无适配当前组件的 API，请先在 API 配置中声明数据协议。</p>
       <div class="f-row">
         <span class="f-label">轮询(秒)</span>
-        <el-input-number :model-value="selected.data?.refreshSec ?? 5" :min="5" :max="3600" size="small" @change="(v: number | undefined) => patchData({ source: 'api', refreshSec: Math.max(5, v ?? 5) })" />
+        <el-input-number :model-value="selected.data?.refreshSec ?? 30" :min="5" :max="3600" size="small" @change="(v: number | undefined) => patchData({ source: 'api', refreshSec: Math.max(5, v ?? 30) })" />
       </div>
     </template>
 

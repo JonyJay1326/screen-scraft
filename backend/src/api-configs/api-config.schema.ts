@@ -1,4 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import type { ProtocolKind } from '@screencraft/shared';
 import { HydratedDocument } from 'mongoose';
 
 export type ApiConfigDocument = HydratedDocument<ApiConfig>;
@@ -9,11 +10,17 @@ export class ApiConfig {
   @Prop({ required: true })
   name!: string;
 
-  @Prop({ required: true, enum: ['sql', 'external'] })
-  type!: 'sql' | 'external';
+  @Prop({ required: true, enum: ['sql', 'external', 'mock'] })
+  type!: 'sql' | 'external' | 'mock';
+
+  @Prop({ enum: ['axis', 'combo', 'radar', 'nameValue', 'table', 'options', 'weather', 'kpi-1', 'kpi-2', 'kpi-3', 'kpi-5', 'kpi-8', 'kpi-list'] })
+  dataProtocol?: ProtocolKind;
 
   @Prop()
   sql?: string;
+
+  @Prop()
+  mockKey?: string;
 
   @Prop({ type: Object })
   external?: {

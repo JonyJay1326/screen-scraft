@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import { IsArray, IsIn, IsObject, IsOptional, IsString, ValidateNested } from 'class-validator';
+import type { ProtocolKind } from '@screencraft/shared';
 
 class ParamDto {
   @IsString()
@@ -36,12 +37,19 @@ export class UpsertApiConfigDto {
   @IsString()
   name!: string;
 
-  @IsIn(['sql', 'external'])
-  type!: 'sql' | 'external';
+  @IsIn(['sql', 'external', 'mock'])
+  type!: 'sql' | 'external' | 'mock';
+
+  @IsIn(['axis', 'combo', 'radar', 'nameValue', 'table', 'options', 'weather', 'kpi-1', 'kpi-2', 'kpi-3', 'kpi-5', 'kpi-8', 'kpi-list'])
+  dataProtocol!: ProtocolKind;
 
   @IsOptional()
   @IsString()
   sql?: string;
+
+  @IsOptional()
+  @IsString()
+  mockKey?: string;
 
   @IsOptional()
   @ValidateNested()

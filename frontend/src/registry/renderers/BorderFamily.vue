@@ -1,18 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { ComponentDoc } from '@screencraft/shared';
-import { getMeta } from '../meta-lookup';
 
 const props = defineProps<{ doc: ComponentDoc; data: unknown; mode: 'edit' | 'runtime' }>();
-const tpl = computed(() => getMeta(props.doc.templateId));
-const style = computed(() => ({ ...(tpl.value?.defaultStyle[props.doc.theme] ?? {}), ...props.doc.style }));
 const variant = computed(() => Number(props.doc.templateId.split('-')[1] || 1));
 </script>
 
 <template>
   <div class="bd" :class="'v' + variant">
     <span class="c tl" /><span class="c tr" /><span class="c bl" /><span class="c br" />
-    <div v-if="style.title || style.boardTitle" class="hd">{{ style.title || style.boardTitle }}</div>
   </div>
 </template>
 
@@ -37,14 +33,6 @@ const variant = computed(() => Number(props.doc.templateId.split('-')[1] || 1));
 .tr { top: -1px; right: -1px; border-left: 0; border-bottom: 0; }
 .bl { bottom: -1px; left: -1px; border-right: 0; border-top: 0; }
 .br { bottom: -1px; right: -1px; border-left: 0; border-top: 0; }
-.hd {
-  position: absolute;
-  top: 12px;
-  left: 18px;
-  font-size: 13px;
-  color: var(--t1);
-  letter-spacing: 0.08em;
-}
 /* 默认深蓝 */
 .v1 {
   border-color: rgba(53, 114, 200, 0.55);

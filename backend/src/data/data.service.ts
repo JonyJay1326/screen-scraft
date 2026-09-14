@@ -8,12 +8,14 @@ import mysql from 'mysql2/promise';
 import { ApiConfig } from '../api-configs/api-config.schema';
 import { BizException } from '../common/biz.exception';
 import { decryptSecret } from '../common/secret.util';
+import { MockDataset } from './mock-dataset.schema';
 
 /** 运行时取数：SQL 只读执行 / 外部代理 */
 @Injectable()
 export class DataService {
   constructor(
     @InjectModel(ApiConfig.name) private readonly apiModel: Model<ApiConfig>,
+    @InjectModel(MockDataset.name) private readonly mockModel: Model<MockDataset>,
     private readonly config: ConfigService,
   ) {}
 
@@ -27,7 +29,30 @@ export class DataService {
     if (row.type === 'sql') {
       return this.runSql(row.sql ?? '', params);
     }
+    if (row.type === 'mock') {
+      return this.runMock(row.mockKey ?? '', params);
+    }
     return this.runExternal(row, params);
+  }
+
+  /** 读取 MongoDB 中的演示数据集。 */
+  private async runMock(mockKey: string, params: Record<string, unknown>): Promise<unknown> {
+    if (!mockKey) {
+      throw BizException.validation('Mock 配置缺少 mockKey');
+    }
+    const dataset = await this.mockModel.findOne({ key: mockKey }).lean().exec();
+    if (!dataset) {
+      throw BizException.notFound(`Mock 数据集不存在：${mockKey}`);
+    }
+    const matched = dataset.variants.find((variant) => Object.entries(variant.params)
+      .every(([key, value]) => params[key] === value));
+    if (matched) {
+      return matched.data;
+    }
+    if (dataset.defaultData !== undefined) {
+      return dataset.defaultData;
+    }
+    throw BizException.validation(`Mock 数据集参数无匹配项：${mockKey}`);
   }
 
   /** 执行只读 SQL */

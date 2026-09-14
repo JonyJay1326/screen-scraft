@@ -21,6 +21,8 @@ export const AI_STRUCTURE_LIMITS = {
 
 export const AI_PAGE_COMPONENT_LIMIT = 50;
 export const AI_SCREEN_COMPONENT_LIMIT = 200;
+export const AI_SCREEN_ANALYSIS_RECOMMENDED_COMPONENT_LIMIT = 20;
+export const AI_SCREEN_ANALYSIS_COMPONENT_LIMIT = 32;
 
 const dangerousKeys = new Set(['__proto__', 'prototype', 'constructor']);
 const safeVisualBlockedKeys = new Set([
@@ -37,6 +39,10 @@ const protocolKinds = new Set([
   'axis', 'combo', 'radar', 'nameValue', 'table', 'options', 'weather',
   'kpi-1', 'kpi-2', 'kpi-3', 'kpi-5', 'kpi-8', 'kpi-list',
 ]);
+const screenComponentTypes = new Set([
+  'text', 'kpi', 'kpiList', 'line', 'bar', 'pie', 'gauge', 'table', 'border', 'unsupported',
+]);
+const screenBackgroundLayerKinds = new Set(['image', 'interactiveScene', 'video', 'unknown']);
 
 /** 校验 AI 对已有组件产生的样式补丁。 */
 export function validateAiStylePatch(
@@ -102,6 +108,50 @@ export function validateAiEditorPlanResponse(input: unknown): AiValidationIssue[
   validateUnsupportedFeatures(input.unsupportedFeatures, issues);
   validateStringArray(input.warnings, '$.warnings', issues);
   return issues;
+}
+
+/** 校验整屏截图能力测试的模型 JSON；通过也不代表可直接写入画布。 */
+export function validateAiScreenAnalysisResult(input: unknown): AiValidationIssue[] {
+  const issues = validateStructure(input);
+  if (!isPlainRecord(input)) {
+    return append(issues, '$', '整屏识别结果必须是普通对象');
+  }
+  strictKeys(input, ['canvas', 'ignoredRegions', 'components', 'warnings'], '$', issues);
+  if (!isPlainRecord(input.canvas)) {
+    issues.push({ path: '$.canvas', message: 'canvas 必须是普通对象' });
+    return issues;
+  }
+  strictKeys(input.canvas, ['width', 'height', 'backgroundColor', 'backgroundLayer'], '$.canvas', issues);
+  integerValue(input.canvas.width, 1, 8192, '$.canvas.width', issues);
+  integerValue(input.canvas.height, 1, 8192, '$.canvas.height', issues);
+  colorValue(input.canvas.backgroundColor, '$.canvas.backgroundColor', issues);
+  if (input.canvas.backgroundLayer !== undefined) {
+    validateScreenBackgroundLayer(input.canvas.backgroundLayer, input.canvas, issues);
+  }
+
+  validateScreenIgnoredRegions(input.ignoredRegions, input.canvas, issues);
+  validateScreenComponents(input.components, input.canvas, issues);
+  validateStringArray(input.warnings, '$.warnings', issues);
+  return issues;
+}
+
+function validateScreenBackgroundLayer(
+  input: unknown,
+  canvas: Record<string, unknown>,
+  issues: AiValidationIssue[],
+): void {
+  if (!isPlainRecord(input)) {
+    issues.push({ path: '$.canvas.backgroundLayer', message: 'backgroundLayer 必须是普通对象' });
+    return;
+  }
+  strictKeys(input, ['kind', 'bounds', 'description', 'confidence', 'notes'], '$.canvas.backgroundLayer', issues);
+  if (typeof input.kind !== 'string' || !screenBackgroundLayerKinds.has(input.kind)) {
+    issues.push({ path: '$.canvas.backgroundLayer.kind', message: '背景层类型不在允许范围内' });
+  }
+  validateScreenBounds(input.bounds, canvas, '$.canvas.backgroundLayer.bounds', issues);
+  nonEmptyString(input.description, '$.canvas.backgroundLayer.description', issues, 256);
+  numberValue(input.confidence, 0, 1, '$.canvas.backgroundLayer.confidence', issues);
+  stringValue(input.notes, '$.canvas.backgroundLayer.notes', issues, 512);
 }
 
 /** 校验安全图表描述；只接受批准的纯声明式字段。 */
@@ -1223,6 +1273,322 @@ function validateStructure(input: unknown, path = '$', depth = 0): AiValidationI
     return issues;
   }
   return [];
+}
+
+function validateScreenIgnoredRegions(
+  input: unknown,
+  canvas: Record<string, unknown>,
+  issues: AiValidationIssue[],
+): void {
+  if (!Array.isArray(input) || input.length > 16) {
+    issues.push({ path: '$.ignoredRegions', message: 'ignoredRegions 必须是不超过 16 项的数组' });
+    return;
+  }
+  input.forEach((item, index) => {
+    const path = `$.ignoredRegions[${index}]`;
+    if (!isPlainRecord(item)) {
+      issues.push({ path, message: '忽略区域必须是普通对象' });
+      return;
+    }
+    strictKeys(item, ['bounds', 'reason'], path, issues);
+    validateScreenBounds(item.bounds, canvas, `${path}.bounds`, issues);
+    nonEmptyString(item.reason, `${path}.reason`, issues, 256);
+  });
+}
+
+function validateScreenComponents(
+  input: unknown,
+  canvas: Record<string, unknown>,
+  issues: AiValidationIssue[],
+): void {
+  if (!Array.isArray(input)) {
+    issues.push({ path: '$.components', message: 'components 必须是包含 1~32 项的数组' });
+    return;
+  }
+  if (input.length < 1 || input.length > AI_SCREEN_ANALYSIS_COMPONENT_LIMIT) {
+    issues.push({ path: '$.components', message: 'components 必须是包含 1~32 项的数组' });
+  }
+  const orders = new Set<number>();
+  input.forEach((item, index) => {
+    const path = `$.components[${index}]`;
+    if (!isPlainRecord(item)) {
+      issues.push({ path, message: '组件必须是普通对象' });
+      return;
+    }
+    strictKeys(item, [
+      'order', 'type', 'name', 'bounds', 'title', 'visibleTexts', 'seriesCount', 'confidence', 'notes',
+    ], path, issues);
+    integerValue(item.order, 1, AI_SCREEN_ANALYSIS_COMPONENT_LIMIT, `${path}.order`, issues);
+    if (typeof item.order === 'number' && Number.isInteger(item.order)) {
+      if (orders.has(item.order)) {
+        issues.push({ path: `${path}.order`, message: 'order 不能重复' });
+      }
+      orders.add(item.order);
+    }
+    if (typeof item.type !== 'string' || !screenComponentTypes.has(item.type)) {
+      issues.push({ path: `${path}.type`, message: '组件类型不在允许范围内' });
+    }
+    nonEmptyString(item.name, `${path}.name`, issues, 128);
+    validateScreenBounds(item.bounds, canvas, `${path}.bounds`, issues);
+    stringValue(item.title, `${path}.title`, issues, 256);
+    validateBoundedStringArray(item.visibleTexts, `${path}.visibleTexts`, issues, 32, 256);
+    integerValue(item.seriesCount, 0, 32, `${path}.seriesCount`, issues);
+    if (
+      typeof item.title === 'string' && item.title
+      && Array.isArray(item.visibleTexts) && !item.visibleTexts.includes(item.title)
+    ) {
+      issues.push({ path: `${path}.title`, message: 'title 必须来自 visibleTexts 中真实可见的原文，否则应为空字符串' });
+    }
+    if ((item.type === 'pie' || item.type === 'gauge') && item.seriesCount !== 1) {
+      issues.push({ path: `${path}.seriesCount`, message: 'pie/gauge 的 seriesCount 表示图表系列数，必须为 1' });
+    }
+    if (
+      typeof item.type === 'string'
+      && !['line', 'bar', 'pie', 'gauge'].includes(item.type)
+      && item.seriesCount !== 0
+    ) {
+      issues.push({ path: `${path}.seriesCount`, message: '非图表组件的 seriesCount 必须为 0' });
+    }
+    numberValue(item.confidence, 0, 1, `${path}.confidence`, issues);
+    stringValue(item.notes, `${path}.notes`, issues, 512);
+    validateScreenComponentSemantics(item, canvas, path, issues);
+  });
+  if (Array.isArray(input) && orders.size === input.length) {
+    for (let expected = 1; expected <= input.length; expected += 1) {
+      if (!orders.has(expected)) {
+        issues.push({ path: '$.components', message: 'order 必须从 1 开始连续递增' });
+        break;
+      }
+    }
+  }
+  validateScreenReadingOrder(input, issues);
+  validateScreenOverlaps(input, issues);
+  validateDetachedScreenTitles(input, issues);
+}
+
+function validateScreenComponentSemantics(
+  item: Record<string, unknown>,
+  canvas: Record<string, unknown>,
+  path: string,
+  issues: AiValidationIssue[],
+): void {
+  if ((item.type === 'kpi' || item.type === 'kpiList')
+    && typeof item.notes === 'string'
+    && /柱状|折线|饼图|仪表盘|独立图表/.test(item.notes)) {
+    issues.push({
+      path: `${path}.type`,
+      message: 'notes 表明 KPI 内包含独立图表，应拆成 KPI 与对应图表组件',
+    });
+  }
+  if ((item.type === 'line' || item.type === 'bar') && Array.isArray(item.visibleTexts)) {
+    const texts = item.visibleTexts.filter((value): value is string => typeof value === 'string');
+    const kpiLabels = texts.filter((value) => /^(?:当日|今日|累计|总).*(?:量|产量|排放|能耗|用量)$/.test(value));
+    const standaloneValues = texts.filter((value) => /^[\d,.]+\s*(?:t|吨|kWh|kg|m³|%|GW)$/i.test(value));
+    if (kpiLabels.length >= 2 && standaloneValues.length >= 2) {
+      issues.push({
+        path: `${path}.type`,
+        message: '图表疑似吞并了两项以上独立汇总 KPI，应拆成 kpiList 与图表组件',
+      });
+    }
+  }
+  if ((isPlainRecord(canvas.backgroundLayer))
+    && (canvas.backgroundLayer.kind === 'interactiveScene' || canvas.backgroundLayer.kind === 'video')
+    && item.type === 'unsupported'
+    && hasSceneControlEvidence(item)) {
+    issues.push({
+      path,
+      message: '背景层交互控制栏应归入 backgroundLayer.notes，不得重复列为组件',
+    });
+  }
+}
+
+function hasSceneControlEvidence(item: Record<string, unknown>): boolean {
+  const visibleTexts = Array.isArray(item.visibleTexts)
+    ? item.visibleTexts.filter((value): value is string => typeof value === 'string')
+    : [];
+  const evidence = [item.name, item.title, item.notes, ...visibleTexts]
+    .filter((value): value is string => typeof value === 'string')
+    .join(' ');
+  if (/视角(?:控制|切换|漫游)|场景控制/.test(evidence)) {
+    return true;
+  }
+  return [
+    /播放倍率|\b\d+(?:\.\d+)?X\b/i,
+    /视角|漫游/,
+    /隐藏面板|显示面板|面板显隐/,
+    /后台视频|背景视频/,
+  ].filter((pattern) => pattern.test(evidence)).length >= 2;
+}
+
+function validateDetachedScreenTitles(input: unknown[], issues: AiValidationIssue[]): void {
+  input.forEach((component, titleIndex) => {
+    if (!isPlainRecord(component) || component.type !== 'text' || typeof component.name !== 'string'
+      || !component.name.endsWith('标题') || !isPlainRecord(component.bounds)) {
+      return;
+    }
+    const titleBase = component.name.replace(/标题$/, '').trim();
+    const titleBounds = component.bounds;
+    const hasMatchingTarget = input.some((candidate, candidateIndex) => {
+      if (candidateIndex === titleIndex || !isPlainRecord(candidate) || !isPlainRecord(candidate.bounds)
+        || candidate.type === 'text' || candidate.type === 'border' || candidate.type === 'unsupported'
+        || candidate.title !== '' || typeof candidate.name !== 'string' || !candidate.name.includes(titleBase)) {
+        return false;
+      }
+      const values = [titleBounds.x, titleBounds.y, titleBounds.w, titleBounds.h,
+        candidate.bounds.x, candidate.bounds.y, candidate.bounds.w];
+      if (!values.every((value) => typeof value === 'number' && Number.isFinite(value))) {
+        return false;
+      }
+      const verticalGap = Number(candidate.bounds.y) - (Number(titleBounds.y) + Number(titleBounds.h));
+      return verticalGap >= -4 && verticalGap <= 20
+        && Math.abs(Number(candidate.bounds.x) - Number(titleBounds.x)) <= 16
+        && Number(titleBounds.w) <= Number(candidate.bounds.w);
+    });
+    if (hasMatchingTarget) {
+      issues.push({
+        path: `$.components[${titleIndex}]`,
+        message: '游离面板标题应并入同列紧贴的同名主体组件',
+      });
+    }
+  });
+}
+
+interface ScreenComponentGeometry {
+  index: number;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  order: number;
+  type: string;
+}
+
+function validateScreenReadingOrder(input: unknown[], issues: AiValidationIssue[]): void {
+  const entries = collectScreenComponentGeometry(input);
+  if (entries.length !== input.length) {
+    return;
+  }
+  const expected = sortScreenGeometryByRows(entries);
+  if (expected.some((entry, index) => entry.order !== index + 1)) {
+    issues.push({
+      path: '$.components',
+      message: 'order 未按从上到下、同一行从左到右排列，禁止按整列依次输出',
+    });
+  }
+}
+
+function validateScreenOverlaps(input: unknown[], issues: AiValidationIssue[]): void {
+  const entries = collectScreenComponentGeometry(input);
+  for (let leftIndex = 0; leftIndex < entries.length; leftIndex += 1) {
+    const left = entries[leftIndex];
+    if (!left || left.type === 'border') {
+      continue;
+    }
+    for (let rightIndex = leftIndex + 1; rightIndex < entries.length; rightIndex += 1) {
+      const right = entries[rightIndex];
+      if (!right || right.type === 'border') {
+        continue;
+      }
+      const intersectionWidth = Math.max(0, Math.min(left.x + left.w, right.x + right.w) - Math.max(left.x, right.x));
+      const intersectionHeight = Math.max(0, Math.min(left.y + left.h, right.y + right.h) - Math.max(left.y, right.y));
+      const smallerArea = Math.min(left.w * left.h, right.w * right.h);
+      if (smallerArea > 0 && (intersectionWidth * intersectionHeight) / smallerArea >= 0.5) {
+        const sameBounds = left.x === right.x && left.y === right.y && left.w === right.w && left.h === right.h;
+        issues.push({
+          path: `$.components[${right.index}].bounds`,
+          message: sameBounds
+            ? `与 components[${left.index}] 使用完全相同的 bounds，拆分组件不得复用外层卡片边界`
+            : `与 components[${left.index}] 重叠超过较小组件面积的 50%，疑似重复识别或使用了外层卡片边界`,
+        });
+      }
+    }
+  }
+}
+
+function collectScreenComponentGeometry(input: unknown[]): ScreenComponentGeometry[] {
+  const entries: ScreenComponentGeometry[] = [];
+  input.forEach((item, index) => {
+    if (!isPlainRecord(item) || !isPlainRecord(item.bounds)) {
+      return;
+    }
+    const { x, y, w, h } = item.bounds;
+    if (![x, y, w, h, item.order].every((value) => typeof value === 'number' && Number.isFinite(value))) {
+      return;
+    }
+    entries.push({
+      index,
+      x: x as number,
+      y: y as number,
+      w: w as number,
+      h: h as number,
+      order: item.order as number,
+      type: typeof item.type === 'string' ? item.type : '',
+    });
+  });
+  return entries;
+}
+
+function sortScreenGeometryByRows(entries: ScreenComponentGeometry[]): ScreenComponentGeometry[] {
+  const byTop = [...entries].sort((left, right) => left.y - right.y || left.x - right.x || left.index - right.index);
+  const rows: Array<{ anchorY: number; entries: ScreenComponentGeometry[] }> = [];
+  byTop.forEach((entry) => {
+    const currentRow = rows[rows.length - 1];
+    if (!currentRow || entry.y - currentRow.anchorY > 32) {
+      rows.push({ anchorY: entry.y, entries: [entry] });
+      return;
+    }
+    currentRow.entries.push(entry);
+  });
+  return rows.flatMap((row) => row.entries.sort((left, right) => left.x - right.x || left.y - right.y || left.index - right.index));
+}
+
+function validateScreenBounds(
+  input: unknown,
+  canvas: Record<string, unknown>,
+  path: string,
+  issues: AiValidationIssue[],
+): void {
+  if (!isPlainRecord(input)) {
+    issues.push({ path, message: 'bounds 必须是普通对象' });
+    return;
+  }
+  strictKeys(input, ['x', 'y', 'w', 'h'], path, issues);
+  integerValue(input.x, 0, 8192, `${path}.x`, issues);
+  integerValue(input.y, 0, 8192, `${path}.y`, issues);
+  integerValue(input.w, 1, 8192, `${path}.w`, issues);
+  integerValue(input.h, 1, 8192, `${path}.h`, issues);
+  if (
+    typeof input.x === 'number' && typeof input.w === 'number' && typeof canvas.width === 'number'
+    && input.x + input.w > canvas.width
+  ) {
+    issues.push({ path, message: '横向范围超出画布' });
+  }
+  if (
+    typeof input.y === 'number' && typeof input.h === 'number' && typeof canvas.height === 'number'
+    && input.y + input.h > canvas.height
+  ) {
+    issues.push({ path, message: '纵向范围超出画布' });
+  }
+}
+
+function validateBoundedStringArray(
+  input: unknown,
+  path: string,
+  issues: AiValidationIssue[],
+  maxItems: number,
+  maxStringLength: number,
+): void {
+  if (!Array.isArray(input) || input.length > maxItems) {
+    issues.push({ path, message: `必须是不超过 ${maxItems} 项的字符串数组` });
+    return;
+  }
+  input.forEach((value, index) => stringValue(value, `${path}[${index}]`, issues, maxStringLength));
+}
+
+function stringValue(value: unknown, path: string, issues: AiValidationIssue[], max: number): void {
+  if (typeof value !== 'string' || value.length > max) {
+    issues.push({ path, message: `值必须是长度不超过 ${max} 的字符串` });
+  }
 }
 
 function validateNumberBlock(input: unknown, keys: string[], min: number, max: number, path: string, issues: AiValidationIssue[]): void {

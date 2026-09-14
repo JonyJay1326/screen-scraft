@@ -70,6 +70,15 @@ const visiblePresets = computed(() => personalPresets.value.filter((item) => {
   return !kw || item.name.includes(kw) || item.definition.group.includes(kw);
 }));
 const selected = computed(() => store.currentPage?.components.find((item) => item.id === store.selectedIds[0]));
+const componentNameDraft = ref('');
+
+watch(
+  () => [selected.value?.id, selected.value?.name] as const,
+  ([, name]) => {
+    componentNameDraft.value = name ?? '';
+  },
+  { immediate: true },
+);
 const canvasList = computed(() =>
   [...store.visibleComponents].sort((a, b) => a.zIndex - b.zIndex),
 );
@@ -737,12 +746,20 @@ function onFitModeChange(value: FitMode): void {
   store.setFitMode(value);
 }
 
-/** 修改组件名称，避免输入控件直接写正式状态绕过历史。 */
-function onComponentNameChange(value: string): void {
-  if (!selected.value || selected.value.name === value) {
+/** 输入期间保留草稿，失焦时一次写入正式状态和历史。 */
+function onComponentNameChange(): void {
+  if (!selected.value) {
     return;
   }
-  store.patchComponent(selected.value.id, { name: value });
+  const value = componentNameDraft.value.trim();
+  if (!value) {
+    componentNameDraft.value = selected.value.name;
+    ElMessage.warning('组件名称不能为空');
+    return;
+  }
+  if (selected.value.name !== value) {
+    store.patchComponent(selected.value.id, { name: value });
+  }
 }
 
 /** 重命名页面 */
@@ -963,7 +980,7 @@ async function renamePage(pageId: string, name: string): Promise<void> {
           </button>
         </div>
         <div v-if="selected" class="p-sec" style="display:flex;gap:8px;align-items:center">
-          <el-input :model-value="selected.name" size="small" @change="onComponentNameChange" />
+          <el-input v-model="componentNameDraft" size="small" @change="onComponentNameChange" />
           <button class="ed-tool" type="button" :title="selected.hidden ? '显示' : '隐藏'" @click="store.patchComponent(selected.id, { hidden: !selected.hidden })">
             <EyeOff v-if="selected.hidden" :size="14" /><Eye v-else :size="14" />
           </button>

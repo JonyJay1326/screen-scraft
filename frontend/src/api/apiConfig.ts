@@ -5,8 +5,10 @@ export type ApiConfigListItem = ApiConfigDoc & { path: string; refCount: number;
 
 export interface UpsertApiPayload {
   name: string;
-  type: 'sql' | 'external';
+  type: 'sql' | 'external' | 'mock';
+  dataProtocol: ProtocolKind;
   sql?: string;
+  mockKey?: string;
   external?: {
     url: string;
     method: 'GET' | 'POST';

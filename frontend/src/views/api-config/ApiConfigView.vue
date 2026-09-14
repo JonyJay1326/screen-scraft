@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import type { ProtocolKind } from '@screencraft/shared';
 import { Plus, Search } from 'lucide-vue-next';
 import AppTopbar from '../../components/ui/AppTopbar.vue';
 import SqlEditor from '../../components/editor/SqlEditor.vue';
@@ -27,8 +28,10 @@ const editingId = ref<string | null>(null);
 /** 编辑表单：SQL / 外部字段始终有值，避免模板里写非空断言 */
 type ApiFormState = {
   name: string;
-  type: 'sql' | 'external';
+  type: 'sql' | 'external' | 'mock';
+  dataProtocol: ProtocolKind | '';
   sql: string;
+  mockKey: string;
   external: {
     url: string;
     method: 'GET' | 'POST';
@@ -42,7 +45,9 @@ type ApiFormState = {
 const form = reactive<ApiFormState>({
   name: '',
   type: 'sql',
+  dataProtocol: 'axis',
   sql: 'SELECT name, value FROM demo WHERE region = :region',
+  mockKey: '',
   external: { url: '', method: 'GET', authType: 'none', headers: {} },
   params: [{ name: 'region', type: 'string', defaultValue: 'all' }],
 });
@@ -66,7 +71,9 @@ function openNew(): void {
   editingId.value = null;
   form.name = '';
   form.type = 'sql';
+  form.dataProtocol = 'axis';
   form.sql = 'SELECT name, value FROM demo WHERE region = :region';
+  form.mockKey = '';
   form.external = { url: '', method: 'GET', authType: 'none', headers: {} };
   form.params = [{ name: 'region', type: 'string', defaultValue: 'all' }];
   testResult.value = null;
@@ -78,7 +85,9 @@ function openEdit(row: ApiConfigListItem): void {
   editingId.value = row._id;
   form.name = row.name;
   form.type = row.type;
+  form.dataProtocol = row.dataProtocol ?? '';
   form.sql = row.sql ?? '';
+  form.mockKey = row.mockKey ?? '';
   form.external = {
     url: row.external?.url ?? '',
     method: row.external?.method ?? 'GET',
@@ -96,10 +105,15 @@ async function save(): Promise<void> {
     ElMessage.error('请填写名称');
     return;
   }
+  if (!form.dataProtocol) {
+    ElMessage.error('请选择数据协议');
+    return;
+  }
+  const payload: UpsertApiPayload = { ...form, dataProtocol: form.dataProtocol };
   if (editingId.value) {
-    await updateApiConfig(editingId.value, form);
+    await updateApiConfig(editingId.value, payload);
   } else {
-    await createApiConfig(form);
+    await createApiConfig(payload);
   }
   ElMessage.success('已保存');
   visible.value = false;
@@ -116,13 +130,18 @@ async function remove(row: ApiConfigListItem): Promise<void> {
 
 /** 试运行 */
 async function runTest(): Promise<void> {
+  if (!form.dataProtocol) {
+    ElMessage.error('请选择数据协议');
+    return;
+  }
+  const payload: UpsertApiPayload = { ...form, dataProtocol: form.dataProtocol };
   let id = editingId.value;
   if (!id) {
-    const created = await createApiConfig(form);
+    const created = await createApiConfig(payload);
     id = created._id;
     editingId.value = id;
   } else {
-    await updateApiConfig(id, form);
+    await updateApiConfig(id, payload);
   }
   testing.value = true;
   try {
@@ -130,7 +149,7 @@ async function runTest(): Promise<void> {
     form.params.forEach((item) => {
       params[item.name] = item.defaultValue;
     });
-    testResult.value = await testApiConfig(id, params);
+    testResult.value = await testApiConfig(id, params, form.dataProtocol);
     if (!testResult.value.protocolValid && testResult.value.protocolIssues.length) {
       ElMessage.warning(testResult.value.protocolIssues.map((i) => i.message).join('；') || '返回不符合协议');
     }
@@ -150,6 +169,32 @@ function setApiType(value: string | number | boolean | undefined): void {
     form.type = value;
   }
 }
+
+function apiTypeLabel(type: ApiConfigListItem['type']): string {
+  if (type === 'sql') return 'SQL 生成';
+  if (type === 'mock') return 'Mock 数据';
+  return '外部登记';
+}
+
+const protocolOptions: Array<{ value: ProtocolKind; label: string }> = [
+  { value: 'axis', label: '坐标轴图表（折线图 / 柱状图）' },
+  { value: 'combo', label: '组合图' },
+  { value: 'nameValue', label: '名值图表（饼图 / 漏斗图 / 仪表盘）' },
+  { value: 'radar', label: '雷达图' },
+  { value: 'table', label: '表格' },
+  { value: 'options', label: '下拉选项' },
+  { value: 'kpi-1', label: '指标卡·样式1' },
+  { value: 'kpi-2', label: '指标卡·样式2' },
+  { value: 'kpi-3', label: '指标卡·样式3' },
+  { value: 'kpi-5', label: '指标卡·样式5' },
+  { value: 'kpi-8', label: '指标卡·样式8' },
+  { value: 'kpi-list', label: '指标列表' },
+  { value: 'weather', label: '天气' },
+];
+
+function protocolLabel(protocol: ProtocolKind | undefined): string {
+  return protocolOptions.find((item) => item.value === protocol)?.label ?? '未声明';
+}
 </script>
 
 <template>
@@ -159,7 +204,7 @@ function setApiType(value: string | number | boolean | undefined): void {
       <div class="page-head">
         <div>
           <h1>API 配置</h1>
-          <div class="desc">组件的数据接入统一在这里管理：SQL 生成（内置业务库）或外部接口</div>
+          <div class="desc">统一管理 SQL、外部接口与演示 Mock 数据</div>
         </div>
         <div class="flex gap-8">
           <div class="input-wrap" style="width:250px">
@@ -173,13 +218,14 @@ function setApiType(value: string | number | boolean | undefined): void {
         <table class="table">
           <thead>
             <tr>
-              <th>名称</th><th>类型</th><th>请求方式</th><th>接口路径</th><th>更新时间</th><th>引用</th><th>操作</th>
+              <th>名称</th><th>类型</th><th>支持图表</th><th>请求方式</th><th>接口路径</th><th>更新时间</th><th>引用</th><th>操作</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="row in filtered" :key="row._id">
               <td>{{ row.name }}</td>
-              <td>{{ row.type === 'sql' ? 'SQL 生成' : '外部登记' }}</td>
+              <td>{{ apiTypeLabel(row.type) }}</td>
+              <td>{{ protocolLabel(row.dataProtocol) }}</td>
               <td>{{ row.method }}</td>
               <td class="muted">{{ row.path }}</td>
               <td class="muted">{{ formatRelative(row.updatedAt) }}</td>
@@ -202,13 +248,22 @@ function setApiType(value: string | number | boolean | undefined): void {
       <el-form label-width="100px">
         <el-form-item label="名称"><el-input v-model="form.name" size="small" /></el-form-item>
         <el-form-item label="类型">
-          <el-radio-group :model-value="form.type" @change="setApiType">
+          <el-radio-group :model-value="form.type" :disabled="form.type === 'mock'" @change="setApiType">
             <el-radio value="sql">SQL 生成</el-radio>
             <el-radio value="external">外部登记</el-radio>
+            <el-radio v-if="form.type === 'mock'" value="mock">Mock 数据</el-radio>
           </el-radio-group>
+        </el-form-item>
+        <el-form-item label="数据协议">
+          <el-select v-model="form.dataProtocol" popper-class="ed-select-popper" size="small" style="width:320px">
+            <el-option v-for="item in protocolOptions" :key="item.value" :label="item.label" :value="item.value" />
+          </el-select>
         </el-form-item>
         <el-form-item v-if="form.type === 'sql'" label="SQL">
           <SqlEditor v-model="form.sql" />
+        </el-form-item>
+        <el-form-item v-else-if="form.type === 'mock'" label="数据集 Key">
+          <el-input v-model="form.mockKey" disabled size="small" />
         </el-form-item>
         <template v-else>
           <el-form-item label="URL"><el-input v-model="form.external.url" size="small" /></el-form-item>

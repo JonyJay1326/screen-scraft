@@ -109,6 +109,7 @@ pnpm dev          # 并行启动 shared 构建监听 + 前端 + 后端
 pnpm build        # 构建全部包
 pnpm test         # shared / backend 单测
 pnpm seed         # 幂等种子（已存在则跳过）
+pnpm seed:mock    # 幂等写入 MongoDB 演示数据集和常用图表 API 配置
 pnpm previews     # 重新生成组件库预览图（frontend/public/previews）
 pnpm mongo:start  # 启动本机 MongoDB 脚本
 ```
