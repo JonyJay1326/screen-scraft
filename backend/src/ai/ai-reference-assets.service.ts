@@ -18,6 +18,8 @@ const CLEANUP_INTERVAL_MS = 15 * 60 * 1000;
 export interface ReferenceImageContent {
   mimeType: SupportedImageMime;
   buffer: Buffer;
+  width: number;
+  height: number;
 }
 
 interface UploadedReferenceFile {
@@ -106,7 +108,12 @@ export class AiReferenceAssetsService implements OnModuleInit, OnModuleDestroy {
       throw BizException.notFound('参考图已过期，请重新上传');
     }
     try {
-      return { mimeType: row.mimeType, buffer: await readFile(this.resolveStoragePath(row.storageName)) };
+      return {
+        mimeType: row.mimeType,
+        buffer: await readFile(this.resolveStoragePath(row.storageName)),
+        width: row.width,
+        height: row.height,
+      };
     } catch (error) {
       if (isFileMissing(error)) {
         await this.assetModel.deleteOne({ _id: row._id }).exec();

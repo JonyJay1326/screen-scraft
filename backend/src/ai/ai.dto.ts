@@ -1,4 +1,9 @@
-import type { AiEditorContext, AiEditorPlanRequest, AiGenerateComponentRequest } from '@screencraft/shared';
+import type {
+  AiEditorContext,
+  AiEditorPlanRequest,
+  AiGenerateComponentRequest,
+  AiScreenAnalysisRequest,
+} from '@screencraft/shared';
 import {
   ArrayMaxSize,
   IsArray,
@@ -63,6 +68,13 @@ export class AiSettingsDto {
 export class AiSettingsTestDto {
   @IsIn(['text', 'vision'])
   capability!: 'text' | 'vision';
+}
+
+export class AiScreenAnalysisDto implements AiScreenAnalysisRequest {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(128)
+  referenceAssetId!: string;
 }
 
 export class AiEditorPlanDto implements AiEditorPlanRequest {

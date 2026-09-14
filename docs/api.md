@@ -143,8 +143,10 @@ interface EventDoc {
 interface ApiConfigDoc {
   _id: string;
   name: string;
-  type: 'sql' | 'external';
+  type: 'sql' | 'external' | 'mock';
+  dataProtocol?: ProtocolKind;        // 新建/更新必填；旧数据可能为空，补充后才参与组件筛选
   sql?: string;                      // type=sql；:paramName 形式引用参数
+  mockKey?: string;                  // type=mock；指向 MongoDB mock_datasets，仅种子生成
   external?: {
     url: string;
     method: 'GET' | 'POST';
@@ -485,6 +487,60 @@ interface AiReferenceAsset {
   expiresAt: string;
 }
 
+type AiScreenComponentType =
+  | 'text' | 'kpi' | 'kpiList' | 'line' | 'bar'
+  | 'pie' | 'gauge' | 'table' | 'border' | 'unsupported';
+
+interface AiScreenBounds {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+type AiScreenBackgroundLayerKind = 'image' | 'interactiveScene' | 'video' | 'unknown';
+
+interface AiScreenAnalysisResult {
+  canvas: {
+    width: number;
+    height: number;
+    backgroundColor: string;
+    backgroundLayer?: {
+      kind: AiScreenBackgroundLayerKind;
+      bounds: AiScreenBounds;
+      description: string;
+      confidence: number;
+      notes: string;
+    };
+  };
+  ignoredRegions: Array<{ bounds: AiScreenBounds; reason: string }>;
+  components: Array<{
+    order: number;
+    type: AiScreenComponentType;
+    name: string;
+    bounds: AiScreenBounds;
+    title: string;
+    visibleTexts: string[];
+    seriesCount: number;
+    confidence: number;
+    notes: string;
+  }>;
+  warnings: string[];
+}
+
+interface AiScreenAnalysisRequest {
+  referenceAssetId: string;
+}
+
+interface AiScreenAnalysisTestResponse {
+  model: string;
+  /** 上游 message.content 原文，不进行修正 */
+  rawContent: string;
+  /** JSON 解析值；合法坐标可用时按行优先顺序重排 components/order */
+  parsedContent: unknown | null;
+  validationIssues: Array<{ path: string; message: string }>;
+}
+
 interface AiEditorCapabilities {
   visionEnabled: boolean;
   visionUnavailableReason?: string;
@@ -579,6 +635,10 @@ interface CustomComponentPreset {
 |---|---|---|
 | GET/POST | /data/:apiId | 执行 SQL 或代理外部 API；query/body 携带占位符参数值；返回需符合组件数据协议（v1 不做映射）；首次取数用参数 `defaultValue`；前端轮询间隔最小 5 秒【已确认】 |
 
+`mock` 配置由演示种子生成，运行时根据 `mockKey` 从 MongoDB `mock_datasets` 集合读取；可使用与其他 API 相同的参数默认值和同名联动机制。管理端不提供手工新建 Mock 配置入口。
+
+API 配置通过 `dataProtocol` 声明兼容的数据结构。编辑器绑定 API 时只展示与组件 `dataProtocol` 完全一致的配置；旧配置未声明协议或协议不匹配时显示明确提示，不允许作为新的绑定选择。`axis` 同时适用于折线图和柱状图，`nameValue` 同时适用于饼图、漏斗图和仪表盘。
+
 ### 3.7 资源
 
 | 方法 | 路径 | 说明 |
@@ -587,11 +647,17 @@ interface CustomComponentPreset {
 
 ### 3.8 AI 智能设计助手
 
+整屏截图模型能力测试的 `rawContent` 是上游 `message.content` 原文；`parsedContent` 在坐标结构可用时按“从上到下、同一行从左到右”重排组件及 `order`。当背景层已明确为 `interactiveScene` 或 `video` 时，解析层还会移除被模型重复列入 `components` 的视角、播放倍率、显隐或后台视频工具栏；名称以“标题”结尾、紧贴同列同名主体且主体 `title` 为空的游离 `text` 会确定性并入主体；模型把包含稼动率及多项运行状态、且 `notes` 明确声明含仪表盘的 KPI 错标结果会纠正为 `gauge`。随后统一重新编号，其他模型字段不修正。`canvas.backgroundLayer` 描述位于业务组件下方的页面级视觉层：静态照片/插画为 `image`，三维园区、数字孪生或 GIS 为 `interactiveScene`，视频为 `video`，无法确认时为 `unknown`；该字段不包含 URL、Base64 或可持久化资产。组件通常为 8～20 项，允许复杂页面超过 20 项，硬上限为 32 项；不得仅为满足数量目标强行合并独立编辑单元。共享校验额外报告背景层字段、背景控制栏重复识别、游离标题、KPI 与图表互相误并、组件大面积重叠、模型虚构标题、系列数语义和原始阅读顺序问题。调用方只能展示和复制，不得应用到画布。
+
+同一卡片拆出的多个组件必须使用各自子区域 bounds；若复用完全相同的父卡片边界，校验返回明确问题并阻止草稿确认，不由后端猜测切分比例。
+若模型已给出图表子区域，且 KPI 父边界完整包含一个同高靠左/靠右或同宽靠上/靠下的主要图表，`parsedContent` 会沿图表边缘收缩 KPI 边界；未提供可验证子区域时仍不猜测比例。
+
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | /ai/editor/capabilities | 当前用户：读取 `{visionEnabled,visionUnavailableReason?}`；不返回模型名、BaseURL 或密钥信息 |
 | POST | /ai/editor/plan | `AiEditorPlanRequest` → `AiEditorPlanResponse`；生成已有组件/页面样式方案，不写数据库 |
 | POST | /ai/editor/generate-component | `AiGenerateComponentRequest` → `AiGeneratedComponent`；返回临时安全组件定义，不直接写大屏 |
+| POST | /ai/editor/analyze-screen | `AiScreenAnalysisRequest` → `AiScreenAnalysisTestResponse`；诊断视觉模型整屏拆分能力，不修改画布或数据库 |
 | POST | /ai/editor/reference-assets | multipart 单图 → `AiReferenceAsset`；仅 PNG/JPEG/WebP，真实文件头校验，≤10MB、单边≤8192px，默认 24 小时过期 |
 | POST | /ai/editor/reference-assets/:id/delete | 主动清理本人临时参考图；未调用时由 TTL 清理 |
 | POST | /ai/editor/border-assets | multipart 单图 → `AiBorderAsset`；仅 PNG/WebP，真实文件头校验，≤10MB、单边≤8192px，永久归属当前用户 |

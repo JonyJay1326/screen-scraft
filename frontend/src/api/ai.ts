@@ -6,6 +6,8 @@ import type {
   AiGenerateComponentRequest,
   AiGeneratedComponent,
   AiReferenceAsset,
+  AiScreenAnalysisRequest,
+  AiScreenAnalysisTestResponse,
 } from '@screencraft/shared';
 import { get, post } from './http';
 
@@ -48,4 +50,12 @@ export function generateAiComponent(
   signal?: AbortSignal,
 ): Promise<AiGeneratedComponent> {
   return post<AiGeneratedComponent>('/ai/editor/generate-component', payload, { signal, timeout: 65_000 });
+}
+
+/** 测试视觉模型拆分完整大屏截图的能力，不修改画布。 */
+export function analyzeAiScreen(
+  payload: AiScreenAnalysisRequest,
+  signal?: AbortSignal,
+): Promise<AiScreenAnalysisTestResponse> {
+  return post<AiScreenAnalysisTestResponse>('/ai/editor/analyze-screen', payload, { signal, timeout: 65_000 });
 }

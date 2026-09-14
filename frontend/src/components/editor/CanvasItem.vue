@@ -12,6 +12,12 @@ const props = defineProps<{ doc: ComponentDoc }>();
 const store = useScreenStore();
 const ratioLocked = ref(false);
 const selected = computed(() => store.selectedIds.includes(props.doc.id));
+const isBorder = computed(() => {
+  const rendererKey = props.doc.definitionSnapshot?.rendererKey;
+  return props.doc.templateId.startsWith('border-')
+    || rendererKey === 'border-parametric-v1'
+    || rendererKey === 'border-nine-slice-v1';
+});
 /** 组外多选时只允许整组移动，隐藏单组件缩放手柄 */
 const showHandles = computed(() => selected.value && (Boolean(store.inGroupId) || store.selectedIds.length === 1));
 
@@ -153,7 +159,7 @@ function onDelete(): void {
     @pointerdown="onPointerDown($event, 'move')"
     @dblclick="onDblClick"
   >
-    <div class="cv-label">{{ doc.name }}</div>
+    <div v-if="!isBorder" class="cv-label">{{ doc.name }}</div>
     <ComponentRenderer :doc="doc" mode="edit" />
     <template v-if="showHandles">
       <i class="cv-handle t" @pointerdown.stop="onPointerDown($event, 'n')" />

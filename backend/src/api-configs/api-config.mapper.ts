@@ -5,13 +5,15 @@ export type ApiConfigListItem = ApiConfigDoc & { path: string; refCount: number;
 
 /** 对外映射，永不返回明文密钥 */
 export function toApiConfigDoc(row: ApiConfigDocument, refCount = 0): ApiConfigListItem {
-  const method = row.type === 'sql' ? 'GET' : row.external?.method ?? 'GET';
-  const path = row.type === 'sql' ? `/data/${String(row._id)}` : row.external?.url ?? '';
+  const method = row.type === 'external' ? row.external?.method ?? 'GET' : 'GET';
+  const path = row.type === 'external' ? row.external?.url ?? '' : `/data/${String(row._id)}`;
   return {
     _id: String(row._id),
     name: row.name,
     type: row.type,
+    dataProtocol: row.dataProtocol,
     sql: row.sql,
+    mockKey: row.mockKey,
     external: row.external
       ? {
           url: row.external.url,

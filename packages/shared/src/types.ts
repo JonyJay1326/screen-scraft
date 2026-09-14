@@ -353,8 +353,10 @@ export interface EventDoc {
 export interface ApiConfigDoc {
   _id: string;
   name: string;
-  type: 'sql' | 'external';
+  type: 'sql' | 'external' | 'mock';
+  dataProtocol?: ProtocolKind;
   sql?: string;
+  mockKey?: string;
   external?: {
     url: string;
     method: 'GET' | 'POST';
@@ -486,6 +488,84 @@ export interface AiReferenceAsset {
   width: number;
   height: number;
   expiresAt: string;
+}
+
+export type AiScreenComponentType =
+  | 'text'
+  | 'kpi'
+  | 'kpiList'
+  | 'line'
+  | 'bar'
+  | 'pie'
+  | 'gauge'
+  | 'table'
+  | 'border'
+  | 'unsupported';
+
+export interface AiScreenBounds {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export type AiScreenBackgroundLayerKind = 'image' | 'interactiveScene' | 'video' | 'unknown';
+
+/** 整屏截图模型能力测试结果；仅用于评估，不可直接写入画布。 */
+export interface AiScreenAnalysisResult {
+  canvas: {
+    width: number;
+    height: number;
+    backgroundColor: string;
+    /** 位于业务组件下方的页面级视觉层诊断，不含实际资产。 */
+    backgroundLayer?: {
+      kind: AiScreenBackgroundLayerKind;
+      bounds: AiScreenBounds;
+      description: string;
+      confidence: number;
+      notes: string;
+    };
+  };
+  ignoredRegions: Array<{
+    bounds: AiScreenBounds;
+    reason: string;
+  }>;
+  components: Array<{
+    order: number;
+    type: AiScreenComponentType;
+    name: string;
+    bounds: AiScreenBounds;
+    title: string;
+    visibleTexts: string[];
+    seriesCount: number;
+    confidence: number;
+    notes: string;
+  }>;
+  warnings: string[];
+}
+
+export interface AiScreenAnalysisRequest {
+  referenceAssetId: string;
+}
+
+export interface AiScreenAnalysisTestResponse {
+  model: string;
+  /** 上游 message.content 原文，不进行修正。 */
+  rawContent: string;
+  /** JSON 解析值；合法坐标可用时按行优先顺序重排 components/order。 */
+  parsedContent: unknown | null;
+  validationIssues: Array<{ path: string; message: string }>;
+}
+
+export type AiScreenDraftComponent = AiScreenAnalysisResult['components'][number] & {
+  id: string;
+  included: boolean;
+};
+
+/** 用户在写入画布前检查和修正的本地结构草稿。 */
+export interface AiScreenStructureDraft {
+  canvas: AiScreenAnalysisResult['canvas'];
+  components: AiScreenDraftComponent[];
 }
 
 /** 永久九宫格边框图资产 */

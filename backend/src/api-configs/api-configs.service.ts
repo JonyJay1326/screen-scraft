@@ -41,6 +41,9 @@ export class ApiConfigsService {
 
   /** 新建 */
   async create(dto: UpsertApiConfigDto): Promise<ApiConfigListItem> {
+    if (dto.type === 'mock') {
+      throw BizException.validation('Mock API 仅允许通过演示种子生成');
+    }
     this.validateDto(dto);
     const row = await this.model.create(this.toDoc(dto, undefined));
     return toApiConfigDoc(row, 0);
@@ -48,8 +51,11 @@ export class ApiConfigsService {
 
   /** 更新 */
   async update(id: string, dto: UpsertApiConfigDto): Promise<ApiConfigListItem> {
-    this.validateDto(dto);
     const row = await this.require(id);
+    if (dto.type === 'mock' && row.type !== 'mock') {
+      throw BizException.validation('普通 API 不能转换为 Mock API');
+    }
+    this.validateDto(dto);
     Object.assign(row, this.toDoc(dto, row.authSecretEnc));
     await row.save();
     const refCount = await this.screens.countApiRefs(id);
@@ -102,8 +108,10 @@ export class ApiConfigsService {
       } catch (error) {
         throw BizException.sqlFail((error as Error).message);
       }
-    } else if (!dto.external?.url) {
+    } else if (dto.type === 'external' && !dto.external?.url) {
       throw BizException.validation('请填写外部接口地址');
+    } else if (dto.type === 'mock' && !dto.mockKey?.trim()) {
+      throw BizException.validation('Mock 配置缺少 mockKey');
     }
   }
 
@@ -118,9 +126,11 @@ export class ApiConfigsService {
     return {
       name: dto.name.trim(),
       type: dto.type,
-      sql: dto.sql,
+      dataProtocol: dto.dataProtocol,
+      sql: dto.type === 'sql' ? dto.sql : undefined,
+      mockKey: dto.type === 'mock' ? dto.mockKey?.trim() : undefined,
       external: dto.type === 'external' ? externalRest : undefined,
-      authSecretEnc,
+      authSecretEnc: dto.type === 'external' ? authSecretEnc : undefined,
       params: dto.params,
     };
   }

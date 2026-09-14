@@ -10,6 +10,7 @@ import { AiService } from './ai.service';
 import {
   AiEditorPlanDto,
   AiGenerateComponentDto,
+  AiScreenAnalysisDto,
   AiSettingsDto,
   AiSettingsTestDto,
   ChatDto,
@@ -73,6 +74,26 @@ export class AiController {
   @Post('editor/border-assets/:id/delete')
   deleteBorderAsset(@Param('id') id: string, @CurrentUser() user: RequestUser) {
     return this.borderAssets.removeOwned(id, user.id);
+  }
+
+  /** 测试视觉模型拆分整屏截图的能力；不写画布或数据库。 */
+  @Post('editor/analyze-screen')
+  analyzeScreen(
+    @Body() dto: AiScreenAnalysisDto,
+    @CurrentUser() user: RequestUser,
+    @Req() request: Request,
+  ) {
+    const controller = new AbortController();
+    const response = request.res;
+    const abortOnDisconnect = () => {
+      if (!response?.writableEnded) {
+        controller.abort();
+      }
+    };
+    response?.once('close', abortOnDisconnect);
+    return this.ai.analyzeScreen(dto, user.id, controller.signal).finally(() => {
+      response?.off('close', abortOnDisconnect);
+    });
   }
 
   /** 为编辑器生成安全样式修改方案，不写大屏。 */

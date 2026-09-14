@@ -3,6 +3,7 @@ import {
   buildAiEditorDraft,
   getBuiltinComponentMetadata,
   validateAiEditorPlanResponse,
+  validateAiScreenAnalysisResult,
   validateAiStylePatch,
   validateComponentDefinitionSnapshot,
   validatePageComponentDefinitions,
@@ -225,6 +226,256 @@ describe('AI 修改方案结构', () => {
       ...plan,
       operations: [{ targetType: 'page', targetId: 'p1', backgroundPatch: { opacity: 101 } }],
     }).some((item) => item.path.endsWith('.opacity'))).toBe(true);
+  });
+});
+
+describe('整屏截图能力测试结构', () => {
+  const result = {
+    canvas: { width: 1920, height: 1080, backgroundColor: '#061226' },
+    ignoredRegions: [
+      { bounds: { x: 0, y: 0, w: 1920, h: 60 }, reason: '应用导航栏' },
+    ],
+    components: [
+      {
+        order: 1,
+        type: 'line',
+        name: '用汽趋势',
+        bounds: { x: 40, y: 100, w: 900, h: 420 },
+        title: '用汽趋势',
+        visibleTexts: ['用汽趋势', '本月', '上月'],
+        seriesCount: 2,
+        confidence: 0.96,
+        notes: '',
+      },
+    ],
+    warnings: [],
+  };
+
+  it('接受合法的整屏拆分结果', () => {
+    expect(validateAiScreenAnalysisResult(result)).toEqual([]);
+  });
+
+  it('接受页面背景层诊断并拒绝未知类型、资产字段、空描述和越界范围', () => {
+    const backgroundLayer = {
+      kind: 'interactiveScene',
+      bounds: { x: 0, y: 60, w: 1920, h: 1020 },
+      description: '园区全景背景图',
+      confidence: 0.95,
+      notes: '定位标记是否独立交互无法从截图确认',
+    };
+    expect(validateAiScreenAnalysisResult({
+      ...result,
+      canvas: { ...result.canvas, backgroundLayer },
+    })).toEqual([]);
+
+    const issues = validateAiScreenAnalysisResult({
+      ...result,
+      canvas: {
+        ...result.canvas,
+        backgroundLayer: {
+          ...backgroundLayer,
+          kind: 'webglScene',
+          bounds: { x: 0, y: 60, w: 1920, h: 1200 },
+          description: '',
+          confidence: 2,
+          url: 'https://example.com/background.png',
+        },
+      },
+    });
+    expect(issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: '$.canvas.backgroundLayer.kind', message: '背景层类型不在允许范围内' }),
+      expect.objectContaining({ path: '$.canvas.backgroundLayer.url', message: '字段不在白名单中' }),
+      expect.objectContaining({ path: '$.canvas.backgroundLayer.bounds', message: expect.stringContaining('超出画布') }),
+      expect.objectContaining({ path: '$.canvas.backgroundLayer.description' }),
+      expect.objectContaining({ path: '$.canvas.backgroundLayer.confidence' }),
+    ]));
+  });
+
+  it('报告背景控制栏重复识别和图表误并入 KPI', () => {
+    const issues = validateAiScreenAnalysisResult({
+      ...result,
+      canvas: {
+        ...result.canvas,
+        backgroundLayer: {
+          kind: 'interactiveScene',
+          bounds: { x: 300, y: 60, w: 1300, h: 1020 },
+          description: '三维园区场景',
+          confidence: 0.95,
+          notes: '包含定位与视角控制',
+        },
+      },
+      components: [
+        {
+          ...result.components[0],
+          type: 'kpiList',
+          title: '',
+          seriesCount: 0,
+          notes: '含柱状对比与数值指标，合并为 kpiList',
+        },
+        {
+          ...result.components[0],
+          order: 2,
+          type: 'unsupported',
+          name: '底部视角控制栏',
+          bounds: { x: 700, y: 1010, w: 700, h: 60 },
+          title: '',
+          visibleTexts: ['1X', '播放倍率', '视角漫游', '隐藏面板', '后台视频'],
+          seriesCount: 0,
+          notes: '归入背景层交互能力',
+        },
+      ],
+    });
+    expect(issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ message: expect.stringContaining('KPI 内包含独立图表') }),
+      expect.objectContaining({ message: expect.stringContaining('背景层交互控制栏') }),
+    ]));
+  });
+
+  it('报告可确定并入同名主体的游离面板标题', () => {
+    const issues = validateAiScreenAnalysisResult({
+      ...result,
+      components: [
+        {
+          order: 1,
+          type: 'text',
+          name: '运行工况标题',
+          bounds: { x: 1400, y: 100, w: 150, h: 30 },
+          title: '运行工况',
+          visibleTexts: ['运行工况'],
+          seriesCount: 0,
+          confidence: 0.95,
+          notes: '',
+        },
+        {
+          order: 2,
+          type: 'table',
+          name: '运行工况表格',
+          bounds: { x: 1400, y: 130, w: 400, h: 200 },
+          title: '',
+          visibleTexts: ['设备', '报警内容'],
+          seriesCount: 0,
+          confidence: 0.9,
+          notes: '',
+        },
+      ],
+    });
+    expect(issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ message: expect.stringContaining('游离面板标题') }),
+    ]));
+  });
+
+  it('报告图表吞并两项以上独立汇总 KPI', () => {
+    const issues = validateAiScreenAnalysisResult({
+      ...result,
+      components: [{
+        ...result.components[0],
+        visibleTexts: ['能源态势', '314 t', '当日碳排放', '31,476 t', '累计碳排放'],
+      }],
+    });
+    expect(issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ message: expect.stringContaining('图表疑似吞并') }),
+    ]));
+  });
+
+  it('对复用完全相同边界的拆分组件给出明确问题', () => {
+    const issues = validateAiScreenAnalysisResult({
+      ...result,
+      components: [
+        {
+          ...result.components[0],
+          order: 1,
+          type: 'kpi',
+          name: '年化产量',
+          title: '',
+          visibleTexts: ['5 GW', '年化产量'],
+          seriesCount: 0,
+        },
+        {
+          ...result.components[0],
+          order: 2,
+          type: 'bar',
+          name: '月单产对比',
+          title: '',
+          visibleTexts: ['170kg/天', '180kg/天'],
+          seriesCount: 2,
+        },
+      ],
+    });
+    expect(issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ message: expect.stringContaining('使用完全相同的 bounds') }),
+    ]));
+  });
+
+  it('允许 32 个组件，空数组或第 33 个组件超过硬上限', () => {
+    const components = Array.from({ length: 32 }, (_, index) => ({
+      ...result.components[0],
+      order: index + 1,
+      name: `组件${index + 1}`,
+      type: 'kpi',
+      bounds: { x: index * 2, y: 100, w: 1, h: 1 },
+      title: '',
+      visibleTexts: [],
+      seriesCount: 0,
+    }));
+    expect(validateAiScreenAnalysisResult({ ...result, components })).toEqual([]);
+    expect(validateAiScreenAnalysisResult({ ...result, components: [] })).toContainEqual({
+      path: '$.components',
+      message: 'components 必须是包含 1~32 项的数组',
+    });
+    expect(validateAiScreenAnalysisResult({
+      ...result,
+      components: [...components, { ...components[0], order: 33, name: '组件33', bounds: { x: 64, y: 100, w: 1, h: 1 } }],
+    })).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: '$.components', message: 'components 必须是包含 1~32 项的数组' }),
+    ]));
+  });
+
+  it('拒绝未知类型、重复顺序和越界坐标', () => {
+    const invalid = {
+      ...result,
+      components: [
+        { ...result.components[0], type: 'map', bounds: { x: 1800, y: 100, w: 400, h: 420 } },
+        { ...result.components[0], name: '重复组件' },
+      ],
+    };
+    const issues = validateAiScreenAnalysisResult(invalid);
+    expect(issues.some((item) => item.path.endsWith('.type'))).toBe(true);
+    expect(issues.some((item) => item.message.includes('order 不能重复'))).toBe(true);
+    expect(issues.some((item) => item.message.includes('超出画布'))).toBe(true);
+  });
+
+  it('报告按列排序、组件大面积重叠、虚构标题和饼图系列数误用', () => {
+    const semanticInvalid = {
+      ...result,
+      components: [
+        { ...result.components[0], order: 1, bounds: { x: 40, y: 500, w: 900, h: 420 } },
+        {
+          ...result.components[0],
+          order: 2,
+          type: 'pie',
+          name: '告警处理率',
+          bounds: { x: 540, y: 100, w: 500, h: 300 },
+          title: '模型概括标题',
+          visibleTexts: ['已解决', '未解决'],
+          seriesCount: 3,
+        },
+        {
+          ...result.components[0],
+          order: 3,
+          type: 'kpiList',
+          name: '告警指标',
+          bounds: { x: 560, y: 110, w: 200, h: 160 },
+          title: '',
+          visibleTexts: ['今日告警'],
+          seriesCount: 0,
+        },
+      ],
+    };
+    const issues = validateAiScreenAnalysisResult(semanticInvalid);
+    expect(issues.some((item) => item.message.includes('禁止按整列'))).toBe(true);
+    expect(issues.some((item) => item.message.includes('重叠超过'))).toBe(true);
+    expect(issues.some((item) => item.message.includes('title 必须来自'))).toBe(true);
+    expect(issues.some((item) => item.message.includes('seriesCount 表示图表系列数'))).toBe(true);
   });
 });
 

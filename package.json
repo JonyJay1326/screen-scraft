@@ -9,6 +9,7 @@
     "test": "pnpm -r test",
     "previews": "node ./scripts/gen-previews.mjs",
     "seed": "pnpm --filter backend seed",
+    "seed:mock": "pnpm --filter backend seed:mock",
     "mongo:start": "powershell -ExecutionPolicy Bypass -File ./scripts/start-mongo.ps1"
   }
 }

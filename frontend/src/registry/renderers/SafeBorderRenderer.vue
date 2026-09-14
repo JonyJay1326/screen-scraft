@@ -4,7 +4,7 @@ import {
   validateComponentDefinitionSnapshot,
   type ComponentDoc,
 } from '@screencraft/shared';
-import { borderTitleGeometry, buildSafeBorderGeometry } from '../safe-border-geometry';
+import { buildSafeBorderGeometry } from '../safe-border-geometry';
 import { resolveSafeBorderStyle } from '../safe-border-style';
 
 const props = defineProps<{
@@ -30,11 +30,6 @@ const geometry = computed(() => buildSafeBorderGeometry(
   style.value.cornerSize,
   style.value.contentPadding,
   style.value.cornerType,
-));
-const titleGeometry = computed(() => borderTitleGeometry(
-  geometry.value.width,
-  geometry.value.corner,
-  style.value.titlePosition,
 ));
 const viewBox = computed(() => `0 0 ${geometry.value.width} ${geometry.value.height}`);
 const cssVariables = computed<Record<string, string>>(() => ({
@@ -97,13 +92,6 @@ watch(() => [props.doc.w, props.doc.h], measure);
         :points="points"
         vector-effect="non-scaling-stroke"
       />
-      <text
-        v-if="style.titlePosition !== 'none'"
-        class="safe-border__title"
-        :x="titleGeometry.x"
-        :y="titleGeometry.y"
-        :text-anchor="titleGeometry.anchor"
-      >{{ doc.name }}</text>
     </svg>
   </div>
 </template>
@@ -161,15 +149,6 @@ watch(() => [props.doc.w, props.doc.h], measure);
   stroke: var(--safe-border-primary);
   stroke-width: max(1px, calc(var(--safe-border-line-width) * 0.5));
   stroke-opacity: calc(var(--safe-border-line-opacity) * 0.28);
-}
-.safe-border__title {
-  fill: var(--safe-border-accent);
-  font-size: 14px;
-  font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  dominant-baseline: auto;
-  pointer-events: none;
 }
 .safe-border__error {
   position: absolute;

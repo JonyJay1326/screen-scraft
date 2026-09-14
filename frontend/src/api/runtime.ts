@@ -2,13 +2,13 @@ import { get, post } from './http';
 import type { AiSettingsView, ScreenDoc, TencentWeatherData } from '@screencraft/shared';
 
 /** 运行时取数 */
-export function fetchDataApi(apiId: string, params: Record<string, unknown> = {}): Promise<unknown> {
-  return post(`/data/${apiId}`, params);
+export function fetchDataApi(apiId: string, params: Record<string, unknown> = {}, signal?: AbortSignal): Promise<unknown> {
+  return post(`/data/${apiId}`, params, { signal });
 }
 
 /** 内置天气 */
-export function fetchWeather(adcode: string): Promise<TencentWeatherData> {
-  return get<TencentWeatherData>('/weather', { params: { adcode } });
+export function fetchWeather(adcode: string, signal?: AbortSignal): Promise<TencentWeatherData> {
+  return get<TencentWeatherData>('/weather', { params: { adcode }, signal });
 }
 
 /** 上传资源 */

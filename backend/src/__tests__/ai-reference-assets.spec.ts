@@ -23,7 +23,11 @@ describe('AI 参考图临时资源', () => {
 
     expect(asset).toMatchObject({ mimeType: 'image/png', width: 1920, height: 1080, size: 24 });
     await expect(fixture.service.readOwned(asset._id, 'owner-2')).rejects.toMatchObject({ bizCode: 404 });
-    await expect(fixture.service.readOwned(asset._id, 'owner-1')).resolves.toMatchObject({ mimeType: 'image/png' });
+    await expect(fixture.service.readOwned(asset._id, 'owner-1')).resolves.toMatchObject({
+      mimeType: 'image/png',
+      width: 1920,
+      height: 1080,
+    });
     expect(asset).not.toHaveProperty('storageName');
   });
 
