@@ -505,6 +505,8 @@ interface AiScreenAnalysisResult {
     width: number;
     height: number;
     backgroundColor: string;
+    /** 页面公共视觉主题；组件仅返回差异项 */
+    appearance?: AiScreenCanvasAppearance;
     backgroundLayer?: {
       kind: AiScreenBackgroundLayerKind;
       bounds: AiScreenBounds;
@@ -522,10 +524,74 @@ interface AiScreenAnalysisResult {
     title: string;
     visibleTexts: string[];
     seriesCount: number;
+    appearance?: AiScreenComponentAppearance;
+    /** 必须符合当前组件类型映射的数据协议 */
+    mockData?: unknown;
+    dataConfidence?: number;
     confidence: number;
     notes: string;
   }>;
   warnings: string[];
+}
+
+interface AiScreenCanvasAppearance {
+  panelBackgroundColor: string;
+  panelBorderColor: string;
+  titleColor: string;
+  textColor: string;
+  valueColor: string;
+  accentColors: string[];
+  panelRadius: number;
+}
+
+interface AiScreenComponentAppearance {
+  panelBackgroundColor?: string;
+  panelBorderColor?: string;
+  panelBorderWidth?: number;
+  panelRadius?: number;
+  panelPadding?: number;
+  titleColor?: string;
+  textColor?: string;
+  valueColor?: string;
+  titleSize?: number;
+  valueSize?: number;
+  accentColors?: string[];
+  /** 仅允许内置 Lucide 图标；auto 表示按指标名称确定性匹配 */
+  iconName?: 'none' | 'auto' | 'activity' | 'alarm' | 'clock' | 'droplets'
+    | 'factory' | 'gauge' | 'network' | 'pressure' | 'temperature'
+    | 'timer' | 'users' | 'valve' | 'zap';
+  iconColor?: string;
+  iconBackgroundColor?: string;
+  showPeriodTabs?: boolean;
+  activePeriodTab?: '日' | '月' | '年';
+  showDateRange?: boolean;
+  dateRangeLabel?: string;
+  dateStartText?: string;
+  dateEndText?: string;
+  actionText?: string;
+  /** 仅复刻截图当前展开的静态 tooltip，不代表真实交互状态 */
+  showDemoTooltip?: boolean;
+  tooltipTitle?: string;
+  tooltipPrimaryValue?: string;
+  tooltipSecondaryValue?: string;
+  chart?: {
+    showLegend?: boolean;
+    legendPosition?: 'top' | 'topRight' | 'bottom';
+    axisLabelColor?: string;
+    gridColor?: string;
+    lineSmooth?: boolean;
+    lineWidth?: number;
+    areaOpacity?: number;
+    showSymbol?: boolean;
+    showLabel?: boolean;
+    innerRadius?: number;
+    gaugeStartAngle?: number;
+    gaugeEndAngle?: number;
+    axisLineWidth?: number;
+    showPointer?: boolean;
+    showProgress?: boolean;
+    showSplitLine?: boolean;
+  };
 }
 
 interface AiScreenAnalysisRequest {

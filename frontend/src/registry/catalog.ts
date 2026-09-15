@@ -121,9 +121,28 @@ const radarSeries: StyleFieldDraft[] = [
 
 const kpiFields: StyleFieldDraft[] = [
   ...boardFields,
+  {
+    key: 'iconName', label: '图标', type: 'select', group: '图标', options: [
+      { label: '不显示', value: 'none' }, { label: '按指标自动匹配', value: 'auto' },
+      { label: '运行状态', value: 'activity' }, { label: '告警', value: 'alarm' },
+      { label: '时钟', value: 'clock' }, { label: '水滴', value: 'droplets' },
+      { label: '厂房', value: 'factory' }, { label: '仪表', value: 'gauge' },
+      { label: '网关', value: 'network' }, { label: '压力', value: 'pressure' },
+      { label: '温度', value: 'temperature' }, { label: '计时', value: 'timer' },
+      { label: '人员', value: 'users' }, { label: '阀门', value: 'valve' },
+      { label: '能耗', value: 'zap' },
+    ],
+  },
+  { key: 'iconColor', label: '图标颜色', type: 'color', group: '图标' },
+  { key: 'iconBackgroundColor', label: '图标背景', type: 'color', group: '图标' },
   { key: 'valueSize', label: '数值字号', type: 'number', min: 18, max: 48, step: 2, unit: 'px', group: '数值' },
   { key: 'upColor', label: '上升色', type: 'color', group: '数值' },
   { key: 'downColor', label: '下降色', type: 'color', group: '数值' },
+  {
+    key: 'listLayout', label: '列表布局', type: 'select', group: '布局', options: [
+      { label: '自动', value: 'auto' }, { label: '逐行列表', value: 'rows' }, { label: '图标网格', value: 'grid' },
+    ],
+  },
 ];
 
 /** 天气组件样式字段（时间格式为常用选项下拉） */
@@ -545,9 +564,13 @@ export function buildCatalog(): Meta[] {
         item.protocol,
         kpiFields,
         boardPair(item.title, {
+          iconName: 'none',
+          iconColor: '#3F7FF0',
+          iconBackgroundColor: 'rgba(63,127,240,0.18)',
           valueSize: 28,
           upColor: '#22C55E',
           downColor: '#EF4444',
+          listLayout: 'auto',
           ...(item.hideBoardTitle ? { boardTitle: '' } : {}),
         }),
         item.data,

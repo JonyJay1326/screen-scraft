@@ -11,6 +11,28 @@ const boardFields: StyleField[] = [
   field('boardEnabled', '底板框', 'switch', '底板框'),
   field('boardTitle', '标题文字', 'text', '底板框', { aiWritable: false }),
   field('boardPadding', '内边距', 'number', '底板框', { min: 0, max: 40, step: 2, unit: 'px' }),
+  field('boardBackgroundColor', '底板背景', 'color', '底板框'),
+  field('boardBorderColor', '边框颜色', 'color', '底板框'),
+  field('boardBorderWidth', '边框宽度', 'number', '底板框', { min: 0, max: 4, step: 1, unit: 'px' }),
+  field('boardRadius', '圆角', 'number', '底板框', { min: 0, max: 32, step: 2, unit: 'px' }),
+  field('boardTitleColor', '标题颜色', 'color', '底板框'),
+  field('boardTitleSize', '标题字号', 'number', '底板框', { min: 10, max: 32, step: 1, unit: 'px' }),
+  field('boardTitleAccentColor', '标题装饰条', 'color', '底板框'),
+  field('textColor', '正文颜色', 'color', '底板框'),
+  field('valueColor', '数值颜色', 'color', '底板框'),
+  field('showPeriodTabs', '周期切换', 'switch', '附属展示'),
+  field('activePeriodTab', '当前周期', 'select', '附属展示', { options: [
+    { label: '日', value: '日' }, { label: '月', value: '月' }, { label: '年', value: '年' },
+  ] }),
+  field('showDateRange', '日期范围', 'switch', '附属展示'),
+  field('dateRangeLabel', '日期标签', 'text', '附属展示'),
+  field('dateStartText', '开始日期', 'text', '附属展示'),
+  field('dateEndText', '结束日期', 'text', '附属展示'),
+  field('actionText', '右侧操作文字', 'text', '附属展示'),
+  field('showDemoTooltip', '演示提示框', 'switch', '附属展示'),
+  field('tooltipTitle', '提示框标题', 'text', '附属展示'),
+  field('tooltipPrimaryValue', '提示值一', 'text', '附属展示'),
+  field('tooltipSecondaryValue', '提示值二', 'text', '附属展示'),
 ];
 
 const legendFields: StyleField[] = [
@@ -116,9 +138,28 @@ const gaugeFields: StyleField[] = [
 
 const kpiFields = [
   ...boardFields,
+  field('iconName', '图标', 'select', '图标', {
+    options: [
+      { label: '不显示', value: 'none' }, { label: '按指标自动匹配', value: 'auto' },
+      { label: '运行状态', value: 'activity' }, { label: '告警', value: 'alarm' },
+      { label: '时钟', value: 'clock' }, { label: '水滴', value: 'droplets' },
+      { label: '厂房', value: 'factory' }, { label: '仪表', value: 'gauge' },
+      { label: '网关', value: 'network' }, { label: '压力', value: 'pressure' },
+      { label: '温度', value: 'temperature' }, { label: '计时', value: 'timer' },
+      { label: '人员', value: 'users' }, { label: '阀门', value: 'valve' },
+      { label: '能耗', value: 'zap' },
+    ],
+  }),
+  field('iconColor', '图标颜色', 'color', '图标'),
+  field('iconBackgroundColor', '图标背景', 'color', '图标'),
   field('valueSize', '数值字号', 'number', '数值', { min: 18, max: 48, step: 2, unit: 'px' }),
   field('upColor', '上升色', 'color', '数值'),
   field('downColor', '下降色', 'color', '数值'),
+  field('listLayout', '列表布局', 'select', '布局', {
+    options: [
+      { label: '自动', value: 'auto' }, { label: '逐行列表', value: 'rows' }, { label: '图标网格', value: 'grid' },
+    ],
+  }),
 ];
 
 const schemas: Array<{

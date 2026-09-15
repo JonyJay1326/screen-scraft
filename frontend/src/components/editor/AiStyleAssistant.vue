@@ -1114,6 +1114,10 @@ watch(structureDraft, () => {
             <p v-for="item in pageSkeletonPreview.mappings" :key="item.draftId">
               <span>{{ item.componentName }}</span>
               <small>{{ formatScreenComponentType(item.componentType) }} → {{ item.templateLabel }}</small>
+              <small>
+                {{ item.styleSource === 'recognized' ? '识别样式' : item.styleSource === 'inferred' ? '工业暗色降级' : '默认样式' }} ·
+                {{ item.dataSource === 'recognized' ? '识别数据' : item.dataSource === 'inferred' ? '可见文字推导' : item.dataSource === 'default' ? '演示数据' : '无数据' }}
+              </small>
             </p>
           </div>
           <div v-if="pageSkeletonPreview.skipped.length" class="ai-note unsupported">

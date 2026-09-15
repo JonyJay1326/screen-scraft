@@ -255,6 +255,107 @@ describe('整屏截图能力测试结构', () => {
     expect(validateAiScreenAnalysisResult(result)).toEqual([]);
   });
 
+  it('接受白名单内的页面样式、组件样式与协议匹配的模拟数据', () => {
+    expect(validateAiScreenAnalysisResult({
+      ...result,
+      canvas: {
+        ...result.canvas,
+        appearance: {
+          panelBackgroundColor: '#17191B',
+          panelBorderColor: 'rgba(255,255,255,0.08)',
+          titleColor: '#F5F7FA',
+          textColor: '#AAB0BA',
+          valueColor: '#DCE5F2',
+          accentColors: ['#2F7FF7', '#39D9B2'],
+          panelRadius: 2,
+        },
+      },
+      components: [{
+        ...result.components[0],
+        appearance: {
+          panelPadding: 16,
+          titleSize: 16,
+          iconName: 'droplets',
+          iconColor: '#2F7FF7',
+          iconBackgroundColor: 'rgba(47,127,247,0.18)',
+          showPeriodTabs: true,
+          activePeriodTab: '日',
+          showDemoTooltip: true,
+          tooltipTitle: '12:00',
+          tooltipPrimaryValue: '5000t',
+          tooltipSecondaryValue: '3780t',
+          chart: {
+            showLegend: true,
+            legendPosition: 'topRight',
+            axisLabelColor: '#8B95A5',
+            gridColor: 'rgba(255,255,255,0.12)',
+            lineSmooth: false,
+            lineWidth: 2,
+            areaOpacity: 24,
+            showSymbol: true,
+          },
+        },
+        mockData: {
+          categories: ['10:00', '12:00'],
+          series: [
+            { name: '本月', data: [42, 58] },
+            { name: '上月', data: [36, 49] },
+          ],
+        },
+        dataConfidence: 0.88,
+      }],
+    })).toEqual([]);
+  });
+
+  it('拒绝越过样式白名单、外部资源和协议不匹配的模拟数据', () => {
+    const issues = validateAiScreenAnalysisResult({
+      ...result,
+      canvas: {
+        ...result.canvas,
+        appearance: {
+          panelBackgroundColor: 'url(https://example.com/a.png)',
+          panelBorderColor: '#223344',
+          titleColor: '#FFFFFF',
+          textColor: '#AAB0BA',
+          valueColor: '#FFFFFF',
+          accentColors: [],
+          panelRadius: 99,
+          rawCss: 'position:fixed',
+        },
+      },
+      components: [{
+        ...result.components[0],
+        appearance: {
+          panelPadding: 80,
+          iconName: 'custom-svg',
+          iconColor: 'url(https://example.com/icon.svg)',
+          showPeriodTabs: 'yes',
+          activePeriodTab: '季度',
+          tooltipTitle: 'x'.repeat(65),
+          chart: { formatter: 'javascript:alert(1)', lineWidth: 20 },
+        },
+        mockData: { name: '错误协议', value: 10 },
+        dataConfidence: 2,
+      }],
+    });
+    expect(issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: '$.canvas.appearance.rawCss', message: '字段不在白名单中' }),
+      expect.objectContaining({ path: '$.canvas.appearance.panelBackgroundColor' }),
+      expect.objectContaining({ path: '$.canvas.appearance.accentColors', message: 'accentColors 至少包含 1 个颜色' }),
+      expect.objectContaining({ path: '$.canvas.appearance.panelRadius' }),
+      expect.objectContaining({ path: '$.components[0].appearance.panelPadding' }),
+      expect.objectContaining({ path: '$.components[0].appearance.iconName' }),
+      expect.objectContaining({ path: '$.components[0].appearance.iconColor' }),
+      expect.objectContaining({ path: '$.components[0].appearance.showPeriodTabs' }),
+      expect.objectContaining({ path: '$.components[0].appearance.activePeriodTab' }),
+      expect.objectContaining({ path: '$.components[0].appearance.tooltipTitle' }),
+      expect.objectContaining({ path: '$.components[0].appearance.chart.formatter', message: '字段不在白名单中' }),
+      expect.objectContaining({ path: '$.components[0].appearance.chart.lineWidth' }),
+      expect.objectContaining({ path: '$.components[0].mockData', message: expect.stringContaining('categories') }),
+      expect.objectContaining({ path: '$.components[0].dataConfidence' }),
+    ]));
+  });
+
   it('接受页面背景层诊断并拒绝未知类型、资产字段、空描述和越界范围', () => {
     const backgroundLayer = {
       kind: 'interactiveScene',
@@ -374,6 +475,26 @@ describe('整屏截图能力测试结构', () => {
     });
     expect(issues).toEqual(expect.arrayContaining([
       expect.objectContaining({ message: expect.stringContaining('图表疑似吞并') }),
+    ]));
+  });
+
+  it('报告设备统计仪表盘错误吞并网关和设备类型指标', () => {
+    const issues = validateAiScreenAnalysisResult({
+      ...result,
+      components: [{
+        ...result.components[0],
+        type: 'gauge',
+        name: '设备统计',
+        title: '设备统计',
+        seriesCount: 1,
+        visibleTexts: [
+          '设备统计', '80%', '采集', '网关总数', '27 个', '网关在线数', '27 个',
+          '流量计', '20 / 20', '电动阀门', '20 / 20', '管道温度计', '20 / 20',
+        ],
+      }],
+    });
+    expect(issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ message: expect.stringContaining('设备统计仪表盘下方包含独立网关') }),
     ]));
   });
 

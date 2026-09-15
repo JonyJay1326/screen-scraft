@@ -24,6 +24,13 @@ export type ProtocolKind =
 export type StyleFieldType = 'text' | 'number' | 'switch' | 'color' | 'select' | 'colorList';
 export type StyleValue = string | number | boolean | string[];
 
+/** 整屏截图识别可选择的内置 Lucide 图标；不允许模型提供 SVG 或外部资源。 */
+export const AI_SCREEN_ICON_NAMES = [
+  'none', 'auto', 'activity', 'alarm', 'clock', 'droplets', 'factory',
+  'gauge', 'network', 'pressure', 'temperature', 'timer', 'users', 'valve', 'zap',
+] as const;
+export type AiScreenIconName = typeof AI_SCREEN_ICON_NAMES[number];
+
 export interface StyleField {
   key: string;
   label: string;
@@ -511,12 +518,76 @@ export interface AiScreenBounds {
 
 export type AiScreenBackgroundLayerKind = 'image' | 'interactiveScene' | 'video' | 'unknown';
 
+/** 整屏截图中可复用的页面视觉主题，只允许纯声明式视觉值。 */
+export interface AiScreenCanvasAppearance {
+  panelBackgroundColor: string;
+  panelBorderColor: string;
+  titleColor: string;
+  textColor: string;
+  valueColor: string;
+  accentColors: string[];
+  panelRadius: number;
+  /** 卡片标题左侧装饰竖条颜色；截图中没有则省略。 */
+  titleAccentColor?: string;
+}
+
+/** 图表模板现有安全字段的视觉提示。 */
+export interface AiScreenChartAppearance {
+  showLegend?: boolean;
+  legendPosition?: 'top' | 'topRight' | 'bottom';
+  axisLabelColor?: string;
+  gridColor?: string;
+  lineSmooth?: boolean;
+  lineWidth?: number;
+  areaOpacity?: number;
+  showSymbol?: boolean;
+  showLabel?: boolean;
+  innerRadius?: number;
+  gaugeStartAngle?: number;
+  gaugeEndAngle?: number;
+  axisLineWidth?: number;
+  showPointer?: boolean;
+  showProgress?: boolean;
+  showSplitLine?: boolean;
+}
+
+/** 组件相对页面主题的局部视觉覆盖。 */
+export interface AiScreenComponentAppearance {
+  panelBackgroundColor?: string;
+  panelBorderColor?: string;
+  panelBorderWidth?: number;
+  panelRadius?: number;
+  panelPadding?: number;
+  titleColor?: string;
+  textColor?: string;
+  valueColor?: string;
+  titleSize?: number;
+  valueSize?: number;
+  accentColors?: string[];
+  iconName?: AiScreenIconName;
+  iconColor?: string;
+  iconBackgroundColor?: string;
+  showPeriodTabs?: boolean;
+  activePeriodTab?: '日' | '月' | '年';
+  showDateRange?: boolean;
+  dateRangeLabel?: string;
+  dateStartText?: string;
+  dateEndText?: string;
+  actionText?: string;
+  showDemoTooltip?: boolean;
+  tooltipTitle?: string;
+  tooltipPrimaryValue?: string;
+  tooltipSecondaryValue?: string;
+  chart?: AiScreenChartAppearance;
+}
+
 /** 整屏截图模型能力测试结果；仅用于评估，不可直接写入画布。 */
 export interface AiScreenAnalysisResult {
   canvas: {
     width: number;
     height: number;
     backgroundColor: string;
+    appearance?: AiScreenCanvasAppearance;
     /** 位于业务组件下方的页面级视觉层诊断，不含实际资产。 */
     backgroundLayer?: {
       kind: AiScreenBackgroundLayerKind;
@@ -538,6 +609,10 @@ export interface AiScreenAnalysisResult {
     title: string;
     visibleTexts: string[];
     seriesCount: number;
+    appearance?: AiScreenComponentAppearance;
+    /** 仅允许符合组件类型既有数据协议的可见模拟数据。 */
+    mockData?: unknown;
+    dataConfidence?: number;
     confidence: number;
     notes: string;
   }>;

@@ -1,7 +1,10 @@
 import type {
   PageDoc,
+  ProtocolKind,
   StyleField,
 } from './types';
+import { AI_SCREEN_ICON_NAMES } from './types';
+import { validateProtocol } from './validators';
 
 export interface AiValidationIssue {
   path: string;
@@ -121,10 +124,13 @@ export function validateAiScreenAnalysisResult(input: unknown): AiValidationIssu
     issues.push({ path: '$.canvas', message: 'canvas 必须是普通对象' });
     return issues;
   }
-  strictKeys(input.canvas, ['width', 'height', 'backgroundColor', 'backgroundLayer'], '$.canvas', issues);
+  strictKeys(input.canvas, ['width', 'height', 'backgroundColor', 'appearance', 'backgroundLayer'], '$.canvas', issues);
   integerValue(input.canvas.width, 1, 8192, '$.canvas.width', issues);
   integerValue(input.canvas.height, 1, 8192, '$.canvas.height', issues);
   colorValue(input.canvas.backgroundColor, '$.canvas.backgroundColor', issues);
+  if (input.canvas.appearance !== undefined) {
+    validateScreenCanvasAppearance(input.canvas.appearance, issues);
+  }
   if (input.canvas.backgroundLayer !== undefined) {
     validateScreenBackgroundLayer(input.canvas.backgroundLayer, input.canvas, issues);
   }
@@ -152,6 +158,135 @@ function validateScreenBackgroundLayer(
   nonEmptyString(input.description, '$.canvas.backgroundLayer.description', issues, 256);
   numberValue(input.confidence, 0, 1, '$.canvas.backgroundLayer.confidence', issues);
   stringValue(input.notes, '$.canvas.backgroundLayer.notes', issues, 512);
+}
+
+function validateScreenCanvasAppearance(input: unknown, issues: AiValidationIssue[]): void {
+  const path = '$.canvas.appearance';
+  if (!isPlainRecord(input)) {
+    issues.push({ path, message: 'appearance 必须是普通对象' });
+    return;
+  }
+  strictKeys(input, [
+    'panelBackgroundColor', 'panelBorderColor', 'titleColor', 'textColor', 'valueColor', 'accentColors', 'panelRadius',
+    'titleAccentColor',
+  ], path, issues);
+  ['panelBackgroundColor', 'panelBorderColor', 'titleColor', 'textColor', 'valueColor'].forEach((key) => {
+    colorValue(input[key], `${path}.${key}`, issues);
+  });
+  if (input.titleAccentColor !== undefined) {
+    colorValue(input.titleAccentColor, `${path}.titleAccentColor`, issues);
+  }
+  validateBoundedStringArray(input.accentColors, `${path}.accentColors`, issues, 8, 32);
+  if (Array.isArray(input.accentColors)) {
+    if (input.accentColors.length === 0) {
+      issues.push({ path: `${path}.accentColors`, message: 'accentColors 至少包含 1 个颜色' });
+    }
+    input.accentColors.forEach((color, index) => colorValue(color, `${path}.accentColors[${index}]`, issues));
+  }
+  numberValue(input.panelRadius, 0, 32, `${path}.panelRadius`, issues);
+}
+
+function validateScreenComponentAppearance(input: unknown, path: string, issues: AiValidationIssue[]): void {
+  if (!isPlainRecord(input)) {
+    issues.push({ path, message: 'appearance 必须是普通对象' });
+    return;
+  }
+  strictKeys(input, [
+    'panelBackgroundColor', 'panelBorderColor', 'panelBorderWidth', 'panelRadius', 'panelPadding',
+    'titleColor', 'textColor', 'valueColor', 'titleSize', 'valueSize', 'accentColors',
+    'iconName', 'iconColor', 'iconBackgroundColor', 'showPeriodTabs', 'activePeriodTab',
+    'showDateRange', 'dateRangeLabel', 'dateStartText', 'dateEndText', 'actionText',
+    'showDemoTooltip', 'tooltipTitle', 'tooltipPrimaryValue', 'tooltipSecondaryValue', 'chart',
+  ], path, issues);
+  [
+    'panelBackgroundColor', 'panelBorderColor', 'titleColor', 'textColor', 'valueColor',
+    'iconColor', 'iconBackgroundColor',
+  ].forEach((key) => {
+    if (input[key] !== undefined) {
+      colorValue(input[key], `${path}.${key}`, issues);
+    }
+  });
+  const ranges: Array<[string, number, number]> = [
+    ['panelBorderWidth', 0, 4], ['panelRadius', 0, 32], ['panelPadding', 0, 40],
+    ['titleSize', 10, 32], ['valueSize', 12, 64],
+  ];
+  ranges.forEach(([key, min, max]) => {
+    if (input[key] !== undefined) {
+      numberValue(input[key], min, max, `${path}.${key}`, issues);
+    }
+  });
+  if (input.accentColors !== undefined) {
+    validateBoundedStringArray(input.accentColors, `${path}.accentColors`, issues, 8, 32);
+    if (Array.isArray(input.accentColors)) {
+      if (input.accentColors.length === 0) {
+        issues.push({ path: `${path}.accentColors`, message: 'accentColors 至少包含 1 个颜色' });
+      }
+      input.accentColors.forEach((color, index) => colorValue(color, `${path}.accentColors[${index}]`, issues));
+    }
+  }
+  if (input.iconName !== undefined) {
+    enumValue(input.iconName, [...AI_SCREEN_ICON_NAMES], `${path}.iconName`, issues);
+  }
+  ['showPeriodTabs', 'showDateRange', 'showDemoTooltip'].forEach((key) => {
+    if (input[key] !== undefined && typeof input[key] !== 'boolean') {
+      issues.push({ path: `${path}.${key}`, message: `${key} 必须是布尔值` });
+    }
+  });
+  if (input.activePeriodTab !== undefined) {
+    enumValue(input.activePeriodTab, ['日', '月', '年'], `${path}.activePeriodTab`, issues);
+  }
+  ['dateRangeLabel', 'dateStartText', 'dateEndText', 'actionText', 'tooltipTitle', 'tooltipPrimaryValue', 'tooltipSecondaryValue'].forEach((key) => {
+    if (input[key] !== undefined) stringValue(input[key], `${path}.${key}`, issues, 64);
+  });
+  if (input.chart !== undefined) {
+    validateScreenChartAppearance(input.chart, `${path}.chart`, issues);
+  }
+}
+
+function validateScreenChartAppearance(input: unknown, path: string, issues: AiValidationIssue[]): void {
+  if (!isPlainRecord(input)) {
+    issues.push({ path, message: 'chart 必须是普通对象' });
+    return;
+  }
+  strictKeys(input, [
+    'showLegend', 'legendPosition', 'axisLabelColor', 'gridColor', 'lineSmooth', 'lineWidth', 'areaOpacity',
+    'showSymbol', 'showLabel', 'innerRadius', 'gaugeStartAngle', 'gaugeEndAngle', 'axisLineWidth',
+    'showPointer', 'showProgress', 'showSplitLine',
+  ], path, issues);
+  ['showLegend', 'lineSmooth', 'showSymbol', 'showLabel', 'showPointer', 'showProgress', 'showSplitLine'].forEach((key) => {
+    if (input[key] !== undefined && typeof input[key] !== 'boolean') {
+      issues.push({ path: `${path}.${key}`, message: `${key} 必须是布尔值` });
+    }
+  });
+  if (input.legendPosition !== undefined && !['top', 'topRight', 'bottom'].includes(String(input.legendPosition))) {
+    issues.push({ path: `${path}.legendPosition`, message: 'legendPosition 不在允许范围内' });
+  }
+  ['axisLabelColor', 'gridColor'].forEach((key) => {
+    if (input[key] !== undefined) {
+      colorValue(input[key], `${path}.${key}`, issues);
+    }
+  });
+  const ranges: Array<[string, number, number]> = [
+    ['lineWidth', 1, 6], ['areaOpacity', 0, 100], ['innerRadius', 0, 80],
+    ['gaugeStartAngle', -360, 360], ['gaugeEndAngle', -360, 360], ['axisLineWidth', 6, 28],
+  ];
+  ranges.forEach(([key, min, max]) => {
+    if (input[key] !== undefined) {
+      numberValue(input[key], min, max, `${path}.${key}`, issues);
+    }
+  });
+}
+
+function screenProtocolForType(type: string): ProtocolKind | undefined {
+  return {
+    kpi: 'kpi-1',
+    kpiList: 'kpi-list',
+    line: 'axis',
+    bar: 'axis',
+    pie: 'nameValue',
+    gauge: 'nameValue',
+    table: 'table',
+  }[type] as ProtocolKind | undefined;
 }
 
 /** 校验安全图表描述；只接受批准的纯声明式字段。 */
@@ -1316,7 +1451,7 @@ function validateScreenComponents(
       return;
     }
     strictKeys(item, [
-      'order', 'type', 'name', 'bounds', 'title', 'visibleTexts', 'seriesCount', 'confidence', 'notes',
+      'order', 'type', 'name', 'bounds', 'title', 'visibleTexts', 'seriesCount', 'appearance', 'mockData', 'dataConfidence', 'confidence', 'notes',
     ], path, issues);
     integerValue(item.order, 1, AI_SCREEN_ANALYSIS_COMPONENT_LIMIT, `${path}.order`, issues);
     if (typeof item.order === 'number' && Number.isInteger(item.order)) {
@@ -1333,6 +1468,22 @@ function validateScreenComponents(
     stringValue(item.title, `${path}.title`, issues, 256);
     validateBoundedStringArray(item.visibleTexts, `${path}.visibleTexts`, issues, 32, 256);
     integerValue(item.seriesCount, 0, 32, `${path}.seriesCount`, issues);
+    if (item.appearance !== undefined) {
+      validateScreenComponentAppearance(item.appearance, `${path}.appearance`, issues);
+    }
+    if (item.mockData !== undefined && typeof item.type === 'string') {
+      const protocol = screenProtocolForType(item.type);
+      if (!protocol) {
+        issues.push({ path: `${path}.mockData`, message: '该组件类型不允许 mockData' });
+      } else {
+        validateProtocol(protocol, item.mockData).forEach((issue) => {
+          issues.push({ path: `${path}.mockData`, message: issue.message });
+        });
+      }
+    }
+    if (item.dataConfidence !== undefined) {
+      numberValue(item.dataConfidence, 0, 1, `${path}.dataConfidence`, issues);
+    }
     if (
       typeof item.title === 'string' && item.title
       && Array.isArray(item.visibleTexts) && !item.visibleTexts.includes(item.title)
@@ -1372,6 +1523,17 @@ function validateScreenComponentSemantics(
   path: string,
   issues: AiValidationIssue[],
 ): void {
+  if (item.type === 'gauge' && Array.isArray(item.visibleTexts)) {
+    const texts = item.visibleTexts.filter((value): value is string => typeof value === 'string');
+    const hasGatewayMetrics = texts.some((value) => /网关(?:总数|在线数|离线数)/.test(value));
+    const deviceMetricCount = texts.filter((value) => /(?:流量计|电动阀门|管道温度计|管道压力表)/.test(value)).length;
+    if (hasGatewayMetrics || deviceMetricCount >= 2) {
+      issues.push({
+        path: `${path}.type`,
+        message: '设备统计仪表盘下方包含独立网关或设备指标，应拆为 gauge、kpiList 和设备类型 kpiList；禁止合并为一个 gauge',
+      });
+    }
+  }
   if ((item.type === 'kpi' || item.type === 'kpiList')
     && typeof item.notes === 'string'
     && /柱状|折线|饼图|仪表盘|独立图表/.test(item.notes)) {

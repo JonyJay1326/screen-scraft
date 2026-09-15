@@ -1,9 +1,12 @@
 import type {
   AiScreenBackgroundLayerKind,
+  AiScreenCanvasAppearance,
+  AiScreenComponentAppearance,
   AiScreenComponentType,
   AiScreenDraftComponent,
   AiScreenStructureDraft,
 } from './types';
+import { AI_SCREEN_ICON_NAMES } from './types';
 import {
   AI_SCREEN_ANALYSIS_COMPONENT_LIMIT,
   type AiValidationIssue,
@@ -32,6 +35,7 @@ export function buildAiScreenStructureDraft(input: unknown): AiScreenStructureDr
   if (input.canvas.backgroundLayer !== undefined && !backgroundLayer) {
     return null;
   }
+  const appearance = parseCanvasAppearance(input.canvas.appearance);
   const components: AiScreenDraftComponent[] = [];
   for (const [index, value] of input.components.entries()) {
     const component = parseComponent(value, index);
@@ -48,6 +52,7 @@ export function buildAiScreenStructureDraft(input: unknown): AiScreenStructureDr
       width,
       height,
       backgroundColor: input.canvas.backgroundColor,
+      ...(appearance ? { appearance } : {}),
       ...(backgroundLayer ? { backgroundLayer } : {}),
     },
     components,
@@ -107,6 +112,7 @@ function parseComponent(input: unknown, index: number): AiScreenDraftComponent |
   ) {
     return null;
   }
+  const appearance = parseComponentAppearance(input.appearance);
   return {
     id: `screen-draft-${index + 1}`,
     included: true,
@@ -117,9 +123,82 @@ function parseComponent(input: unknown, index: number): AiScreenDraftComponent |
     title: input.title,
     visibleTexts: [...input.visibleTexts] as string[],
     seriesCount: input.seriesCount,
+    ...(appearance ? { appearance } : {}),
+    ...(input.mockData === undefined ? {} : { mockData: cloneJsonValue(input.mockData) }),
+    ...(typeof input.dataConfidence === 'number' && Number.isFinite(input.dataConfidence)
+      ? { dataConfidence: input.dataConfidence }
+      : {}),
     confidence: input.confidence,
     notes: input.notes,
   };
+}
+
+function parseCanvasAppearance(input: unknown): AiScreenCanvasAppearance | undefined {
+  if (!isRecord(input)) {
+    return undefined;
+  }
+  const colorKeys = ['panelBackgroundColor', 'panelBorderColor', 'titleColor', 'textColor', 'valueColor'] as const;
+  if (!colorKeys.every((key) => typeof input[key] === 'string')
+    || !Array.isArray(input.accentColors) || !input.accentColors.every((color) => typeof color === 'string')
+    || typeof input.panelRadius !== 'number' || !Number.isFinite(input.panelRadius)) {
+    return undefined;
+  }
+  return {
+    panelBackgroundColor: input.panelBackgroundColor as string,
+    panelBorderColor: input.panelBorderColor as string,
+    titleColor: input.titleColor as string,
+    textColor: input.textColor as string,
+    valueColor: input.valueColor as string,
+    accentColors: [...input.accentColors] as string[],
+    panelRadius: input.panelRadius,
+    ...(typeof input.titleAccentColor === 'string' && input.titleAccentColor.trim()
+      ? { titleAccentColor: input.titleAccentColor }
+      : {}),
+  };
+}
+
+function parseComponentAppearance(input: unknown): AiScreenComponentAppearance | undefined {
+  if (!isRecord(input)) {
+    return undefined;
+  }
+  const result: Record<string, unknown> = {};
+  const colorKeys = [
+    'panelBackgroundColor', 'panelBorderColor', 'titleColor', 'textColor', 'valueColor',
+    'iconColor', 'iconBackgroundColor',
+  ] as const;
+  colorKeys.forEach((key) => {
+    if (typeof input[key] === 'string') {
+      result[key] = input[key];
+    }
+  });
+  ['panelBorderWidth', 'panelRadius', 'panelPadding', 'titleSize', 'valueSize'].forEach((key) => {
+    if (typeof input[key] === 'number' && Number.isFinite(input[key])) {
+      result[key] = input[key];
+    }
+  });
+  if (Array.isArray(input.accentColors) && input.accentColors.every((color) => typeof color === 'string')) {
+    result.accentColors = [...input.accentColors];
+  }
+  if (typeof input.iconName === 'string' && AI_SCREEN_ICON_NAMES.includes(input.iconName as typeof AI_SCREEN_ICON_NAMES[number])) {
+    result.iconName = input.iconName;
+  }
+  ['showPeriodTabs', 'showDateRange', 'showDemoTooltip'].forEach((key) => {
+    if (typeof input[key] === 'boolean') result[key] = input[key];
+  });
+  if (input.activePeriodTab === '日' || input.activePeriodTab === '月' || input.activePeriodTab === '年') {
+    result.activePeriodTab = input.activePeriodTab;
+  }
+  ['dateRangeLabel', 'dateStartText', 'dateEndText', 'actionText', 'tooltipTitle', 'tooltipPrimaryValue', 'tooltipSecondaryValue'].forEach((key) => {
+    if (typeof input[key] === 'string') result[key] = input[key];
+  });
+  if (isRecord(input.chart)) {
+    result.chart = { ...input.chart };
+  }
+  return Object.keys(result).length ? result as AiScreenComponentAppearance : undefined;
+}
+
+function cloneJsonValue<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
 }
 
 function parseBackgroundLayer(

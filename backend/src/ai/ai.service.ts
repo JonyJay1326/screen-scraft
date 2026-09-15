@@ -1030,6 +1030,7 @@ export class AiService {
       '语义合并规则：①同一模块内相邻且结构一致的 KPI 卡片可合并为一个 kpiList；②同一标题卡片内的多行、多列状态指标可合并为一个 kpiList，即使行列布局或图标不同；③纯标题并入所属内容组件的 title，不单独生成 text。',
       '若一个带标题栏的外层面板只有一个主要 gauge、line、bar、pie 或 table，标题栏、页签、图例和该主体必须合并为同一个组件，bounds 覆盖完整面板；禁止把“设备态势”“运行工况”“能耗”等面板标题拆成独立窄 text。',
       '组件合并后 type 必须取主要可视化主体：圆环/仪表盘加右侧运行、故障、停机状态列表仍是 gauge，seriesCount 固定为 1，绝不能写成 kpiList；折线图上方若有两项以上可独立编辑的汇总 KPI，应拆成 kpiList 与 line，不能全部塞进 line。',
+      '设备统计是强制拆分例外：若仪表盘下方还能看到“网关总数/网关在线数/网关离线数”，或“流量计/电动阀门/管道温度计/管道压力表”等独立指标卡，必须分别输出 gauge、网关 kpiList、设备类型 kpiList；不得因为它们位于同一外层卡片就合并为一个 gauge。gauge.bounds 只能框住顶部仪表盘子区域，底边必须停在第一个 kpiList 顶边之前，严禁继续覆盖下方已拆出的指标列表。每个拆分组件必须使用自己的子区域 bounds，无法确认子区域时降低 confidence 并在 warnings 说明。',
       '同一外层卡片内由一个总标题统领、纵向连续排列且均属于 KPI、进度条或对比指标的复合分析区，必须整体合并为一个 kpiList；bounds 覆盖该外层卡片的完整内容区，禁止拆成标题、进度条和若干窄行，否则容易遗漏内容或产生纵向错位。',
       '不得合并两个独立图表，不得把 line、bar、pie、gauge、table 合并进 kpiList，也不得遗漏主要图表或表格。',
       'components.length 超过 20 时在 warnings 提醒人工检查可合并项或误识别项，但仍可保留独立组件；若候选数超过 32，只保留最主要的 32 个编辑单元，并在 warnings 说明遗漏内容。',
@@ -1041,6 +1042,19 @@ export class AiService {
       'bounds 使用截图原始像素坐标，左上角为 (0,0)，必须紧贴完整编辑单元的可见边界；包含该单元的标题、图例和坐标轴，但不能包含相邻组件、大片空白或仅因共用卡片产生的区域。',
       'bounds 的 x、y、w、h 必须取尽可能准确的整数且不能超出画布，禁止为了整齐而统一取整到百位或扩大到整列。',
       '完成预算合并后必须重新排序：先按 bounds.y 从小到大；顶部 y 相差不超过 32px 的视为同一行，再按 bounds.x 从小到大。禁止先输出完整左列再输出中列或右列，order 必须从 1 开始连续递增。',
+      '除布局外还要识别视觉主题。canvas.appearance 必须输出页面公共视觉：panelBackgroundColor、panelBorderColor、titleColor、textColor、valueColor、accentColors、panelRadius。颜色只能使用截图中可判断的 #RGB/#RRGGBB/rgba，accentColors 为 1 至 8 个主要强调色，panelRadius 为 0 至 32。',
+      '卡片标题左侧若普遍带有竖条、色块等装饰标记，在 canvas.appearance 额外输出 titleAccentColor（装饰条颜色）；没有该装饰则省略该字段，不得猜测。',
+      'accentColors 的顺序要与页面中图标、状态色的出现顺序一致（例如蓝、绿、青、红），同一卡片内多张设备类型小卡若图标颜色互不相同，必须在该组件 appearance.accentColors 按数据项顺序逐一列出。',
+      'component.appearance 只输出相对 canvas.appearance 不同的局部覆盖，允许字段仅为 panelBackgroundColor、panelBorderColor、panelBorderWidth、panelRadius、panelPadding、titleColor、textColor、valueColor、titleSize、valueSize、accentColors、iconName、iconColor、iconBackgroundColor、showPeriodTabs、activePeriodTab、showDateRange、dateRangeLabel、dateStartText、dateEndText、actionText、showDemoTooltip、tooltipTitle、tooltipPrimaryValue、tooltipSecondaryValue、chart；没有差异就省略，禁止重复整套页面主题。',
+      '仅当截图中组件确实有可见图标时输出 iconName。可选值只有 none、auto、activity、alarm、clock、droplets、factory、gauge、network、pressure、temperature、timer、users、valve、zap；单个 KPI 选最接近的具体图标，包含多个不同指标图标的 kpiList 使用 auto。iconColor 与 iconBackgroundColor 只能是截图可判断的颜色。找不到近似图标时省略，禁止输出图标 URL、SVG、HTML、emoji 或自造名称。',
+      '截图中图表明确显示“日/月/年”切换时输出 showPeriodTabs=true 与 activePeriodTab；表格或分析卡明确显示日期区间时输出 showDateRange=true，并逐字抄录 dateRangeLabel、dateStartText、dateEndText；标题栏明确显示“更多/查看详情”时写入 actionText。上述字段只复刻当前静态外观，不推断点击逻辑。',
+      '仅当截图当前确实展开图表 tooltip 时输出 showDemoTooltip=true，并逐字抄录 tooltipTitle、tooltipPrimaryValue、tooltipSecondaryValue；没有展开则全部省略。不得虚构 tooltip 数值，不得将筛选器或 tooltip 拆成独立组件。',
+      'appearance.chart 只允许 showLegend、legendPosition(top/topRight/bottom)、axisLabelColor、gridColor、lineSmooth、lineWidth(1~6)、areaOpacity(0~100)、showSymbol、showLabel、innerRadius(0~80)、gaugeStartAngle、gaugeEndAngle、axisLineWidth(6~28)、showPointer、showProgress、showSplitLine。饼图或设备卡片颜色与页面公共色板不同时，必须按数据项顺序在 component.appearance.accentColors 输出局部颜色。禁止 CSS、HTML、SVG、函数、URL、阴影表达式或原始 ECharts option。',
+      '尽量输出截图可见业务数据到 mockData，无法可靠读取则省略并降低 dataConfidence。每个 kpi 数据项必须完整包含 name、value、unit、trend、trendDir；截图没有单位时 unit=""，没有趋势时 trend=0、trendDir="up"，不得省略。示例：[{"name":"今日用汽量","value":"380.22","unit":"t","trend":0,"trendDir":"up"}]。kpiList 使用 [{"name":"网关总数","value":"27 个"}]；line/bar 使用 {"categories":["2:00","4:00"],"series":[{"name":"实际","data":[3600,3700]}]}；pie/gauge 使用 [{"name":"已解决","value":80}]；table 使用 {"columns":[{"key":"team","label":"班组"}],"rows":[{"team":"A3-1班"}]}。',
+      'gauge 合并了旁边的运行/故障/停机等状态列表时，mockData 第一项必须是仪表盘主值（name 取仪表盘下方标题，如“单晶设备”），后续项依次为各状态名称与数值，不得丢弃状态列表；主值不是百分比时不要换算成百分比。',
+      'kpiList 若由带图标的多列小指标组成，appearance.iconName 必须为 auto；卡片内被放大、独占一行的头条指标（如“管网长度 10803 m”）必须作为 mockData 第一项，其余按从左到右、从上到下顺序排列，value 保留单位（如 "320 ℃"、"76% 120/156"）。',
+      'kpiList 的 mockData 必须逐行包含该卡片内全部指标行，数值为 0 或与上一行相同的行也不能省略（例如“网关离线数 0 个”）。',
+      'mockData 只抄录或近似截图中确实可见的内容：KPI、表格和饼图优先准确；折线/柱状曲线可按坐标轴近似取 6 至 12 个点并在 warnings 说明。表格最多 8 列、12 行，key 使用简短英文；重复行也要按截图可见数量保留，避免生成页面出现大片空白。visibleTexts 仍只保留最多 3 行代表数据。数据数组最多 32 项。text、border、unsupported 不得输出 mockData。dataConfidence 范围 0~1，仅在输出 mockData 时提供。',
       'visibleTexts 只记录组件内稳定可见的原文，保持截图中的数字、空格、单位和标点，不补字、不改写、不推断被遮挡内容。',
       'title 必须逐字存在于 visibleTexts；截图中没有独立显示的概括性标题只能写入 name，title 必须留空字符串。',
       '每个 visibleTexts 最多 32 项；表格只保留标题、筛选文字、列名和最多 3 行有代表性的可见数据，不要重复抄录相同单元格。',
@@ -1049,7 +1063,7 @@ export class AiService {
       'confidence 范围为 0 到 1；类型、文字或边界不确定时必须降低 confidence，并在 notes 或 warnings 明确说明，不得虚构。',
       '返回前按顺序自检：components 是否为 1 至 32 项；最大 order 是否等于 components.length；是否按行而非按列排序；visibleTexts 是否均不超过 32 项；backgroundLayer 已存在时 components 是否仍含视角、倍率、显隐或后台视频控制栏；kpi/kpiList 的 notes 是否仍声称包含柱状、折线、饼图或仪表盘；是否仍存在“产品态势标题”“设备态势标题”“运行工况标题”“能耗标题”等紧贴主体的游离 text。然后再检查错误合并、text 类型、边界和 OCR。任一项不满足都必须先修正再输出；禁止明知应归入背景层却为保留文字继续输出该组件。',
       '仅返回合法 JSON 对象，不返回 Markdown、解释、代码或注释。',
-      '返回结构：{"canvas":{"width":1920,"height":1080,"backgroundColor":"#000000","backgroundLayer":{"kind":"interactiveScene","bounds":{"x":0,"y":60,"w":1920,"h":1020},"description":"可交互三维园区态势场景","confidence":0.95,"notes":"包含定位标记、悬浮信息和视角控制；当前版本无法生成"}},"ignoredRegions":[{"bounds":{"x":0,"y":0,"w":1920,"h":60},"reason":"应用导航栏"}],"components":[{"order":1,"type":"line","name":"组件名称","bounds":{"x":0,"y":0,"w":100,"h":100},"title":"截图中可见的标题","visibleTexts":[],"seriesCount":0,"confidence":0.9,"notes":""}],"warnings":[]}。',
+      '返回结构：{"canvas":{"width":1920,"height":1080,"backgroundColor":"#141414","appearance":{"panelBackgroundColor":"#191919","panelBorderColor":"#252525","titleColor":"#d7dbe3","textColor":"#8e939e","valueColor":"#e3e7ef","accentColors":["#3f7ff0","#36d3a5","#42c7c7","#c94848"],"panelRadius":4,"titleAccentColor":"#3f7ff0"}},"ignoredRegions":[{"bounds":{"x":0,"y":0,"w":1920,"h":60},"reason":"应用导航栏"}],"components":[{"order":1,"type":"kpi","name":"今日用汽量","bounds":{"x":540,"y":115,"w":260,"h":96},"title":"","visibleTexts":["380.22 t","今日用汽量"],"seriesCount":0,"appearance":{"panelPadding":16,"valueSize":24,"accentColors":["#3f7ff0"],"iconName":"droplets","iconColor":"#3f7ff0","iconBackgroundColor":"#18356b"},"mockData":[{"name":"今日用汽量","value":"380.22","unit":"t","trend":0,"trendDir":"up"}],"dataConfidence":0.98,"confidence":0.95,"notes":""}],"warnings":[]}。',
     ].join('\n');
     return {
       model,
@@ -1098,19 +1112,20 @@ export class AiService {
         validationIssues: [{ path: '$', message: 'DeepSeek 返回内容不是合法 JSON' }],
       };
     }
-    const validationIssues = validateAiScreenAnalysisResult(parsedContent);
-    if (isRecord(parsedContent) && isRecord(parsedContent.canvas)) {
-      if (parsedContent.canvas.width !== referenceImage.width) {
+    const normalizedContent = normalizeScreenAnalysisOrder(parsedContent);
+    const validationIssues = validateAiScreenAnalysisResult(normalizedContent);
+    if (isRecord(normalizedContent) && isRecord(normalizedContent.canvas)) {
+      if (normalizedContent.canvas.width !== referenceImage.width) {
         validationIssues.push({ path: '$.canvas.width', message: `应为图片真实宽度 ${referenceImage.width}` });
       }
-      if (parsedContent.canvas.height !== referenceImage.height) {
+      if (normalizedContent.canvas.height !== referenceImage.height) {
         validationIssues.push({ path: '$.canvas.height', message: `应为图片真实高度 ${referenceImage.height}` });
       }
     }
     return {
       model,
       rawContent: content,
-      parsedContent: normalizeScreenAnalysisOrder(parsedContent),
+      parsedContent: normalizedContent,
       validationIssues,
     };
   }
@@ -1209,12 +1224,12 @@ function normalizeScreenAnalysisOrder(value: unknown): unknown {
   if (!isRecord(value) || !Array.isArray(value.components)) {
     return value;
   }
+  const preprocessedComponents = value.components
+    .filter((component) => !isBackgroundSceneControl(component, value.canvas))
+    .map(normalizeSelfDescribedScreenComponent)
+    .map(normalizeScreenKpiMockData);
   const components = mergeDetachedScreenTitles(
-    normalizeContainedKpiChartBounds(
-      value.components
-        .filter((component) => !isBackgroundSceneControl(component, value.canvas))
-        .map(normalizeSelfDescribedScreenComponent),
-    ),
+    normalizeContainedGaugeKpiBounds(normalizeContainedKpiChartBounds(preprocessedComponents)),
   );
   const entries = components.map((component, index) => {
     if (!isRecord(component) || !isRecord(component.bounds)) {
@@ -1248,6 +1263,26 @@ function normalizeScreenAnalysisOrder(value: unknown): unknown {
   return { ...value, components: normalizedComponents };
 }
 
+function normalizeScreenKpiMockData(component: unknown): unknown {
+  if (!isRecord(component) || component.type !== 'kpi' || !Array.isArray(component.mockData)) {
+    return component;
+  }
+  return {
+    ...component,
+    mockData: component.mockData.map((item) => {
+      if (!isRecord(item)) {
+        return item;
+      }
+      return {
+        ...item,
+        unit: typeof item.unit === 'string' ? item.unit : '',
+        trend: typeof item.trend === 'number' && Number.isFinite(item.trend) ? item.trend : 0,
+        trendDir: item.trendDir === 'up' || item.trendDir === 'down' ? item.trendDir : 'up',
+      };
+    }),
+  };
+}
+
 function normalizeSelfDescribedScreenComponent(component: unknown): unknown {
   if (!isRecord(component) || (component.type !== 'kpi' && component.type !== 'kpiList')
     || typeof component.notes !== 'string' || !/仪表盘/.test(component.notes)) {
@@ -1270,6 +1305,35 @@ interface ScreenRect {
   y: number;
   w: number;
   h: number;
+}
+
+function normalizeContainedGaugeKpiBounds(components: unknown[]): unknown[] {
+  const kpiListBounds = components
+    .map((component) => ({ component, bounds: readScreenRect(component) }))
+    .filter((entry) => isRecord(entry.component) && entry.component.type === 'kpiList' && entry.bounds !== null)
+    .map((entry) => entry.bounds as ScreenRect);
+  return components.map((component) => {
+    if (!isRecord(component) || component.type !== 'gauge') {
+      return component;
+    }
+    const gauge = readScreenRect(component);
+    if (!gauge) {
+      return component;
+    }
+    const containedLists = kpiListBounds.filter((list) => list.x >= gauge.x
+      && list.y > gauge.y
+      && list.x + list.w <= gauge.x + gauge.w
+      && list.y + list.h <= gauge.y + gauge.h);
+    if (containedLists.length === 0) {
+      return component;
+    }
+    const firstListY = Math.min(...containedLists.map((list) => list.y));
+    const normalizedHeight = firstListY - gauge.y;
+    if (normalizedHeight < 80 || normalizedHeight >= gauge.h) {
+      return component;
+    }
+    return { ...component, bounds: { ...gauge, h: normalizedHeight } };
+  });
 }
 
 function normalizeContainedKpiChartBounds(components: unknown[]): unknown[] {

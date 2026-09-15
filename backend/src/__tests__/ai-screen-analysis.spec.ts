@@ -81,6 +81,20 @@ describe('整屏截图模型能力测试', () => {
     expect(userPrompt).toContain('禁止先输出完整左列再输出中列或右列');
     expect(userPrompt).toContain('title 必须逐字存在于 visibleTexts');
     expect(userPrompt).toContain('pie 和 gauge 固定为 1');
+    expect(userPrompt).toContain('canvas.appearance 必须输出页面公共视觉');
+    expect(userPrompt).toContain('component.appearance 只输出相对 canvas.appearance 不同的局部覆盖');
+    expect(userPrompt).toContain('line/bar 使用 {"categories"');
+    expect(userPrompt).toContain('折线/柱状曲线可按坐标轴近似取 6 至 12 个点');
+    expect(userPrompt).toContain('禁止 CSS、HTML、SVG、函数、URL');
+    expect(userPrompt).toContain('设备统计是强制拆分例外');
+    expect(userPrompt).toContain('底边必须停在第一个 kpiList 顶边之前');
+    expect(userPrompt).toContain('每个 kpi 数据项必须完整包含 name、value、unit、trend、trendDir');
+    expect(userPrompt).toContain('表格最多 8 列、12 行');
+    expect(userPrompt).toContain('component.appearance.accentColors 输出局部颜色');
+    expect(userPrompt).toContain('可选值只有 none、auto、activity、alarm、clock');
+    expect(userPrompt).toContain('禁止输出图标 URL、SVG、HTML、emoji 或自造名称');
+    expect(userPrompt).toContain('只复刻当前静态外观，不推断点击逻辑');
+    expect(userPrompt).toContain('仅当截图当前确实展开图表 tooltip');
     expect(payload.messages[1].content).toEqual(expect.arrayContaining([
       expect.objectContaining({ type: 'text', text: expect.stringContaining('1920×1080') }),
       expect.objectContaining({
@@ -119,9 +133,7 @@ describe('整屏截图模型能力测试', () => {
     expect((result.parsedContent as typeof modelResult).components).toEqual([
       expect.objectContaining({ type: 'gauge', seriesCount: 1 }),
     ]);
-    expect(result.validationIssues).toEqual(expect.arrayContaining([
-      expect.objectContaining({ message: expect.stringContaining('KPI 内包含独立图表') }),
-    ]));
+    expect(result.validationIssues).toEqual([]);
   });
 
   it('把包含同高右侧图表的 KPI 父边界收缩到图表左侧', async () => {
@@ -164,9 +176,7 @@ describe('整屏截图模型能力测试', () => {
       expect.objectContaining({ name: '年化产量', bounds: { x: 20, y: 370, w: 130, h: 130 } }),
       expect.objectContaining({ name: '月单产对比', bounds: { x: 150, y: 370, w: 270, h: 130 } }),
     ]);
-    expect(result.validationIssues).toEqual(expect.arrayContaining([
-      expect.objectContaining({ message: expect.stringContaining('重叠超过') }),
-    ]));
+    expect(result.validationIssues).toEqual([]);
   });
 
   it('将同列紧贴且名称同源的游离标题并入主体组件', async () => {
@@ -217,12 +227,10 @@ describe('整屏截图模型能力测试', () => {
         visibleTexts: ['单晶设备态势', '单晶总功率', '560'],
       }),
     ]);
-    expect(result.validationIssues).toEqual(expect.arrayContaining([
-      expect.objectContaining({ message: expect.stringContaining('游离面板标题') }),
-    ]));
+    expect(result.validationIssues).toEqual([]);
   });
 
-  it('从解析结果移除三维背景层重复输出的场景控制栏，同时保留模型原文与诊断问题', async () => {
+  it('从解析结果移除三维背景层重复输出的场景控制栏，同时保留模型原文', async () => {
     const sceneControl = {
       order: 2,
       type: 'unsupported',
@@ -275,9 +283,7 @@ describe('整屏截图模型能力测试', () => {
     expect((result.parsedContent as typeof modelResult).components).toEqual([
       expect.objectContaining({ name: '生产态势', order: 1 }),
     ]);
-    expect(result.validationIssues).toEqual(expect.arrayContaining([
-      expect.objectContaining({ message: expect.stringContaining('背景层交互控制栏') }),
-    ]));
+    expect(result.validationIssues).toEqual([]);
   });
 
   it('保留原始模型顺序，同时把解析结果确定性重排为行优先顺序', async () => {
@@ -323,9 +329,7 @@ describe('整屏截图模型能力测试', () => {
         { name: '下方趋势', order: 2 },
       ],
     });
-    expect(result.validationIssues).toEqual(expect.arrayContaining([
-      expect.objectContaining({ path: '$.components', message: expect.stringContaining('禁止按整列') }),
-    ]));
+    expect(result.validationIssues).toEqual([]);
   });
 
   it('将真实三列大屏的按列输出重排为从上到下、同一行从左到右', async () => {
@@ -388,9 +392,69 @@ describe('整屏截图模型能力测试', () => {
       { name: '车间调控统计', order: 12 },
     ]);
     expect(result.validationIssues).toEqual(expect.arrayContaining([
-      expect.objectContaining({ message: expect.stringContaining('禁止按整列') }),
       expect.objectContaining({ message: expect.stringContaining('重叠超过') }),
     ]));
+    expect(result.validationIssues).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ message: expect.stringContaining('禁止按整列') }),
+    ]));
+  });
+
+  it('补齐 KPI 展示字段并收缩覆盖已拆分列表的仪表盘父边界', async () => {
+    const component = (
+      order: number,
+      type: string,
+      name: string,
+      bounds: { x: number; y: number; w: number; h: number },
+      mockData?: Array<Record<string, unknown>>,
+    ) => ({
+      order,
+      type,
+      name,
+      bounds,
+      title: type === 'gauge' ? '设备统计' : '',
+      visibleTexts: type === 'gauge' ? ['设备统计', '80%', '采集'] : [name],
+      seriesCount: type === 'gauge' ? 1 : 0,
+      ...(mockData ? { mockData, dataConfidence: 0.9 } : {}),
+      confidence: 0.9,
+      notes: type === 'gauge' ? '已按规则拆分，边界覆盖完整设备统计区域' : '',
+    });
+    const modelResult = {
+      canvas: { width: 1920, height: 1080, backgroundColor: '#0d0d0d' },
+      ignoredRegions: [],
+      components: [
+        component(1, 'gauge', '设备统计仪表盘', { x: 24, y: 112, w: 500, h: 500 }, [{ name: '采集', value: 80 }]),
+        component(2, 'kpiList', '网关统计', { x: 40, y: 288, w: 468, h: 112 }, [{ name: '网关总数', value: '27 个' }]),
+        component(3, 'kpiList', '设备类型统计', { x: 40, y: 412, w: 468, h: 180 }, [{ name: '流量计', value: '20 /20' }]),
+        component(4, 'kpi', '今日用汽量', { x: 548, y: 112, w: 256, h: 96 }, [{ name: '今日用汽量', value: '380.22', unit: 't' }]),
+        component(5, 'kpi', '今日运行时间', { x: 820, y: 112, w: 256, h: 96 }, [{ name: '今日运行时间', value: '8 h 15 min' }]),
+        component(6, 'kpi', '实时生产班组占比', { x: 1092, y: 112, w: 256, h: 96 }, [{ name: '实时生产班组占比', value: '80 %' }]),
+      ],
+      warnings: [],
+    };
+    const rawContent = JSON.stringify(modelResult);
+    vi.spyOn(axios, 'post').mockResolvedValue({
+      data: { choices: [{ message: { content: rawContent } }] },
+    });
+
+    const result = await createService().analyzeScreen({ referenceAssetId: 'asset-1' }, 'user-1');
+    const parsed = result.parsedContent as typeof modelResult;
+
+    expect(result.rawContent).toBe(rawContent);
+    expect(parsed.components.map(({ name, order }) => ({ name, order }))).toEqual([
+      { name: '设备统计仪表盘', order: 1 },
+      { name: '今日用汽量', order: 2 },
+      { name: '今日运行时间', order: 3 },
+      { name: '实时生产班组占比', order: 4 },
+      { name: '网关统计', order: 5 },
+      { name: '设备类型统计', order: 6 },
+    ]);
+    expect(parsed.components[0]).toMatchObject({ bounds: { x: 24, y: 112, w: 500, h: 176 } });
+    expect(parsed.components.slice(1, 4).map((item) => item.mockData?.[0])).toEqual([
+      { name: '今日用汽量', value: '380.22', unit: 't', trend: 0, trendDir: 'up' },
+      { name: '今日运行时间', value: '8 h 15 min', unit: '', trend: 0, trendDir: 'up' },
+      { name: '实时生产班组占比', value: '80 %', unit: '', trend: 0, trendDir: 'up' },
+    ]);
+    expect(result.validationIssues).toEqual([]);
   });
 
   it('保留不合格模型原文，并返回契约问题', async () => {

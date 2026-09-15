@@ -12,6 +12,68 @@ export function chartFamilyOf(templateId: string): ChartFamily {
   return 'bar';
 }
 
+/** 将安全 CSS 颜色转换为指定透明度的 rgba；无法解析时返回 undefined。 */
+function withAlpha(color: string, alpha: number): string | undefined {
+  const hex = color.trim().match(/^#([\da-f]{3,4}|[\da-f]{6}|[\da-f]{8})$/i)?.[1];
+  if (hex) {
+    const full = hex.length <= 4
+      ? hex.split('').map((char) => char + char).join('')
+      : hex;
+    const red = Number.parseInt(full.slice(0, 2), 16);
+    const green = Number.parseInt(full.slice(2, 4), 16);
+    const blue = Number.parseInt(full.slice(4, 6), 16);
+    return `rgba(${red},${green},${blue},${alpha.toFixed(3)})`;
+  }
+  const rgb = color.trim().match(/^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})/i);
+  if (rgb) {
+    return `rgba(${rgb[1]},${rgb[2]},${rgb[3]},${alpha.toFixed(3)})`;
+  }
+  return undefined;
+}
+
+/** 折线面积：顶部按 areaOpacity 着色、底部渐隐，避免大面积实色遮挡网格。 */
+function lineAreaStyle(color: string | undefined, opacityPercent: number): Record<string, unknown> | undefined {
+  if (!(opacityPercent > 0)) return undefined;
+  const opacity = Math.min(opacityPercent, 100) / 100;
+  const top = color ? withAlpha(color, Math.min(1, opacity * 0.9 + 0.05)) : undefined;
+  const bottom = color ? withAlpha(color, 0.02) : undefined;
+  if (!top || !bottom) {
+    return { opacity };
+  }
+  return {
+    color: {
+      type: 'linear',
+      x: 0, y: 0, x2: 0, y2: 1,
+      colorStops: [
+        { offset: 0, color: top },
+        { offset: 1, color: bottom },
+      ],
+    },
+  };
+}
+
+/** 演示提示框对应的类目参考线：模拟截图中悬浮时的 axisPointer。 */
+function demoTooltipMarkLine(style: Record<string, unknown>, categories: string[]): Record<string, unknown> | undefined {
+  const title = String(style.tooltipTitle ?? '').trim();
+  if (!style.showDemoTooltip || !title || !categories.includes(title)) return undefined;
+  return {
+    silent: true,
+    symbol: 'none',
+    animation: false,
+    label: { show: false },
+    lineStyle: { type: 'dashed', width: 1, color: String(style.axisLabelColor ?? '#9FB3D1'), opacity: 0.7 },
+    data: [{ xAxis: title }],
+  };
+}
+
+/** 取不小于 value 的“整齐”上限：1、2、5 × 10^n。 */
+function niceCeiling(value: number): number {
+  if (!(value > 0)) return 100;
+  const magnitude = 10 ** Math.floor(Math.log10(value));
+  const candidate = [1, 2, 5, 10].map((step) => step * magnitude).find((step) => step >= value);
+  return candidate ?? value;
+}
+
 /** 图例位置 */
 function legendOf(style: Record<string, unknown>) {
   const pos = String(style.legendPosition);
@@ -33,6 +95,9 @@ export function buildChartOption(input: {
   style: Record<string, unknown>;
   data: unknown;
   protocol?: ProtocolKind;
+  componentWidth?: number;
+  componentHeight?: number;
+  pieSummaryKind?: 'alert' | 'control';
   /** 预览图生成：精简图例/轴标签/数值标签，避免缩略图拥挤 */
   forPreview?: boolean;
 }): Record<string, unknown> {
@@ -41,15 +106,22 @@ export function buildChartOption(input: {
   const colors = (style.seriesColors as string[]) ?? [];
   const forPreview = Boolean(input.forPreview);
 
+  // 组件高度（已扣除底板标题）较矮时压缩留白并隐藏图例，避免图例压在图形上
+  const plotHeight = Number(input.componentHeight ?? 0) > 0 ? Number(input.componentHeight) : 300;
+  const shortChart = !forPreview && plotHeight <= 200;
+  const tinyChart = !forPreview && plotHeight <= 120;
   // 缩略图只保留图形本身；漏斗保留标签，否则层级几乎分不清
-  const showLegend = forPreview ? false : Boolean(style.showLegend);
+  const showLegend = forPreview || tinyChart ? false : Boolean(style.showLegend);
   const showSeriesLabel = forPreview
     ? family === 'funnel' && Boolean(style.showLabel)
     : Boolean(style.showLabel);
-  const axisFont = forPreview ? 10 : 12;
+  const axisFont = forPreview ? 10 : shortChart ? 11 : 12;
+  const legendOnTop = showLegend && String(style.legendPosition) !== 'bottom';
   const axisGrid = forPreview
     ? { left: 12, right: 12, top: 16, bottom: 12, containLabel: true }
-    : { left: 48, right: 24, top: 40, bottom: 32 };
+    : shortChart
+      ? { left: 8, right: 12, top: legendOnTop ? 30 : 10, bottom: showLegend && !legendOnTop ? 26 : 4, containLabel: true }
+      : { left: 48, right: 24, top: legendOnTop ? 40 : 20, bottom: 32 };
 
   const common = {
     color: colors,
@@ -57,8 +129,10 @@ export function buildChartOption(input: {
     legend: {
       show: showLegend,
       textStyle: { color: style.axisLabelColor, fontSize: 12 },
-      itemWidth: 14,
-      itemHeight: 10,
+      icon: 'circle',
+      itemWidth: 8,
+      itemHeight: 8,
+      itemGap: 16,
       ...legendOf(style),
     },
     tooltip: {
@@ -96,12 +170,15 @@ export function buildChartOption(input: {
       },
       axisTick: { show: false },
     };
+    const markLine = !isBar && !horizontal && !forPreview
+      ? demoTooltipMarkLine(style, data.categories.map(String))
+      : undefined;
     return {
       ...common,
       grid: axisGrid,
       xAxis: horizontal ? valAxis : catAxis,
       yAxis: horizontal ? catAxis : valAxis,
-      series: data.series.map((serie) => ({
+      series: data.series.map((serie, index) => ({
         name: serie.name,
         type: isBar ? 'bar' : 'line',
         stack: style.stack ? 'total' : undefined,
@@ -112,8 +189,8 @@ export function buildChartOption(input: {
         barGap: style.barGap ? `${style.barGap}%` : undefined,
         lineStyle: { width: Number(style.lineWidth ?? 2) },
         label: { show: showSeriesLabel, fontSize: 12 },
-        areaStyle:
-          !isBar && Number(style.areaOpacity) > 0 ? { opacity: Number(style.areaOpacity) / 100 } : undefined,
+        areaStyle: isBar ? undefined : lineAreaStyle(colors[index % Math.max(colors.length, 1)], Number(style.areaOpacity)),
+        ...(markLine && index === 0 ? { markLine } : {}),
         data: serie.data,
       })),
     };
@@ -157,8 +234,9 @@ export function buildChartOption(input: {
           symbolSize: forPreview ? 4 : 6,
           barWidth: isBar && style.barWidth ? `${style.barWidth}%` : undefined,
           lineStyle: isLine ? { width: Number(style.lineWidth ?? 2) } : undefined,
-          areaStyle:
-            isLine && Number(style.areaOpacity) > 0 ? { opacity: Number(style.areaOpacity) / 100 } : undefined,
+          areaStyle: isLine
+            ? lineAreaStyle(colors[data.series.indexOf(serie) % Math.max(colors.length, 1)], Number(style.areaOpacity))
+            : undefined,
           data: serie.data,
         };
       }),
@@ -168,19 +246,42 @@ export function buildChartOption(input: {
   if (family === 'pie') {
     const data = input.data as NameValueData;
     const inner = Number(style.innerRadius ?? 0);
-    const outer = forPreview ? 62 : 70;
-    const innerPct = forPreview && inner > 0 ? Math.min(inner, 48) : inner;
+    const hasSideSummary = !forPreview && Boolean(input.pieSummaryKind);
+    const showPercentLabel = hasSideSummary && input.pieSummaryKind === 'control';
+    const outer = forPreview ? 62 : showPercentLabel ? 54 : hasSideSummary ? 64 : 70;
+    // 环宽至少保留外径的 28%，避免内径接近外径时退化成细线
+    const minRingWidth = Math.round(outer * 0.28);
+    const innerPct = forPreview && inner > 0
+      ? Math.min(inner, 48)
+      : inner > 0 ? Math.min(inner, outer - minRingWidth) : inner;
+    const renderedData = data
+      .filter((item) => !(input.pieSummaryKind === 'alert' && item.name === '新增告警' && Number(item.value) === 0))
+      .map((item) => {
+        const semanticIndex = input.pieSummaryKind === 'alert'
+          ? item.name === '已解决' ? 0 : item.name === '未解决' ? 1 : -1
+          : input.pieSummaryKind === 'control'
+            ? ['算法', '手动', 'PID'].indexOf(item.name)
+            : -1;
+        return semanticIndex >= 0
+          ? { ...item, itemStyle: { color: colors[semanticIndex] } }
+          : item;
+      });
     return {
       ...common,
+      legend: hasSideSummary ? { ...common.legend, show: false } : common.legend,
       series: [
         {
           type: 'pie',
           center: ['50%', '52%'],
           radius: innerPct > 0 ? [`${innerPct}%`, `${outer}%`] : `${outer}%`,
           roseType: style.roseType ? 'radius' : undefined,
-          label: { show: showSeriesLabel, color: String(style.axisLabelColor), fontSize: 10 },
-          labelLine: { show: showSeriesLabel },
-          data,
+          label: showPercentLabel
+            ? { show: true, formatter: '{d}%', color: String(style.axisLabelColor), fontSize: 11 }
+            : { show: showSeriesLabel, color: String(style.axisLabelColor), fontSize: 10 },
+          labelLine: showPercentLabel
+            ? { show: true, length: 6, length2: 8, lineStyle: { color: String(style.axisLabelColor), opacity: 0.6 } }
+            : { show: showSeriesLabel },
+          data: renderedData,
         },
       ],
       graphic:
@@ -282,12 +383,19 @@ export function buildChartOption(input: {
   const nv = (input.data as NameValueData) ?? [];
   const value = nv[0]?.value ?? 0;
   const min = Number(style.gaugeMin ?? 0);
-  const max = Number(style.gaugeMax ?? 100);
+  const configuredMax = Number(style.gaugeMax ?? 100);
+  // 主值超过量程时（如设备总量 560）自动抬高到整十/整百上限，避免弧线满格
+  const max = value > configuredMax ? niceCeiling(value) : configuredMax;
+  // 只有量程为 0~100 且值不超过 100 时才视为百分比
+  const isPercent = configuredMax === 100 && min === 0 && value <= 100;
   const axisWidth = Number(style.axisLineWidth ?? 14);
   const showPointer = style.showPointer !== false;
   const showProgress = Boolean(style.showProgress);
   const showSplitLine = style.showSplitLine !== false;
   const useZones = Boolean(style.gaugeZones) && colors.length >= 2;
+  const shallowGauge = Number(input.componentHeight ?? 0) > 0
+    && Number(input.componentHeight) <= 240
+    && Number(input.componentWidth ?? 0) / Number(input.componentHeight) >= 1.6;
 
   /** 轨道配色：分区色带 / 进度弧底轨 / 单色 */
   let axisLineColor: [number, string][];
@@ -298,6 +406,93 @@ export function buildChartOption(input: {
     axisLineColor = [[1, track]];
   } else {
     axisLineColor = [[1, colors[0] ?? '#2F7FF7']];
+  }
+
+  if (shallowGauge) {
+    const startAngle = Number(style.gaugeStartAngle ?? 200);
+    const endAngle = Number(style.gaugeEndAngle ?? -20);
+    const primaryColor = colors[0] ?? '#2F7FF7';
+    const pointerColor = colors[1] ?? '#36D3A5';
+    const trackColor = String(style.gridColor || 'rgba(80, 104, 142, .42)');
+    // 半径按 min(w,h)/2 计算；浅高度下 h 为短边，圆心 82% + 半径 145% 可保证弧顶（含 18px 轨道）不出图表区
+    const center: [string, string] = ['50%', '82%'];
+    return {
+      ...common,
+      series: [
+        {
+          type: 'gauge',
+          center,
+          radius: '145%',
+          startAngle,
+          endAngle,
+          min,
+          max,
+          splitNumber: Number(style.splitNumber ?? 10),
+          axisLine: { lineStyle: { width: 18, color: [[1, trackColor]] } },
+          progress: { show: true, width: 18, itemStyle: { color: primaryColor } },
+          pointer: { show: false },
+          anchor: { show: false },
+          axisTick: { show: false },
+          splitLine: { show: false },
+          axisLabel: { show: false },
+          detail: { show: false },
+          title: { show: false },
+          data: [{ value }],
+        },
+        {
+          type: 'gauge',
+          center,
+          radius: '112%',
+          startAngle,
+          endAngle,
+          min,
+          max,
+          splitNumber: Number(style.splitNumber ?? 10),
+          axisLine: { lineStyle: { width: 2, color: [[1, 'rgba(100, 124, 160, .45)']] } },
+          progress: { show: false },
+          pointer: {
+            show: showPointer,
+            length: '56%',
+            width: 5,
+            itemStyle: { color: pointerColor },
+          },
+          anchor: {
+            show: showPointer,
+            size: 7,
+            itemStyle: { color: pointerColor },
+          },
+          axisTick: {
+            show: true,
+            splitNumber: 5,
+            length: 5,
+            distance: 1,
+            lineStyle: { color: 'rgba(130, 151, 183, .72)', width: 1 },
+          },
+          splitLine: {
+            show: true,
+            length: 9,
+            distance: 1,
+            lineStyle: { color: 'rgba(160, 178, 204, .75)', width: 1 },
+          },
+          axisLabel: { show: false },
+          detail: {
+            show: true,
+            formatter: isPercent ? '{value}%' : '{value}',
+            color: String(style.valueColor ?? style.axisLabelColor),
+            fontSize: 24,
+            fontWeight: 600,
+            offsetCenter: [0, '-18%'],
+          },
+          title: {
+            show: true,
+            color: String(style.axisLabelColor),
+            fontSize: 12,
+            offsetCenter: [0, '14%'],
+          },
+          data: [{ value, name: nv[0]?.name ?? '' }],
+        },
+      ],
+    };
   }
 
   return {

@@ -6,6 +6,7 @@ import { isProtocolValid } from '@screencraft/shared';
 import { chartLine1Template } from './meta';
 import { buildChartOption } from '../../chart-option';
 import { ensureEchartsThemes, echartsThemeName } from '../../../theme/echarts-theme';
+import ComponentAccessories from '../../renderers/ComponentAccessories.vue';
 
 const props = defineProps<{
   doc: ComponentDoc;
@@ -23,6 +24,20 @@ const style = computed(() => {
 });
 
 const valid = computed(() => isProtocolValid('axis', props.data));
+const panelStyle = computed(() => ({
+  padding: style.value.boardEnabled ? `${Number(style.value.boardPadding ?? 0)}px` : '0',
+  ...(style.value.boardEnabled ? {
+    backgroundColor: String(style.value.boardBackgroundColor ?? 'var(--panel)'),
+    borderColor: String(style.value.boardBorderColor ?? 'var(--border)'),
+    borderWidth: `${Number(style.value.boardBorderWidth ?? 1)}px`,
+    borderRadius: `${Number(style.value.boardRadius ?? 8)}px`,
+  } : {}),
+  '--component-title-color': String(style.value.boardTitleColor ?? 'var(--t1)'),
+  '--component-title-size': `${Number(style.value.boardTitleSize ?? 16)}px`,
+  '--component-border-color': String(style.value.boardBorderColor ?? 'var(--border)'),
+  '--component-text-color': String(style.value.textColor ?? 'var(--t2)'),
+  '--component-value-color': String(style.value.valueColor ?? 'var(--t1)'),
+}));
 
 /** 销毁并重建实例（主题切换必须重建） */
 function disposeChart(): void {
@@ -97,9 +112,10 @@ watch(
   <div
     class="line-wrap"
     :class="{ board: style.boardEnabled }"
-    :style="{ padding: style.boardEnabled ? style.boardPadding + 'px' : '0' }"
+    :style="panelStyle"
   >
     <div v-if="style.boardEnabled" class="board-title">{{ style.boardTitle }}</div>
+    <ComponentAccessories :style="style" :data="data" />
     <div v-if="!valid && mode === 'edit'" class="warn">静态数据不符合协议</div>
     <div v-else-if="!valid && mode === 'runtime'" class="fail">数据加载失败</div>
     <div ref="el" class="chart" />
@@ -116,20 +132,16 @@ watch(
   background: transparent;
   box-sizing: border-box;
 }
-.line-wrap.board {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-}
+.line-wrap.board { border-style: solid; }
 .board-title {
   height: 40px;
   flex: none;
   display: flex;
   align-items: center;
-  font-size: 16px;
+  font-size: var(--component-title-size);
   font-weight: 600;
-  color: var(--t1);
-  border-bottom: 1px solid var(--border);
+  color: var(--component-title-color);
+  border-bottom: 1px solid var(--component-border-color, var(--border));
 }
 .chart {
   flex: 1;

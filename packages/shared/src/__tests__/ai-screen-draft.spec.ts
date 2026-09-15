@@ -46,6 +46,62 @@ describe('整屏结构草稿', () => {
     expect(buildAiScreenStructureDraft(input)).toBeNull();
   });
 
+  it('保留识别样式与模拟数据，并与模型解析对象隔离引用', () => {
+    const input = analysisResult();
+    input.canvas.appearance = {
+      panelBackgroundColor: '#17191B',
+      panelBorderColor: '#30343A',
+      titleColor: '#FFFFFF',
+      textColor: '#AAB0BA',
+      valueColor: '#E8EDF5',
+      accentColors: ['#2F7FF7', '#39D9B2'],
+      panelRadius: 2,
+    };
+    input.components[0]!.appearance = {
+      panelPadding: 16,
+      iconName: 'activity',
+      iconColor: '#39D9B2',
+      iconBackgroundColor: '#173B36',
+      showPeriodTabs: true,
+      activePeriodTab: '日',
+      showDemoTooltip: true,
+      tooltipTitle: '12:00',
+      tooltipPrimaryValue: '5000t',
+      tooltipSecondaryValue: '3780t',
+      chart: { lineSmooth: false, lineWidth: 2 },
+    };
+    input.components[0]!.mockData = {
+      categories: ['10:00', '12:00'],
+      series: [{ name: '实际', data: [3800, 5000] }],
+    };
+    input.components[0]!.dataConfidence = 0.86;
+
+    const draft = buildAiScreenStructureDraft(input)!;
+    expect(draft.canvas.appearance).toEqual(input.canvas.appearance);
+    expect(draft.components[0]).toMatchObject({
+      appearance: {
+        panelPadding: 16,
+        iconName: 'activity',
+        iconColor: '#39D9B2',
+        iconBackgroundColor: '#173B36',
+        showPeriodTabs: true,
+        activePeriodTab: '日',
+        showDemoTooltip: true,
+        tooltipTitle: '12:00',
+        tooltipPrimaryValue: '5000t',
+        tooltipSecondaryValue: '3780t',
+        chart: { lineSmooth: false, lineWidth: 2 },
+      },
+      mockData: { categories: ['10:00', '12:00'] },
+      dataConfidence: 0.86,
+    });
+    expect(draft.canvas.appearance).not.toBe(input.canvas.appearance);
+    expect(draft.canvas.appearance?.accentColors).not.toBe(input.canvas.appearance.accentColors);
+    expect(draft.components[0]?.appearance).not.toBe(input.components[0]?.appearance);
+    expect(draft.components[0]?.appearance?.chart).not.toBe(input.components[0]?.appearance?.chart);
+    expect(draft.components[0]?.mockData).not.toBe(input.components[0]?.mockData);
+  });
+
   it('拒绝字段不完整的背景层描述', () => {
     const input = {
       ...analysisResult(),
@@ -99,5 +155,48 @@ function analysisResult() {
       notes: '',
     }],
     warnings: [],
+  } as {
+    canvas: {
+      width: number;
+      height: number;
+      backgroundColor: string;
+      appearance?: {
+        panelBackgroundColor: string;
+        panelBorderColor: string;
+        titleColor: string;
+        textColor: string;
+        valueColor: string;
+        accentColors: string[];
+        panelRadius: number;
+      };
+    };
+    ignoredRegions: never[];
+    components: Array<{
+      order: number;
+      type: string;
+      name: string;
+      bounds: { x: number; y: number; w: number; h: number };
+      title: string;
+      visibleTexts: string[];
+      seriesCount: number;
+      appearance?: {
+        panelPadding: number;
+        iconName: 'activity';
+        iconColor: string;
+        iconBackgroundColor: string;
+        showPeriodTabs: boolean;
+        activePeriodTab: '日';
+        showDemoTooltip: boolean;
+        tooltipTitle: string;
+        tooltipPrimaryValue: string;
+        tooltipSecondaryValue: string;
+        chart: { lineSmooth: boolean; lineWidth: number };
+      };
+      mockData?: { categories: string[]; series: Array<{ name: string; data: number[] }> };
+      dataConfidence?: number;
+      confidence: number;
+      notes: string;
+    }>;
+    warnings: never[];
   };
 }
